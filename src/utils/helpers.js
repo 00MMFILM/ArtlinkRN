@@ -6,6 +6,80 @@ export const getFieldColor = (field) => FIELD_COLORS[field] || "#8E8E93";
 
 export const FIELDS = ["acting", "music", "art", "dance", "literature", "film"];
 
+// ─── Profile Constants ───
+
+export const GENDER_OPTIONS = [
+  { key: "male", label: "남성" },
+  { key: "female", label: "여성" },
+  { key: "other", label: "기타" },
+];
+
+export const SPECIALTY_SUGGESTIONS = [
+  "검도", "수영", "영어", "피아노", "승마", "태권도", "발레",
+  "일본어", "중국어", "기타연주", "드럼", "요가", "필라테스",
+  "복싱", "사격", "스키", "서핑", "스케이트보드", "자전거",
+  "요리", "운전", "오토바이", "다이빙", "클라이밍", "합기도",
+];
+
+export const CAREER_TYPES = [
+  { key: "drama", label: "드라마" },
+  { key: "film", label: "영화" },
+  { key: "theater", label: "연극" },
+  { key: "musical", label: "뮤지컬" },
+  { key: "commercial", label: "광고" },
+  { key: "music_video", label: "뮤직비디오" },
+  { key: "web_drama", label: "웹드라마" },
+  { key: "short_film", label: "단편영화" },
+  { key: "variety", label: "예능" },
+  { key: "other", label: "기타" },
+];
+
+export function calculateAge(birthDate) {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age > 0 ? age : null;
+}
+
+// ─── Subscription Gate ───
+
+export const PLAN_LIMITS = {
+  free: {
+    aiAnalysisPerMonth: 3,
+    portfolioGeneration: false,
+    matchingRecommendationsPerMonth: 0,
+    castingDirectorView: false,
+    unlimitedNotes: false,
+  },
+  pro: {
+    aiAnalysisPerMonth: Infinity,
+    portfolioGeneration: true,
+    matchingRecommendationsPerMonth: 10,
+    castingDirectorView: false,
+    unlimitedNotes: true,
+  },
+  premium: {
+    aiAnalysisPerMonth: Infinity,
+    portfolioGeneration: true,
+    matchingRecommendationsPerMonth: Infinity,
+    castingDirectorView: true,
+    unlimitedNotes: true,
+  },
+};
+
+export function canUseFeature(subscription, feature) {
+  const plan = subscription?.plan || "free";
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+  const value = limits[feature];
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  return false;
+}
+
 export const USER_TYPES = [
   { key: "professional", label: "현직 아티스트", desc: "현재 활동 중인 전문 아티스트" },
   { key: "aspiring", label: "지망생", desc: "아티스트를 꿈꾸는 학생/준비생" },

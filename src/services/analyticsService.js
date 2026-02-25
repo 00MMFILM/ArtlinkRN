@@ -124,3 +124,143 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
       : (userProfile.fields || []).map((f) => FIELD_LABELS[f] || f).join(" · ") || "예술",
   };
 }
+
+export function computeMatchPercent(project, artistProfile, userProfile, portfolioItems = []) {
+  const req = project.requirements || {};
+  let score = 0;
+
+  // 1. Field overlap (0-25)
+  const userFields = userProfile.fields || [];
+  const topFieldKeys = (artistProfile.topFields || []).map(([f]) => f);
+  if (topFieldKeys[0] === project.field || userFields[0] === project.field) {
+    score += 25;
+  } else if ([...userFields, ...topFieldKeys].includes(project.field)) {
+    score += 15;
+  }
+
+  // 2. Body/physical conditions (0-20)
+  let bodyScore = 0;
+  let bodyFactors = 0;
+
+  if (req.gender) {
+    bodyFactors++;
+    if (userProfile.gender === req.gender) bodyScore += 1;
+  }
+  if (req.ageRange && req.ageRange.length === 2) {
+    bodyFactors++;
+    const age = _calculateAge(userProfile.birthDate);
+    if (age && age >= req.ageRange[0] && age <= req.ageRange[1]) bodyScore += 1;
+    else if (age) bodyScore += 0; // out of range
+    else bodyScore += 0.5; // no data = partial
+  }
+  if (req.heightRange && req.heightRange.length === 2) {
+    bodyFactors++;
+    const h = userProfile.height;
+    if (h && h >= req.heightRange[0] && h <= req.heightRange[1]) bodyScore += 1;
+    else if (h) bodyScore += 0;
+    else bodyScore += 0.5;
+  }
+  if (bodyFactors > 0) {
+    score += Math.round((bodyScore / bodyFactors) * 20);
+  } else {
+    score += 10; // no requirements = partial score
+  }
+
+  // 3. Specialties (0-15)
+  const reqSpecialties = req.specialties || [];
+  if (reqSpecialties.length > 0) {
+    const userSpecs = userProfile.specialties || [];
+    const matched = reqSpecialties.filter((s) => userSpecs.includes(s)).length;
+    score += Math.round((matched / reqSpecialties.length) * 15);
+  } else {
+    score += 8;
+  }
+
+  // 4. Skill scores (0-15)
+  score += Math.round(((artistProfile.overallScore || 0) / 100) * 15);
+
+  // 5. Portfolio presence (0-10)
+  const fieldPortfolioCount = portfolioItems.filter((i) => i.field === project.field).length;
+  score += Math.min(10, fieldPortfolioCount * 3);
+
+  // 6. Tag relevance (0-10)
+  const topTags = (artistProfile.topTags || []).map(([t]) => t.toLowerCase());
+  const projectWords = (project.title + " " + project.description).toLowerCase().split(/\s+/);
+  const tagOverlap = topTags.filter((t) => projectWords.some((w) => w.includes(t) || t.includes(w))).length;
+  score += Math.min(10, tagOverlap * 3);
+
+  // 7. Location (0-5)
+  if (req.location) {
+    if (userProfile.location && userProfile.location.includes(req.location)) score += 5;
+  } else {
+    score += 3;
+  }
+
+  return Math.min(100, score);
+}
+
+function _calculateAge(birthDate) {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age > 0 ? age : null;
+}
+
+// Recommend postings for a user (forward matching)
+export function getRecommendedPostings(userProfile, artistProfile, portfolioItems, allPostings) {
+  return allPostings
+    .map((p) => ({ ...p, matchPercent: computeMatchPercent(p, artistProfile, userProfile, portfolioItems) }))
+    .sort((a, b) => b.matchPercent - a.matchPercent);
+}
+
+// Recommend actors for a posting (reverse matching - casting director view)
+export function getRecommendedActors(posting, actorProfiles) {
+  const req = posting.requirements || {};
+  return actorProfiles
+    .map((actor) => {
+      let score = 0;
+      let factors = 0;
+
+      // Field match
+      factors++;
+      if ((actor.fields || []).includes(posting.field)) score += 1;
+
+      // Gender
+      if (req.gender) {
+        factors++;
+        if (actor.gender === req.gender) score += 1;
+      }
+      // Age
+      if (req.ageRange) {
+        factors++;
+        const age = _calculateAge(actor.birthDate);
+        if (age && age >= req.ageRange[0] && age <= req.ageRange[1]) score += 1;
+        else if (!age) score += 0.5;
+      }
+      // Height
+      if (req.heightRange) {
+        factors++;
+        if (actor.height && actor.height >= req.heightRange[0] && actor.height <= req.heightRange[1]) score += 1;
+        else if (!actor.height) score += 0.5;
+      }
+      // Specialties
+      if (req.specialties && req.specialties.length > 0) {
+        factors++;
+        const matched = req.specialties.filter((s) => (actor.specialties || []).includes(s)).length;
+        score += matched / req.specialties.length;
+      }
+      // Location
+      if (req.location) {
+        factors++;
+        if (actor.location && actor.location.includes(req.location)) score += 1;
+      }
+
+      const matchPercent = factors > 0 ? Math.round((score / factors) * 100) : 50;
+      return { ...actor, matchPercent };
+    })
+    .sort((a, b) => b.matchPercent - a.matchPercent);
+}

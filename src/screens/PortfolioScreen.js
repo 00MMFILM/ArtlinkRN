@@ -1,19 +1,46 @@
-import React from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
+  Image,
+  TextInput,
+  Alert,
+  Dimensions,
+  ActivityIndicator,
   StyleSheet,
   SafeAreaView,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import TopBar from "../components/TopBar";
+import { FIELDS, calculateAge, GENDER_OPTIONS, canUseFeature } from "../utils/helpers";
 import { truncate, formatDate } from "../utils/helpers";
+import TopBar from "../components/TopBar";
+import EmptyState from "../components/EmptyState";
+import { generatePortfolioSummary, generateStructuredPortfolio } from "../services/aiService";
+
+const SCREEN_W = Dimensions.get("window").width;
+const GRID_ITEM_SIZE = (SCREEN_W - 32 - 16) / 3;
+
+const FIELD_TABS = [
+  { key: "all", label: "전체", emoji: "📋" },
+  ...FIELDS.map((f) => ({ key: f, label: FIELD_LABELS[f] || f, emoji: FIELD_EMOJIS[f] || "📝" })),
+];
 
 export default function PortfolioScreen({ navigation }) {
-  const { artistProfile, userProfile, savedNotes } = useApp();
+  const {
+    artistProfile, userProfile, savedNotes, subscription,
+    portfolioItems, portfolioSummary,
+    handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
+  } = useApp();
+
+  const [selectedField, setSelectedField] = useState("all");
+  const [addField, setAddField] = useState(userProfile.fields?.[0] || "acting");
+  const [addDescription, setAddDescription] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [cardLoading, setCardLoading] = useState(false);
 
   const totalNotes = savedNotes.length;
   const topFields = artistProfile.topFields || [];
@@ -27,6 +54,107 @@ export default function PortfolioScreen({ navigation }) {
   ];
 
   const featuredNotes = artistProfile.featuredNotes || [];
+
+  const filteredItems = useMemo(() => {
+    if (selectedField === "all") return portfolioItems;
+    return portfolioItems.filter((item) => item.field === selectedField);
+  }, [portfolioItems, selectedField]);
+
+  // ─── Media Handlers ───
+
+  const handleTakePhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "카메라 사용을 위해 권한을 허용해주세요.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      handleAddPortfolioItem({
+        uri: result.assets[0].uri,
+        type: "photo",
+        field: addField,
+        description: addDescription,
+      });
+      setAddDescription("");
+    }
+  }, [addField, addDescription, handleAddPortfolioItem]);
+
+  const handlePickMedia = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "갤러리 접근을 위해 권한을 허용해주세요.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"],
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      result.assets.forEach((asset) => {
+        handleAddPortfolioItem({
+          uri: asset.uri,
+          type: asset.type === "video" ? "video" : "photo",
+          field: addField,
+          description: addDescription,
+        });
+      });
+      setAddDescription("");
+    }
+  }, [addField, addDescription, handleAddPortfolioItem]);
+
+  const confirmDeleteItem = useCallback((itemId) => {
+    Alert.alert("삭제", "이 포트폴리오 항목을 삭제할까요?", [
+      { text: "취소", style: "cancel" },
+      { text: "삭제", style: "destructive", onPress: () => handleDeletePortfolioItem(itemId) },
+    ]);
+  }, [handleDeletePortfolioItem]);
+
+  const handleGenerateCard = useCallback(async () => {
+    if (!canUseFeature(subscription, "portfolioGeneration")) {
+      Alert.alert("Pro 플랜 필요", "AI 프로필 카드는 Pro 이상 플랜에서 이용 가능합니다.", [
+        { text: "확인" },
+        { text: "업그레이드", onPress: () => navigation.navigate("Subscription") },
+      ]);
+      return;
+    }
+    setCardLoading(true);
+    try {
+      const text = await generateStructuredPortfolio(userProfile, portfolioItems, artistProfile, savedNotes);
+      handleUpdatePortfolioSummary({
+        ...portfolioSummary,
+        cardText: text,
+        cardGeneratedAt: new Date().toISOString(),
+      });
+    } catch {
+      Alert.alert("생성 실패", "프로필 카드 생성에 실패했습니다.");
+    } finally {
+      setCardLoading(false);
+    }
+  }, [userProfile, portfolioItems, artistProfile, savedNotes, subscription, portfolioSummary, handleUpdatePortfolioSummary, navigation]);
+
+  const handleGenerateSummary = useCallback(async () => {
+    if (portfolioItems.length === 0) {
+      Alert.alert("포트폴리오 필요", "포트폴리오에 작품을 먼저 추가해주세요.");
+      return;
+    }
+    setSummaryLoading(true);
+    try {
+      const text = await generatePortfolioSummary(portfolioItems, userProfile, artistProfile);
+      handleUpdatePortfolioSummary({ summaryText: text, generatedAt: new Date().toISOString() });
+    } catch {
+      Alert.alert("생성 실패", "요약 생성에 실패했습니다.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [portfolioItems, userProfile, artistProfile, handleUpdatePortfolioSummary]);
+
+  // ─── Render ───
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -44,7 +172,7 @@ export default function PortfolioScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Portfolio header */}
+        {/* ─── Header Card ─── */}
         <View style={styles.headerCard}>
           <View style={styles.avatarCircle}>
             <Text style={[T.h1, { color: CLight.pink }]}>
@@ -57,14 +185,33 @@ export default function PortfolioScreen({ navigation }) {
           <Text style={[T.caption, { color: CLight.pink, marginTop: 4 }]}>
             {artistProfile.displayFields || "아티스트"}
           </Text>
-          <Text style={[T.small, { color: CLight.gray500, marginTop: 10, textAlign: "center", lineHeight: 22 }]}>
-            {totalNotes > 0
-              ? `${totalNotes}개의 노트를 기록하며 성장 중인 아티스트입니다. ${artistProfile.streak}일 연속 기록 중이며, 종합 점수 ${artistProfile.overallScore}점을 달성했습니다.`
-              : "아직 노트를 기록하지 않았습니다. 첫 번째 노트를 작성하고 포트폴리오를 만들어보세요!"}
-          </Text>
+          {/* Body info badges */}
+          {(userProfile.gender || userProfile.birthDate || userProfile.height) ? (
+            <View style={styles.bodyBadgeRow}>
+              {userProfile.gender ? (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>{GENDER_OPTIONS.find((g) => g.key === userProfile.gender)?.label || ""}</Text>
+                </View>
+              ) : null}
+              {userProfile.birthDate ? (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}세</Text>
+                </View>
+              ) : null}
+              {userProfile.height ? (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>{userProfile.height}cm</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
-          {/* Quick stats */}
           <View style={styles.quickStats}>
+            <View style={styles.statItem}>
+              <Text style={[T.h3, { color: CLight.pink }]}>{portfolioItems.length}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>작품</Text>
+            </View>
+            <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={[T.h3, { color: CLight.pink }]}>{totalNotes}</Text>
               <Text style={[T.micro, { color: CLight.gray500 }]}>노트</Text>
@@ -82,7 +229,203 @@ export default function PortfolioScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Skill scores */}
+        {/* ─── AI Profile Card ─── */}
+        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
+          AI 프로필 카드
+        </Text>
+        {portfolioSummary?.cardText ? (
+          <View style={styles.profileCard}>
+            <Text style={[T.body, { color: CLight.gray700, lineHeight: 24 }]}>
+              {portfolioSummary.cardText}
+            </Text>
+            <TouchableOpacity style={styles.summaryRefreshBtn} onPress={handleGenerateCard} disabled={cardLoading}>
+              {cardLoading ? (
+                <ActivityIndicator size="small" color={CLight.pink} />
+              ) : (
+                <Text style={[T.micro, { color: CLight.pink }]}>재생성</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.aiGenerateBtn} onPress={handleGenerateCard} disabled={cardLoading} activeOpacity={0.7}>
+            {cardLoading ? (
+              <ActivityIndicator size="small" color={CLight.white} />
+            ) : (
+              <Text style={[T.captionBold, { color: CLight.white }]}>AI 프로필 카드 생성</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* ─── AI Summary ─── */}
+        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
+          AI 소개글
+        </Text>
+        {portfolioSummary ? (
+          <View style={styles.summaryCard}>
+            <Text style={[T.body, { color: CLight.gray700, lineHeight: 24 }]}>
+              {portfolioSummary.summaryText}
+            </Text>
+            <TouchableOpacity
+              style={styles.summaryRefreshBtn}
+              onPress={handleGenerateSummary}
+              disabled={summaryLoading}
+            >
+              {summaryLoading ? (
+                <ActivityIndicator size="small" color={CLight.pink} />
+              ) : (
+                <Text style={[T.micro, { color: CLight.pink }]}>재생성</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.aiGenerateBtn}
+            onPress={handleGenerateSummary}
+            disabled={summaryLoading}
+            activeOpacity={0.7}
+          >
+            {summaryLoading ? (
+              <ActivityIndicator size="small" color={CLight.white} />
+            ) : (
+              <Text style={[T.captionBold, { color: CLight.white }]}>
+                ✨ AI 소개글 생성
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* ─── Gallery Section ─── */}
+        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
+          갤러리 ({portfolioItems.length})
+        </Text>
+
+        {/* Add media controls */}
+        <View style={styles.card}>
+          {/* Field selector for new items */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 6, marginBottom: 10 }}
+          >
+            {FIELDS.map((f) => {
+              const isActive = addField === f;
+              const color = FIELD_COLORS[f] || CLight.gray500;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  style={[
+                    styles.fieldChip,
+                    { backgroundColor: isActive ? `${color}15` : CLight.gray100, borderColor: isActive ? color : "transparent", borderWidth: 1 },
+                  ]}
+                  onPress={() => setAddField(f)}
+                >
+                  <Text style={{ fontSize: 13 }}>{FIELD_EMOJIS[f]}</Text>
+                  <Text style={[T.micro, { color: isActive ? color : CLight.gray500, fontWeight: isActive ? "600" : "400" }]}>
+                    {FIELD_LABELS[f]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Description input */}
+          <TextInput
+            style={styles.descInput}
+            placeholder="작품 설명 (선택)"
+            placeholderTextColor={CLight.gray400}
+            value={addDescription}
+            onChangeText={setAddDescription}
+            maxLength={100}
+          />
+
+          {/* Media buttons */}
+          <View style={styles.mediaButtonRow}>
+            <TouchableOpacity style={styles.mediaBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
+              <Text style={{ fontSize: 16 }}>📷</Text>
+              <Text style={[T.caption, { color: CLight.gray700 }]}>촬영</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaBtn} onPress={handlePickMedia} activeOpacity={0.7}>
+              <Text style={{ fontSize: 16 }}>🖼️</Text>
+              <Text style={[T.caption, { color: CLight.gray700 }]}>갤러리</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Field filter tabs */}
+        <View style={styles.filterSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+          >
+            {FIELD_TABS.map((tab) => {
+              const isActive = selectedField === tab.key;
+              const color = tab.key === "all" ? CLight.pink : FIELD_COLORS[tab.key] || CLight.gray500;
+              return (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[
+                    styles.filterTab,
+                    {
+                      backgroundColor: isActive ? `${color}15` : CLight.white,
+                      borderColor: isActive ? color : CLight.gray200,
+                      borderWidth: isActive ? 1.5 : 1,
+                    },
+                  ]}
+                  onPress={() => setSelectedField(tab.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.filterEmoji}>{tab.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? color : CLight.gray500, fontWeight: isActive ? "600" : "400" },
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Grid */}
+        {filteredItems.length > 0 ? (
+          <View style={styles.gridContainer}>
+            {filteredItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.gridItem, { width: GRID_ITEM_SIZE, height: GRID_ITEM_SIZE }]}
+                onLongPress={() => confirmDeleteItem(item.id)}
+                activeOpacity={0.8}
+              >
+                <Image source={{ uri: item.uri }} style={styles.gridImage} />
+                {item.type === "video" && (
+                  <View style={styles.videoOverlay}>
+                    <Text style={styles.videoOverlayText}>▶</Text>
+                  </View>
+                )}
+                <View
+                  style={[
+                    styles.gridFieldBadge,
+                    { backgroundColor: (FIELD_COLORS[item.field] || CLight.pink) + "CC" },
+                  ]}
+                >
+                  <Text style={{ fontSize: 10 }}>{FIELD_EMOJIS[item.field] || ""}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            icon="🎨"
+            title="포트폴리오가 비어있어요"
+            message="위의 버튼으로 작품을 추가해보세요!"
+          />
+        )}
+
+        {/* ─── Skill Scores ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
           스킬 점수
         </Text>
@@ -107,7 +450,7 @@ export default function PortfolioScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Featured notes */}
+        {/* ─── Featured Notes ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
           대표 노트
         </Text>
@@ -151,7 +494,7 @@ export default function PortfolioScreen({ navigation }) {
           </View>
         )}
 
-        {/* Field distribution */}
+        {/* ─── Field Distribution ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
           분야 분포
         </Text>
@@ -200,6 +543,8 @@ const styles = StyleSheet.create({
   backBtn: { ...T.caption, color: CLight.pink },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
+
+  // Header
   headerCard: {
     backgroundColor: CLight.white,
     borderRadius: 20,
@@ -231,6 +576,47 @@ const styles = StyleSheet.create({
   },
   statItem: { alignItems: "center" },
   statDivider: { width: 1, height: 28, backgroundColor: CLight.gray200 },
+  bodyBadgeRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  bodyBadge: { backgroundColor: CLight.pinkSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  bodyBadgeText: { fontSize: 11, color: CLight.pink, fontWeight: "600" },
+  profileCard: {
+    backgroundColor: CLight.white, borderRadius: 16, padding: 16,
+    borderLeftWidth: 4, borderLeftColor: CLight.pink,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+  },
+
+  // AI Summary
+  summaryCard: {
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: CLight.pink,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  summaryRefreshBtn: {
+    alignSelf: "flex-end",
+    marginTop: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  aiGenerateBtn: {
+    backgroundColor: CLight.pink,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    shadowColor: CLight.pink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  // Gallery controls
   card: {
     backgroundColor: CLight.white,
     borderRadius: 16,
@@ -241,6 +627,90 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  fieldChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  descInput: {
+    backgroundColor: CLight.inputBg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: CLight.inputBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    ...T.caption,
+    color: CLight.gray900,
+  },
+  mediaButtonRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  mediaBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: CLight.gray50,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+  },
+
+  // Filter tabs
+  filterSection: { marginTop: 12, marginBottom: 12 },
+  filterScroll: { gap: 8 },
+  filterTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    gap: 5,
+  },
+  filterEmoji: { fontSize: 14 },
+  filterLabel: { fontSize: 13 },
+
+  // Grid
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  gridItem: {
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: CLight.gray100,
+  },
+  gridImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 10,
+  },
+  videoOverlayText: { fontSize: 22, color: CLight.white },
+  gridFieldBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+
+  // Score bars
   scoreRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -258,6 +728,8 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+
+  // Notes
   noteCard: {
     backgroundColor: CLight.white,
     borderRadius: 14,
@@ -289,6 +761,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+
+  // Field distribution
   fieldRow: {
     flexDirection: "row",
     alignItems: "center",

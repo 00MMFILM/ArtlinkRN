@@ -11,10 +11,12 @@ import {
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, APP_VERSION } from "../constants/theme";
+import { calculateAge, GENDER_OPTIONS } from "../utils/helpers";
 
 // ─── Menu items ───
 
 const MENU_ITEMS = [
+  { icon: "\u270F\uFE0F", label: "\uD504\uB85C\uD544 \uD3B8\uC9D1", route: "ProfileEdit" },
   { icon: "\uD83C\uDFAF", label: "\uBAA9\uD45C \uAD00\uB9AC", route: "Goals" },
   { icon: "\uD83D\uDCC8", label: "\uC131\uC7A5 \uB9AC\uD3EC\uD2B8", route: "Growth" },
   { icon: "\uD83E\uDD1D", label: "\uB9E4\uCE6D", route: "Matching" },
@@ -114,6 +116,28 @@ export default function ProfileScreen({ navigation }) {
           <Text style={[T.h2, { color: CLight.gray900, marginTop: 14 }]}>{displayName}</Text>
           {displayFields ? (
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 4 }]}>{displayFields}</Text>
+          ) : null}
+          {/* Body info badges */}
+          {(userProfile.gender || userProfile.birthDate || userProfile.height) ? (
+            <View style={styles.bodyBadgeRow}>
+              {userProfile.gender ? (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>
+                    {GENDER_OPTIONS.find((g) => g.key === userProfile.gender)?.label || userProfile.gender}
+                  </Text>
+                </View>
+              ) : null}
+              {userProfile.birthDate ? (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}세</Text>
+                </View>
+              ) : null}
+              {userProfile.height ? (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>{userProfile.height}cm</Text>
+                </View>
+              ) : null}
+            </View>
           ) : null}
         </View>
 
@@ -247,6 +271,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   avatarEmoji: { fontSize: 40 },
+  bodyBadgeRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  bodyBadge: { backgroundColor: CLight.pinkSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  bodyBadgeText: { ...T.micro, color: CLight.pink, fontWeight: "600" },
 
   // Stats Row
   statsRow: {

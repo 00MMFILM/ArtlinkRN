@@ -126,4 +126,114 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
   }
 }
 
+function heuristicPortfolioSummary(portfolioItems, userProfile, artistProfile) {
+  const photoCount = portfolioItems.filter((i) => i.type === "photo").length;
+  const videoCount = portfolioItems.filter((i) => i.type === "video").length;
+  const fieldCounts = {};
+  portfolioItems.forEach((item) => { fieldCounts[item.field] = (fieldCounts[item.field] || 0) + 1; });
+  const topField = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1])[0];
+  const fieldLabel = topField ? (FIELD_LABELS[topField[0]] || topField[0]) : "예술";
+  const name = userProfile.name || "아티스트";
+  const mediaParts = [];
+  if (photoCount > 0) mediaParts.push(`사진 ${photoCount}장`);
+  if (videoCount > 0) mediaParts.push(`영상 ${videoCount}개`);
+  const mediaStr = mediaParts.join("과 ") || "작품";
+  return `${name}님은 ${fieldLabel} 분야를 중심으로 활동하는 아티스트입니다. ${mediaStr}으로 구성된 포트폴리오를 보유하고 있으며, 종합 점수 ${artistProfile.overallScore || 0}점의 성장 기록을 쌓아가고 있습니다. 꾸준한 기록과 다양한 작품 활동을 통해 자신만의 예술 세계를 구축해가는 중입니다.`;
+}
+
+export async function generatePortfolioSummary(portfolioItems, userProfile, artistProfile) {
+  const fieldCounts = {};
+  portfolioItems.forEach((item) => { fieldCounts[item.field] = (fieldCounts[item.field] || 0) + 1; });
+  const descriptions = portfolioItems
+    .filter((i) => i.description)
+    .slice(0, 5)
+    .map((i) => i.description)
+    .join("; ");
+
+  const prompt = `당신은 ArtLink의 포트폴리오 코치입니다. 다음 아티스트의 포트폴리오를 기반으로 소개 문구를 작성해주세요 (200-300자).
+이름: ${userProfile.name || "아티스트"}
+분야: ${Object.entries(fieldCounts).map(([f, c]) => `${FIELD_LABELS[f] || f}(${c}건)`).join(", ")}
+작품 설명: ${descriptions || "없음"}
+종합 점수: ${artistProfile.overallScore || 0}점`;
+
+  try {
+    const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, field: "general" }),
+    });
+    if (!response.ok) throw new Error("Server error");
+    const data = await response.json();
+    return data.analysis || data.content || heuristicPortfolioSummary(portfolioItems, userProfile, artistProfile);
+  } catch (e) {
+    return heuristicPortfolioSummary(portfolioItems, userProfile, artistProfile);
+  }
+}
+
+function heuristicStructuredPortfolio(userProfile, portfolioItems, artistProfile) {
+  const name = userProfile.name || "아티스트";
+  const genderLabel = { male: "남성", female: "여성", other: "" }[userProfile.gender] || "";
+  const age = userProfile.birthDate ? (() => {
+    const b = new Date(userProfile.birthDate);
+    const t = new Date();
+    let a = t.getFullYear() - b.getFullYear();
+    if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) a--;
+    return a > 0 ? a : null;
+  })() : null;
+  const heightStr = userProfile.height ? `${userProfile.height}cm` : "";
+  const fieldLabels = (userProfile.fields || []).map((f) => FIELD_LABELS[f] || f).join(", ") || "예술";
+  const specStr = (userProfile.specialties || []).slice(0, 5).join(", ");
+  const careerStr = (userProfile.career || []).slice(0, 3).map((c) => `${c.title}(${c.role})`).join(", ");
+  const score = artistProfile.overallScore || 0;
+
+  const lines = [`[ArtLink 프로필 카드]`, ``, `이름: ${name}`];
+  if (genderLabel || age) lines.push(`${genderLabel}${age ? ` / ${age}세` : ""}${heightStr ? ` / ${heightStr}` : ""}`);
+  lines.push(`분야: ${fieldLabels}`);
+  if (specStr) lines.push(`특기: ${specStr}`);
+  if (careerStr) lines.push(`주요 경력: ${careerStr}`);
+  if (userProfile.school) lines.push(`학교: ${userProfile.school}`);
+  if (userProfile.agency) lines.push(`소속: ${userProfile.agency}`);
+  lines.push(`종합 점수: ${score}점`);
+  lines.push(``);
+  lines.push(`${name}님은 ${fieldLabels} 분야에서 활동하며, 포트폴리오 ${portfolioItems.length}건의 작품과 꾸준한 기록을 통해 자신만의 예술 세계를 만들어가고 있습니다.`);
+
+  return lines.join("\n");
+}
+
+export async function generateStructuredPortfolio(userProfile, portfolioItems, artistProfile, savedNotes = []) {
+  const name = userProfile.name || "아티스트";
+  const fieldLabels = (userProfile.fields || []).map((f) => FIELD_LABELS[f] || f).join(", ");
+  const specStr = (userProfile.specialties || []).join(", ");
+  const careerStr = (userProfile.career || []).map((c) => `${c.title}(${c.role}, ${c.year})`).join("; ");
+
+  const prompt = `당신은 ArtLink의 프로필 카드 작성 전문가입니다. 다음 아티스트의 구조화된 프로필 소개서를 300-500자로 작성해주세요.
+이름: ${name}
+성별: ${userProfile.gender || "미입력"}
+나이: ${userProfile.birthDate || "미입력"}
+키: ${userProfile.height || "미입력"}cm
+분야: ${fieldLabels || "미입력"}
+특기: ${specStr || "없음"}
+경력: ${careerStr || "없음"}
+학교: ${userProfile.school || "미입력"}
+소속사: ${userProfile.agency || "없음"}
+종합 점수: ${artistProfile.overallScore || 0}점
+포트폴리오: ${portfolioItems.length}건
+노트: ${savedNotes.length}개
+
+전문적이면서도 개성있는 프로필 소개서를 작성해주세요.`;
+
+  try {
+    const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, field: "general" }),
+    });
+    if (!response.ok) throw new Error("Server error");
+    const data = await response.json();
+    return data.analysis || data.content || heuristicStructuredPortfolio(userProfile, portfolioItems, artistProfile);
+  } catch {
+    return heuristicStructuredPortfolio(userProfile, portfolioItems, artistProfile);
+  }
+}
+
 export { FIELD_AI_PROMPTS };

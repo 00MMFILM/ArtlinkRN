@@ -25,6 +25,8 @@ import SubscriptionScreen from "./src/screens/SubscriptionScreen";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
 import B2BDashboardScreen from "./src/screens/B2BDashboardScreen";
 import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
+import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
+import ProfileEditScreen from "./src/screens/ProfileEditScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -108,6 +110,11 @@ function AppNavigator() {
               <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
               <Stack.Screen name="Growth" component={GrowthScreen} />
               <Stack.Screen name="Matching" component={MatchingScreen} />
+              <Stack.Screen
+                name="MatchingPostCreate"
+                component={MatchingPostCreateScreen}
+                options={{ presentation: "modal", animation: "slide_from_bottom" }}
+              />
               <Stack.Screen name="ShareCard" component={ShareCardScreen} />
               <Stack.Screen name="Portfolio" component={PortfolioScreen} />
               <Stack.Screen name="Goals" component={GoalsScreen} />
@@ -115,6 +122,11 @@ function AppNavigator() {
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="B2B" component={B2BDashboardScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
+              <Stack.Screen
+                name="ProfileEdit"
+                component={ProfileEditScreen}
+                options={{ presentation: "modal", animation: "slide_from_bottom" }}
+              />
             </>
           )}
         </Stack.Navigator>
