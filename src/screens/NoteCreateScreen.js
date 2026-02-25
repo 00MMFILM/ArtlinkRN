@@ -1,0 +1,933 @@
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { Audio } from "expo-av";
+import { useApp } from "../context/AppContext";
+import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { analyzeNote } from "../services/aiService";
+import { FIELDS } from "../utils/helpers";
+import TopBar from "../components/TopBar";
+
+export default function NoteCreateScreen({ navigation }) {
+  const { handleSaveNote, savedNotes, userProfile } = useApp();
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [field, setField] = useState(FIELDS[0]);
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
+  const [seriesName, setSeriesName] = useState("");
+  const [aiComment, setAiComment] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Media state
+  const [images, setImages] = useState([]); // [{ uri, type, width, height }]
+  const [voiceRecordings, setVoiceRecordings] = useState([]); // [{ uri, duration }]
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+  const [playingSound, setPlayingSound] = useState(null);
+  const [playingIdx, setPlayingIdx] = useState(null);
+
+  // Recording blink animation
+  const recordBlink = useRef(new Animated.Value(1)).current;
+
+  // Shimmer animation for AI loading
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (aiLoading) {
+      Animated.loop(
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      shimmerAnim.setValue(0);
+    }
+  }, [aiLoading, shimmerAnim]);
+
+  // Recording blink animation
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(recordBlink, { toValue: 0.2, duration: 500, useNativeDriver: true }),
+          Animated.timing(recordBlink, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      recordBlink.setValue(1);
+    }
+  }, [isRecording, recordBlink]);
+
+  // Cleanup sound on unmount
+  useEffect(() => {
+    return () => {
+      if (playingSound) playingSound.unloadAsync();
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
+
+  // Track unsaved changes
+  useEffect(() => {
+    if (title || content || tags.length > 0 || seriesName || aiComment || images.length > 0 || voiceRecordings.length > 0) {
+      setHasUnsavedChanges(true);
+    }
+  }, [title, content, tags, seriesName, aiComment, images, voiceRecordings]);
+
+  // Handle back with unsaved changes warning
+  const handleCancel = useCallback(() => {
+    if (hasUnsavedChanges) {
+      Alert.alert(
+        "저장하지 않고 나가기",
+        "작성 중인 내용이 사라집니다. 정말 나가시겠어요?",
+        [
+          { text: "계속 작성", style: "cancel" },
+          { text: "나가기", style: "destructive", onPress: () => navigation.goBack() },
+        ]
+      );
+    } else {
+      navigation.goBack();
+    }
+  }, [hasUnsavedChanges, navigation]);
+
+  // Intercept hardware back / navigation gesture
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (!hasUnsavedChanges) return;
+      e.preventDefault();
+      Alert.alert(
+        "저장하지 않고 나가기",
+        "작성 중인 내용이 사라집니다. 정말 나가시겠어요?",
+        [
+          { text: "계속 작성", style: "cancel" },
+          {
+            text: "나가기",
+            style: "destructive",
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation, hasUnsavedChanges]);
+
+  // Add tag
+  const handleAddTag = useCallback(() => {
+    const trimmed = tagInput.trim().replace(/^#/, "");
+    if (!trimmed) return;
+    if (tags.includes(trimmed)) {
+      setTagInput("");
+      return;
+    }
+    setTags((prev) => [...prev, trimmed]);
+    setTagInput("");
+  }, [tagInput, tags]);
+
+  // Remove tag
+  const handleRemoveTag = useCallback((tagToRemove) => {
+    setTags((prev) => prev.filter((t) => t !== tagToRemove));
+  }, []);
+
+  // AI Analysis
+  const handleAnalyze = useCallback(async () => {
+    if (!content.trim()) {
+      Alert.alert("내용 필요", "AI 분석을 받으려면 연습 내용을 먼저 작성해주세요.");
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const result = await analyzeNote(field, content, savedNotes, { title, field }, userProfile);
+      setAiComment(result);
+    } catch (e) {
+      Alert.alert("분석 실패", "AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [content, field, savedNotes, title, userProfile]);
+
+  // ─── Media Handlers ───
+
+  const handleTakePhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "카메라 사용을 위해 권한을 허용해주세요.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      const asset = result.assets[0];
+      setImages((prev) => [...prev, { uri: asset.uri, type: "image", width: asset.width, height: asset.height }]);
+    }
+  }, []);
+
+  const handlePickMedia = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "갤러리 접근을 위해 권한을 허용해주세요.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"],
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      const newItems = result.assets.map((asset) => ({
+        uri: asset.uri,
+        type: asset.type === "video" ? "video" : "image",
+        width: asset.width,
+        height: asset.height,
+        duration: asset.duration,
+      }));
+      setImages((prev) => [...prev, ...newItems]);
+    }
+  }, []);
+
+  const handleRemoveMedia = useCallback((index) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleStartRecording = useCallback(async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("권한 필요", "음성 녹음을 위해 마이크 권한을 허용해주세요.");
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await recording.startAsync();
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((d) => d + 1);
+      }, 1000);
+    } catch (e) {
+      Alert.alert("녹음 오류", "녹음을 시작할 수 없습니다.");
+    }
+  }, []);
+
+  const handleStopRecording = useCallback(async () => {
+    if (!recordingRef.current) return;
+    try {
+      clearInterval(recordingTimerRef.current);
+      await recordingRef.current.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      const uri = recordingRef.current.getURI();
+      const finalDuration = recordingDuration;
+      recordingRef.current = null;
+      setIsRecording(false);
+      if (uri) {
+        setVoiceRecordings((prev) => [...prev, { uri, duration: finalDuration }]);
+      }
+    } catch (e) {
+      setIsRecording(false);
+    }
+  }, [recordingDuration]);
+
+  const handleRemoveRecording = useCallback((index) => {
+    setVoiceRecordings((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handlePlayRecording = useCallback(async (uri, index) => {
+    try {
+      if (playingSound) {
+        await playingSound.unloadAsync();
+        if (playingIdx === index) {
+          setPlayingSound(null);
+          setPlayingIdx(null);
+          return;
+        }
+      }
+      const { sound } = await Audio.Sound.createAsync({ uri });
+      setPlayingSound(sound);
+      setPlayingIdx(index);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          setPlayingSound(null);
+          setPlayingIdx(null);
+        }
+      });
+      await sound.playAsync();
+    } catch (e) {
+      Alert.alert("재생 오류", "음성을 재생할 수 없습니다.");
+    }
+  }, [playingSound, playingIdx]);
+
+  const formatDuration = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // Save note
+  const handleSave = useCallback(() => {
+    if (!title.trim()) {
+      Alert.alert("제목 필요", "제목을 입력해주세요.");
+      return;
+    }
+    if (!content.trim()) {
+      Alert.alert("내용 필요", "연습 내용을 입력해주세요.");
+      return;
+    }
+    const noteData = {
+      title: title.trim(),
+      content: content.trim(),
+      field,
+      tags,
+      seriesName: seriesName.trim() || undefined,
+      aiComment: aiComment || undefined,
+      images: images.length > 0 ? images : undefined,
+      voiceRecordings: voiceRecordings.length > 0 ? voiceRecordings : undefined,
+    };
+    setHasUnsavedChanges(false);
+    handleSaveNote(noteData);
+    navigation.goBack();
+  }, [title, content, field, tags, seriesName, aiComment, images, voiceRecordings, handleSaveNote, navigation]);
+
+  // Shimmer interpolation
+  const shimmerOpacity = shimmerAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.3, 1, 0.3],
+  });
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      {/* Top Bar */}
+      <TopBar
+        title="새 노트"
+        left={
+          <TouchableOpacity onPress={handleCancel} activeOpacity={0.7}>
+            <Text style={styles.topBarCancel}>취소</Text>
+          </TouchableOpacity>
+        }
+        right={
+          <TouchableOpacity onPress={handleSave} activeOpacity={0.7}>
+            <Text style={styles.topBarSave}>저장</Text>
+          </TouchableOpacity>
+        }
+      />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Title Input */}
+        <TextInput
+          style={styles.titleInput}
+          placeholder="제목을 입력하세요"
+          placeholderTextColor={CLight.gray400}
+          value={title}
+          onChangeText={setTitle}
+          maxLength={100}
+          returnKeyType="next"
+        />
+
+        {/* Content Input */}
+        <TextInput
+          style={styles.contentInput}
+          placeholder="오늘의 연습을 기록해보세요..."
+          placeholderTextColor={CLight.gray400}
+          value={content}
+          onChangeText={setContent}
+          multiline
+          textAlignVertical="top"
+          scrollEnabled={false}
+        />
+
+        {/* ─── Media Attachment ─── */}
+        <Text style={styles.sectionLabel}>미디어 첨부</Text>
+        <View style={styles.mediaButtonRow}>
+          <TouchableOpacity style={styles.mediaBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
+            <Text style={styles.mediaBtnIcon}>📷</Text>
+            <Text style={styles.mediaBtnText}>촬영</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mediaBtn} onPress={handlePickMedia} activeOpacity={0.7}>
+            <Text style={styles.mediaBtnIcon}>🖼️</Text>
+            <Text style={styles.mediaBtnText}>갤러리</Text>
+          </TouchableOpacity>
+          {isRecording ? (
+            <TouchableOpacity style={[styles.mediaBtn, styles.mediaBtnRecording]} onPress={handleStopRecording} activeOpacity={0.7}>
+              <Animated.View style={[styles.recordDot, { opacity: recordBlink }]} />
+              <Text style={styles.mediaBtnTextRecording}>{formatDuration(recordingDuration)}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.mediaBtn} onPress={handleStartRecording} activeOpacity={0.7}>
+              <Text style={styles.mediaBtnIcon}>🎤</Text>
+              <Text style={styles.mediaBtnText}>녹음</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Media Preview Grid */}
+        {images.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewScroll}>
+            {images.map((item, idx) => (
+              <View key={idx} style={styles.mediaThumbnailWrap}>
+                <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} />
+                {item.type === "video" && (
+                  <View style={styles.videoOverlay}>
+                    <Text style={styles.videoOverlayText}>▶</Text>
+                  </View>
+                )}
+                <TouchableOpacity style={styles.mediaRemoveBtn} onPress={() => handleRemoveMedia(idx)}>
+                  <Text style={styles.mediaRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Voice Recordings List */}
+        {voiceRecordings.length > 0 && (
+          <View style={styles.voiceList}>
+            {voiceRecordings.map((rec, idx) => (
+              <View key={idx} style={styles.voiceItem}>
+                <TouchableOpacity style={styles.voicePlayBtn} onPress={() => handlePlayRecording(rec.uri, idx)}>
+                  <Text style={styles.voicePlayIcon}>{playingIdx === idx ? "⏸" : "▶️"}</Text>
+                </TouchableOpacity>
+                <Text style={styles.voiceDuration}>음성 {idx + 1} · {formatDuration(rec.duration)}</Text>
+                <TouchableOpacity style={styles.voiceRemoveBtn} onPress={() => handleRemoveRecording(idx)}>
+                  <Text style={styles.mediaRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* Field Selector */}
+        <Text style={styles.sectionLabel}>분야</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.fieldScroll}
+        >
+          {FIELDS.map((f) => {
+            const isActive = field === f;
+            const color = FIELD_COLORS[f] || CLight.gray500;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.fieldPill,
+                  {
+                    backgroundColor: isActive ? `${color}18` : CLight.white,
+                    borderColor: isActive ? color : CLight.gray200,
+                    borderWidth: isActive ? 1.5 : 1,
+                  },
+                ]}
+                onPress={() => setField(f)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.fieldEmoji}>{FIELD_EMOJIS[f]}</Text>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: isActive ? color : CLight.gray500, fontWeight: isActive ? "600" : "400" },
+                  ]}
+                >
+                  {FIELD_LABELS[f]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Tag Input */}
+        <Text style={styles.sectionLabel}>태그</Text>
+        <View style={styles.tagInputRow}>
+          <TextInput
+            style={styles.tagTextInput}
+            placeholder="태그 입력"
+            placeholderTextColor={CLight.gray400}
+            value={tagInput}
+            onChangeText={setTagInput}
+            onSubmitEditing={handleAddTag}
+            returnKeyType="done"
+            maxLength={20}
+          />
+          <TouchableOpacity
+            style={[styles.tagAddButton, !tagInput.trim() && styles.tagAddButtonDisabled]}
+            onPress={handleAddTag}
+            activeOpacity={0.7}
+            disabled={!tagInput.trim()}
+          >
+            <Text
+              style={[
+                styles.tagAddText,
+                !tagInput.trim() && styles.tagAddTextDisabled,
+              ]}
+            >
+              추가
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {tags.map((tag, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.tagChip}
+                onPress={() => handleRemoveTag(tag)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.tagChipText}>#{tag}</Text>
+                <Text style={styles.tagChipRemove}>×</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Series Name */}
+        <Text style={styles.sectionLabel}>시리즈 (선택)</Text>
+        <TextInput
+          style={styles.seriesInput}
+          placeholder="시리즈 이름을 입력하세요"
+          placeholderTextColor={CLight.gray400}
+          value={seriesName}
+          onChangeText={setSeriesName}
+          maxLength={50}
+          returnKeyType="done"
+        />
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* AI Analysis Button */}
+        {aiLoading ? (
+          <View style={styles.aiLoadingContainer}>
+            <Animated.View style={[styles.shimmerBar, { opacity: shimmerOpacity }]} />
+            <Animated.View
+              style={[styles.shimmerBar, styles.shimmerBarShort, { opacity: shimmerOpacity }]}
+            />
+            <Animated.View
+              style={[styles.shimmerBar, styles.shimmerBarMedium, { opacity: shimmerOpacity }]}
+            />
+            <Text style={styles.aiLoadingText}>AI가 분석 중이에요...</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.aiButton}
+            onPress={handleAnalyze}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.aiButtonText}>🤖 AI 분석 받기</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* AI Result */}
+        {aiComment ? (
+          <View style={styles.aiResultCard}>
+            <View style={styles.aiResultHeader}>
+              <Text style={styles.aiResultHeaderText}>🤖 AI 분석 결과</Text>
+            </View>
+            <Text style={styles.aiResultContent}>{aiComment}</Text>
+          </View>
+        ) : null}
+
+        {/* Bottom spacing */}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+// ─── Styles ───
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: CLight.bg,
+  },
+
+  // Top bar actions
+  topBarCancel: {
+    ...T.body,
+    color: CLight.gray500,
+  },
+  topBarSave: {
+    ...T.bodyBold,
+    color: CLight.pink,
+  },
+
+  // Scroll
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 40,
+  },
+
+  // Title
+  titleInput: {
+    ...T.h2,
+    color: CLight.gray900,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: CLight.gray200,
+  },
+
+  // Content
+  contentInput: {
+    ...T.body,
+    color: CLight.gray900,
+    minHeight: 160,
+    paddingVertical: 14,
+    lineHeight: 26,
+  },
+
+  // Divider
+  divider: {
+    height: 1,
+    backgroundColor: CLight.gray200,
+    marginVertical: 16,
+  },
+
+  // Section labels
+  sectionLabel: {
+    ...T.captionBold,
+    color: CLight.gray700,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+
+  // Field selector
+  fieldScroll: {
+    gap: 8,
+    paddingBottom: 16,
+  },
+  fieldPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 5,
+  },
+  fieldEmoji: {
+    fontSize: 15,
+  },
+  fieldLabel: {
+    fontSize: 13,
+  },
+
+  // Tag input
+  tagInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  tagTextInput: {
+    flex: 1,
+    ...T.body,
+    color: CLight.gray900,
+    backgroundColor: CLight.inputBg,
+    borderWidth: 1,
+    borderColor: CLight.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  tagAddButton: {
+    backgroundColor: CLight.pink,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  tagAddButtonDisabled: {
+    backgroundColor: CLight.gray200,
+  },
+  tagAddText: {
+    ...T.captionBold,
+    color: CLight.white,
+  },
+  tagAddTextDisabled: {
+    color: CLight.gray400,
+  },
+
+  // Tags
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  tagChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CLight.pinkSoft,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 4,
+  },
+  tagChipText: {
+    ...T.small,
+    color: CLight.pink,
+    fontWeight: "500",
+  },
+  tagChipRemove: {
+    fontSize: 16,
+    color: CLight.pinkLight,
+    fontWeight: "600",
+    marginLeft: 2,
+  },
+
+  // Series
+  seriesInput: {
+    ...T.body,
+    color: CLight.gray900,
+    backgroundColor: CLight.inputBg,
+    borderWidth: 1,
+    borderColor: CLight.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+
+  // AI Button
+  aiButton: {
+    backgroundColor: CLight.pink,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: CLight.pink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  aiButtonText: {
+    ...T.title,
+    color: CLight.white,
+    letterSpacing: 0.3,
+  },
+
+  // AI Loading
+  aiLoadingContainer: {
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    padding: 20,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+  },
+  shimmerBar: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: CLight.pinkSoft,
+    width: "100%",
+  },
+  shimmerBarShort: {
+    width: "65%",
+  },
+  shimmerBarMedium: {
+    width: "80%",
+  },
+  aiLoadingText: {
+    ...T.caption,
+    color: CLight.gray400,
+    textAlign: "center",
+    marginTop: 6,
+  },
+
+  // AI Result
+  aiResultCard: {
+    marginTop: 16,
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+    borderLeftWidth: 4,
+    borderLeftColor: CLight.pink,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  aiResultHeader: {
+    backgroundColor: CLight.pinkSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  aiResultHeaderText: {
+    ...T.captionBold,
+    color: CLight.pink,
+  },
+  aiResultContent: {
+    ...T.caption,
+    color: CLight.gray700,
+    padding: 16,
+    lineHeight: 22,
+  },
+
+  // ─── Media Attachment ───
+  mediaButtonRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+  mediaBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: CLight.white,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+  },
+  mediaBtnRecording: {
+    backgroundColor: "#FFF0F0",
+    borderColor: CLight.red,
+  },
+  mediaBtnIcon: {
+    fontSize: 16,
+  },
+  mediaBtnText: {
+    ...T.small,
+    color: CLight.gray700,
+    fontWeight: "500",
+  },
+  mediaBtnTextRecording: {
+    ...T.smallBold,
+    color: CLight.red,
+  },
+  recordDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: CLight.red,
+  },
+
+  // Media Preview
+  mediaPreviewScroll: {
+    gap: 10,
+    paddingBottom: 14,
+  },
+  mediaThumbnailWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: CLight.gray100,
+  },
+  mediaThumbnail: {
+    width: 80,
+    height: 80,
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  videoOverlayText: {
+    fontSize: 22,
+    color: CLight.white,
+  },
+  mediaRemoveBtn: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  mediaRemoveText: {
+    fontSize: 12,
+    color: CLight.white,
+    fontWeight: "700",
+  },
+
+  // Voice Recordings
+  voiceList: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  voiceItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CLight.white,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  voicePlayBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: CLight.pinkSoft,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  voicePlayIcon: {
+    fontSize: 14,
+  },
+  voiceDuration: {
+    ...T.small,
+    color: CLight.gray700,
+    flex: 1,
+  },
+  voiceRemoveBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: CLight.gray200,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});
