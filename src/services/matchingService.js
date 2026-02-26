@@ -47,8 +47,14 @@ export async function fetchMatchingFeed(userFields = []) {
 
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
-      // Ensure all items have source: "ai"
-      const items = data.map((item) => ({ source: "ai", ...item }));
+      // Ensure all items have source: "ai" and required fields
+      const items = data.map((item) => ({
+        source: "ai",
+        tab: "프로젝트",
+        requirements: {},
+        tags: [],
+        ...item,
+      }));
       _cache = { data: items, ts: Date.now() };
       return items;
     }
