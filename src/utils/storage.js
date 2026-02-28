@@ -28,4 +28,7 @@ export const STORAGE_KEYS = {
   BETA_GUIDE: "artlink-beta-guide-dismissed",
   COMMUNITY_POSTS: "artlink-community-posts",
   PORTFOLIO_ID: "artlink-public-portfolio-id",
+  PORTFOLIO_ITEMS: "artlink-portfolio-items",
+  PORTFOLIO_SUMMARY: "artlink-portfolio-summary",
+  MATCHING_POSTS: "artlink-matching-posts",
 };
