@@ -47,7 +47,7 @@ const SAMPLE_NOTIFICATIONS = [
     id: 4,
     type: "system",
     title: "앱 업데이트",
-    message: "Artlink v0.12-beta가 출시되었습니다. 새로운 매칭 기능을 확인해보세요!",
+    message: "Artlink v1.3.0이 출시되었습니다. 새로운 매칭 기능을 확인해보세요!",
     time: "6시간 전",
     read: true,
   },

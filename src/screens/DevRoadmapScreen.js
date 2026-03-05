@@ -63,7 +63,7 @@ const ROADMAP = [
       { text: "프로젝트/오디션 매칭", done: true },
       { text: "매칭 알고리즘 (스킬 기반)", done: true },
       { text: "알림 시스템", done: true },
-      { text: "구독 관리 (Free/Pro/Premium)", done: true },
+      { text: "전체 기능 무료 개방", done: true },
       { text: "목표 관리", done: true },
       { text: "B2B 대시보드 (프로덕션용)", done: true },
       { text: "결제 시스템 연동", done: false },

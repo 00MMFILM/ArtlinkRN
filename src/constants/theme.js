@@ -58,5 +58,5 @@ export const FIELD_EMOJIS = {
   dance: "💃", literature: "📖", film: "🎬",
 };
 
-export const APP_VERSION = "0.12-beta";
+export const APP_VERSION = "1.3.0";
 export const APP_BUILD = "20260224";

@@ -21,7 +21,7 @@ import MatchingScreen from "./src/screens/MatchingScreen";
 import ShareCardScreen from "./src/screens/ShareCardScreen";
 import PortfolioScreen from "./src/screens/PortfolioScreen";
 import GoalsScreen from "./src/screens/GoalsScreen";
-import SubscriptionScreen from "./src/screens/SubscriptionScreen";
+// SubscriptionScreen removed for App Store compliance (no IAP configured)
 import NotificationsScreen from "./src/screens/NotificationsScreen";
 import B2BDashboardScreen from "./src/screens/B2BDashboardScreen";
 import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
@@ -118,7 +118,6 @@ function AppNavigator() {
               <Stack.Screen name="ShareCard" component={ShareCardScreen} />
               <Stack.Screen name="Portfolio" component={PortfolioScreen} />
               <Stack.Screen name="Goals" component={GoalsScreen} />
-              <Stack.Screen name="Subscription" component={SubscriptionScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="B2B" component={B2BDashboardScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />

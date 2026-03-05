@@ -45,39 +45,10 @@ export function calculateAge(birthDate) {
   return age > 0 ? age : null;
 }
 
-// ─── Subscription Gate ───
+// ─── Feature Access (all features free) ───
 
-export const PLAN_LIMITS = {
-  free: {
-    aiAnalysisPerMonth: 3,
-    portfolioGeneration: false,
-    matchingRecommendationsPerMonth: 0,
-    castingDirectorView: false,
-    unlimitedNotes: false,
-  },
-  pro: {
-    aiAnalysisPerMonth: Infinity,
-    portfolioGeneration: true,
-    matchingRecommendationsPerMonth: 10,
-    castingDirectorView: false,
-    unlimitedNotes: true,
-  },
-  premium: {
-    aiAnalysisPerMonth: Infinity,
-    portfolioGeneration: true,
-    matchingRecommendationsPerMonth: Infinity,
-    castingDirectorView: true,
-    unlimitedNotes: true,
-  },
-};
-
-export function canUseFeature(subscription, feature) {
-  const plan = subscription?.plan || "free";
-  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
-  const value = limits[feature];
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value > 0;
-  return false;
+export function canUseFeature() {
+  return true;
 }
 
 export const USER_TYPES = [

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, STORAGE_KEYS } from "../utils/storage";
 import { computeArtistProfile } from "../services/analyticsService";
 
@@ -196,6 +197,19 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.DARK_MODE, v);
   }, []);
 
+  const handleDeleteAccount = useCallback(async () => {
+    await AsyncStorage.clear();
+    setSavedNotes([]);
+    setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
+    setGoals([]);
+    setSubscription({ plan: "free" });
+    setFeedbacks([]);
+    setPortfolioItems([]);
+    setPortfolioSummary(null);
+    setMatchingPosts([]);
+    setAuthState("auth");
+  }, []);
+
   const value = useMemo(() => ({
     savedNotes, userProfile, darkMode, goals, subscription, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
@@ -206,7 +220,7 @@ export function AppProvider({ children }) {
     handleDismissGuide, handleFieldOrderChange, handleAuth, handleSetDarkMode,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
-    handleUpdateProfile, setUserProfile, setAuthState,
+    handleUpdateProfile, handleDeleteAccount, setUserProfile, setAuthState,
   }), [
     savedNotes, userProfile, darkMode, goals, subscription, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
@@ -217,7 +231,7 @@ export function AppProvider({ children }) {
     handleDismissGuide, handleFieldOrderChange, handleAuth, handleSetDarkMode,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
-    handleUpdateProfile,
+    handleUpdateProfile, handleDeleteAccount,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

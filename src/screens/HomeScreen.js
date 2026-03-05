@@ -19,8 +19,6 @@ export default function HomeScreen({ navigation }) {
     savedNotes,
     userProfile,
     artistProfile,
-    showBetaGuide,
-    handleDismissGuide,
     darkMode,
   } = useApp();
 
@@ -133,30 +131,6 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.bellIcon}>{"\uD83D\uDD14"}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* ---- Beta guide banner ---- */}
-        {showBetaGuide && (
-          <View style={[styles.betaBanner, { backgroundColor: C.pinkSoft }]}>
-            <View style={styles.betaBannerContent}>
-              <Text style={styles.betaEmoji}>{"\uD83D\uDE80"}</Text>
-              <View style={styles.betaTextContainer}>
-                <Text style={[T.captionBold, { color: C.pink }]}>
-                  {"\uBCA0\uD0C0 \uBC84\uC804\uC744 \uC0AC\uC6A9 \uC911\uC774\uC5D0\uC694!"}
-                </Text>
-                <Text style={[T.small, { color: C.gray500, marginTop: 2 }]}>
-                  {"\uD53C\uB4DC\uBC31\uC744 \uBCF4\uB0B4\uC8FC\uC2DC\uBA74 \uB354 \uC88B\uC740 \uC571\uC744 \uB9CC\uB4DC\uB294 \uB370 \uD070 \uB3C4\uC6C0\uC774 \uB429\uB2C8\uB2E4."}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.betaDismiss}
-                onPress={handleDismissGuide}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={[T.caption, { color: C.gray400 }]}>{"\u2715"}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* ---- Weekly summary card ---- */}
         <View style={[styles.summaryCard, { backgroundColor: C.surface }]}>
@@ -346,28 +320,6 @@ const styles = StyleSheet.create({
   },
   bellIcon: {
     fontSize: 20,
-  },
-
-  // ---- Beta banner ----
-  betaBanner: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  betaBannerContent: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  betaEmoji: {
-    fontSize: 24,
-    marginTop: 2,
-  },
-  betaTextContainer: {
-    flex: 1,
-  },
-  betaDismiss: {
-    padding: 4,
   },
 
   // ---- Summary card ----

@@ -23,7 +23,6 @@ const MENU_ITEMS = [
   { icon: "\uD83C\uDFA8", label: "\uACF5\uC720 \uCE74\uB4DC", route: "ShareCard" },
   { icon: "\uD83D\uDCC1", label: "\uD3EC\uD2B8\uD3F4\uB9AC\uC624", route: "Portfolio" },
   { icon: "\uD83C\uDFE2", label: "B2B \uB300\uC2DC\uBCF4\uB4DC", route: "B2B" },
-  { icon: "\uD83D\uDCB3", label: "\uAD6C\uB3C5 \uAD00\uB9AC", route: "Subscription" },
   { icon: "\uD83D\uDDFA\uFE0F", label: "\uAC1C\uBC1C \uB85C\uB4DC\uB9F5", route: "DevRoadmap" },
   { icon: "\uD83D\uDCAC", label: "\uD53C\uB4DC\uBC31 \uBCF4\uB0B4\uAE30", route: "__feedback__" },
 ];
@@ -41,6 +40,7 @@ export default function ProfileScreen({ navigation }) {
     artistProfile,
     handleSetDarkMode,
     handleSubmitFeedback,
+    handleDeleteAccount,
     showToast,
   } = useApp();
 
@@ -98,6 +98,21 @@ export default function ProfileScreen({ navigation }) {
     },
     [navigation, handleSubmitFeedback]
   );
+
+  const handleDeleteAccountPress = useCallback(() => {
+    Alert.alert(
+      "\uACC4\uC815 \uC0AD\uC81C",
+      "\uBAA8\uB4E0 \uB370\uC774\uD130(\uB178\uD2B8, \uD504\uB85C\uD544, \uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uB4F1)\uAC00 \uC601\uAD6C\uC801\uC73C\uB85C \uC0AD\uC81C\uB429\uB2C8\uB2E4. \uC774 \uC791\uC5C5\uC740 \uB418\uB3CC\uB9B4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.\n\n\uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
+      [
+        { text: "\uCDE8\uC18C", style: "cancel" },
+        {
+          text: "\uC0AD\uC81C",
+          style: "destructive",
+          onPress: () => handleDeleteAccount(),
+        },
+      ]
+    );
+  }, [handleDeleteAccount]);
 
   // ─── Render ───
 
@@ -200,6 +215,20 @@ export default function ProfileScreen({ navigation }) {
               thumbColor={darkMode ? CLight.pink : CLight.gray400}
             />
           </View>
+
+          {/* Account deletion */}
+          <View style={styles.menuDivider} />
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={handleDeleteAccountPress}
+            activeOpacity={0.6}
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>{"\u26A0\uFE0F"}</Text>
+              <Text style={[T.body, { color: CLight.red || "#FF3B30" }]}>{"\uACC4\uC815 \uC0AD\uC81C"}</Text>
+            </View>
+            <Text style={[T.caption, { color: CLight.gray300 }]}>{"\u203A"}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ─── App Version ─── */}
