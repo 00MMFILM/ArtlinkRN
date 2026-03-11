@@ -200,14 +200,7 @@ export default function CommunityScreen() {
         }
       />
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        activeOpacity={0.85}
-        onPress={() => Alert.alert("커밍 순!", "글쓰기 기능은 곧 업데이트됩니다.")}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
+      {/* FAB removed - community posting not yet available */}
     </SafeAreaView>
   );
 }

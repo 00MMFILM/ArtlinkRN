@@ -1,0 +1,19 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Submit for App Store review"
+  lane :submit_review do
+    deliver(
+      app_identifier: "com.00MM.artlink",
+      skip_metadata: true,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      submit_for_review: true,
+      force: true,
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        add_id_info_uses_idfa: false
+      }
+    )
+  end
+end

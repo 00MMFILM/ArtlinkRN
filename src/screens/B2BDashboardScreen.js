@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import { GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES, calculateAge, canUseFeature, FIELDS } from "../utils/helpers";
+import { GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES, calculateAge, FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -40,7 +40,7 @@ const DEMO_ACTIVITIES = [
 const ACTIVITY_ICONS = { casting: { icon: "C", color: CLight.pink }, match: { icon: "M", color: CLight.green }, project: { icon: "P", color: CLight.blue }, report: { icon: "R", color: CLight.orange } };
 
 export default function B2BDashboardScreen({ navigation }) {
-  const { subscription, showToast } = useApp();
+  const { showToast } = useApp();
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterGender, setFilterGender] = useState("");
@@ -52,8 +52,6 @@ export default function B2BDashboardScreen({ navigation }) {
   const [filterSpecialties, setFilterSpecialties] = useState([]);
   const [filterLocation, setFilterLocation] = useState("");
   const [selectedActor, setSelectedActor] = useState(null);
-
-  const isPremium = canUseFeature(subscription, "castingDirectorView");
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -359,16 +357,6 @@ export default function B2BDashboardScreen({ navigation }) {
           </View>
         )}
 
-        {/* Premium gate overlay */}
-        {!isPremium && (
-          <View style={styles.upgradeBanner}>
-            <Text style={[T.captionBold, { color: CLight.purple }]}>Premium 플랜에서 전체 기능 이용 가능</Text>
-            <TouchableOpacity style={styles.upgradeBtn} onPress={() => navigation.navigate("Subscription")}>
-              <Text style={[T.captionBold, { color: CLight.white }]}>업그레이드</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {/* Actor list */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 16, marginBottom: 12 }]}>
           아티스트 ({filteredArtists.length})
@@ -401,8 +389,7 @@ export default function B2BDashboardScreen({ navigation }) {
 
         <View style={styles.demoNotice}>
           <Text style={[T.micro, { color: CLight.gray500, textAlign: "center" }]}>
-            이 페이지는 데모 데이터를 표시하고 있습니다.{"\n"}
-            실제 B2B 기능은 Premium 플랜에서 이용 가능합니다.
+            B2B 기능은 향후 업데이트에서 더욱 강화됩니다.
           </Text>
         </View>
         <View style={{ height: 40 }} />

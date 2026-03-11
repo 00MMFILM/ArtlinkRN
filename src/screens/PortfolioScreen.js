@@ -15,7 +15,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import { FIELDS, calculateAge, GENDER_OPTIONS, canUseFeature } from "../utils/helpers";
+import { FIELDS, calculateAge, GENDER_OPTIONS } from "../utils/helpers";
 import { truncate, formatDate } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 import EmptyState from "../components/EmptyState";
@@ -31,7 +31,7 @@ const FIELD_TABS = [
 
 export default function PortfolioScreen({ navigation }) {
   const {
-    artistProfile, userProfile, savedNotes, subscription,
+    artistProfile, userProfile, savedNotes,
     portfolioItems, portfolioSummary,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
   } = useApp();
@@ -116,13 +116,6 @@ export default function PortfolioScreen({ navigation }) {
   }, [handleDeletePortfolioItem]);
 
   const handleGenerateCard = useCallback(async () => {
-    if (!canUseFeature(subscription, "portfolioGeneration")) {
-      Alert.alert("Pro 플랜 필요", "AI 프로필 카드는 Pro 이상 플랜에서 이용 가능합니다.", [
-        { text: "확인" },
-        { text: "업그레이드", onPress: () => navigation.navigate("Subscription") },
-      ]);
-      return;
-    }
     setCardLoading(true);
     try {
       const text = await generateStructuredPortfolio(userProfile, portfolioItems, artistProfile, savedNotes);
@@ -136,7 +129,7 @@ export default function PortfolioScreen({ navigation }) {
     } finally {
       setCardLoading(false);
     }
-  }, [userProfile, portfolioItems, artistProfile, savedNotes, subscription, portfolioSummary, handleUpdatePortfolioSummary, navigation]);
+  }, [userProfile, portfolioItems, artistProfile, savedNotes, portfolioSummary, handleUpdatePortfolioSummary]);
 
   const handleGenerateSummary = useCallback(async () => {
     if (portfolioItems.length === 0) {
