@@ -49,10 +49,7 @@ const ROADMAP = [
     items: [
       { text: "공유 카드 생성 (3가지 스타일)", done: true },
       { text: "포트폴리오 자동 생성", done: true },
-      { text: "커뮤니티 게시판", done: false },
-      { text: "노트 공유 & 반응", done: false },
-      { text: "아티스트 팔로우", done: false },
-      { text: "댓글 & 피드백", done: false },
+      { text: "커뮤니티 게시판", done: true },
     ],
   },
   {
@@ -65,24 +62,7 @@ const ROADMAP = [
       { text: "알림 시스템", done: true },
       { text: "전체 기능 무료 개방", done: true },
       { text: "목표 관리", done: true },
-      { text: "B2B 대시보드 (프로덕션용)", done: true },
-      { text: "결제 시스템 연동", done: false },
-      { text: "실시간 채팅", done: false },
-    ],
-  },
-  {
-    phase: "Phase 5",
-    title: "고도화 & 확장 (v3.0)",
-    color: CLight.orange,
-    items: [
-      { text: "AI 맞춤 훈련 추천", done: false },
-      { text: "음성/영상 노트", done: false },
-      { text: "협업 작업 공간", done: false },
-      { text: "외부 포트폴리오 연동", done: false },
-      { text: "국제화 (영어/일본어)", done: false },
-      { text: "오프라인 모드 강화", done: false },
-      { text: "Apple Watch 연동", done: false },
-      { text: "위젯 지원", done: false },
+      { text: "B2B 대시보드", done: true },
     ],
   },
 ];

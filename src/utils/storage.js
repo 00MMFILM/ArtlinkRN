@@ -22,7 +22,6 @@ export const STORAGE_KEYS = {
   NOTES: "artlink-notes",
   PROFILE: "artlink-profile",
   DARK_MODE: "artlink-darkmode",
-  SUBSCRIPTION: "artlink-subscription",
   GOALS: "artlink-goals",
   FEEDBACKS: "artlink-feedbacks",
   BETA_GUIDE: "artlink-beta-guide-dismissed",

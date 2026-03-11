@@ -17,7 +17,6 @@ export function AppProvider({ children }) {
   });
   const [darkMode, setDarkMode] = useState(false);
   const [goals, setGoals] = useState([]);
-  const [subscription, setSubscription] = useState({ plan: "free" });
   const [feedbacks, setFeedbacks] = useState([]);
   const [showBetaGuide, setShowBetaGuide] = useState(false);
   const [portfolioItems, setPortfolioItems] = useState([]);
@@ -52,7 +51,7 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.PROFILE),
         safeStorageGet(STORAGE_KEYS.DARK_MODE),
         safeStorageGet(STORAGE_KEYS.GOALS),
-        safeStorageGet(STORAGE_KEYS.SUBSCRIPTION),
+        Promise.resolve(null), // subscription removed
         safeStorageGet(STORAGE_KEYS.FEEDBACKS),
         safeStorageGet(STORAGE_KEYS.BETA_GUIDE),
         safeStorageGet(STORAGE_KEYS.PORTFOLIO_ITEMS),
@@ -66,7 +65,7 @@ export function AppProvider({ children }) {
       if (profile) { setUserProfile(profile); setAuthState("app"); }
       if (dm) setDarkMode(dm);
       if (g) setGoals(g);
-      if (sub) setSubscription(sub);
+      // subscription removed
       if (fb) setFeedbacks(fb);
       if (!guide) setShowBetaGuide(true);
       if (pItems) setPortfolioItems(pItems);
@@ -127,11 +126,6 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.GOALS, newGoals);
   }, []);
 
-  const handleUpdateSubscription = useCallback((sub) => {
-    setSubscription(sub);
-    safeStorageSet(STORAGE_KEYS.SUBSCRIPTION, sub);
-    showToast(sub.plan === "free" ? "무료 플랜으로 전환되었습니다" : `${sub.plan.toUpperCase()} 플랜이 활성화되었습니다!`, "success");
-  }, [showToast]);
 
   const handleSubmitFeedback = useCallback((feedback) => {
     const updated = [feedback, ...feedbacks];
@@ -212,6 +206,19 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.EULA_ACCEPTED, true);
   }, []);
 
+  // ─── Server report notification ───
+  const notifyServer = useCallback(async (reportData) => {
+    try {
+      await fetch("https://artlink-server.vercel.app/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reportData),
+      });
+    } catch (_) {
+      // Silent fail — local record preserved as backup
+    }
+  }, []);
+
   // ─── Block & Report ───
   const handleBlockUser = useCallback((userName) => {
     setBlockedUsers((prev) => {
@@ -220,8 +227,10 @@ export function AppProvider({ children }) {
       safeStorageSet(STORAGE_KEYS.BLOCKED_USERS, updated);
       return updated;
     });
+    // Notify developer of the block (Apple Guideline 1.2 requirement)
+    notifyServer({ type: "block_user", blockedUser: userName, reportedAt: new Date().toISOString() });
     showToast("사용자가 차단되었습니다", "success");
-  }, [showToast]);
+  }, [showToast, notifyServer]);
 
   const handleUnblockUser = useCallback((userName) => {
     setBlockedUsers((prev) => {
@@ -239,15 +248,16 @@ export function AppProvider({ children }) {
       safeStorageSet(STORAGE_KEYS.REPORTED_CONTENT, updated);
       return updated;
     });
+    // Send report to server so developer can act within 24 hours (Apple Guideline 1.2)
+    notifyServer({ type: "content_report", ...newReport });
     showToast("신고가 접수되었습니다. 24시간 이내에 조치됩니다.", "success");
-  }, [showToast]);
+  }, [showToast, notifyServer]);
 
   const handleDeleteAccount = useCallback(async () => {
     await AsyncStorage.clear();
     setSavedNotes([]);
     setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
     setGoals([]);
-    setSubscription({ plan: "free" });
     setFeedbacks([]);
     setPortfolioItems([]);
     setPortfolioSummary(null);
@@ -256,26 +266,26 @@ export function AppProvider({ children }) {
   }, []);
 
   const value = useMemo(() => ({
-    savedNotes, userProfile, darkMode, goals, subscription, feedbacks,
+    savedNotes, userProfile, darkMode, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
     eulaAccepted, blockedUsers, reportedContent,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
-    handleUpdateGoals, handleUpdateSubscription, handleSubmitFeedback,
+    handleUpdateGoals, handleSubmitFeedback,
     handleDismissGuide, handleFieldOrderChange, handleAuth, handleSetDarkMode,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
     handleUpdateProfile, handleDeleteAccount, setUserProfile, setAuthState,
     handleAcceptEula, handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
-    savedNotes, userProfile, darkMode, goals, subscription, feedbacks,
+    savedNotes, userProfile, darkMode, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
     eulaAccepted, blockedUsers, reportedContent,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
-    handleUpdateGoals, handleUpdateSubscription, handleSubmitFeedback,
+    handleUpdateGoals, handleSubmitFeedback,
     handleDismissGuide, handleFieldOrderChange, handleAuth, handleSetDarkMode,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,

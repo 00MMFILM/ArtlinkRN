@@ -387,11 +387,6 @@ export default function B2BDashboardScreen({ navigation }) {
           })}
         </View>
 
-        <View style={styles.demoNotice}>
-          <Text style={[T.micro, { color: CLight.gray500, textAlign: "center" }]}>
-            B2B 기능은 향후 업데이트에서 더욱 강화됩니다.
-          </Text>
-        </View>
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -426,9 +421,6 @@ const styles = StyleSheet.create({
   fPillTextActive: { color: CLight.pink, fontWeight: "600" },
   clearFilterBtn: { alignSelf: "center", marginTop: 12, paddingVertical: 6, paddingHorizontal: 16 },
 
-  // Upgrade banner
-  upgradeBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: CLight.purple + "10", borderRadius: 12, padding: 14, marginTop: 8, borderWidth: 1, borderColor: CLight.purple + "30" },
-  upgradeBtn: { backgroundColor: CLight.purple, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
 
   // Actor card
   actorCard: { backgroundColor: CLight.white, borderRadius: 14, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
