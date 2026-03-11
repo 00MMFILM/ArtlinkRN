@@ -27,6 +27,9 @@ export function AppProvider({ children }) {
   const [storageReady, setStorageReady] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
   const [authState, setAuthState] = useState("auth"); // "auth" | "app"
+  const [eulaAccepted, setEulaAccepted] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [reportedContent, setReportedContent] = useState([]);
 
   const artistProfile = useMemo(
     () => computeArtistProfile(savedNotes, userProfile),
@@ -44,7 +47,7 @@ export function AppProvider({ children }) {
   // Load all persisted data on mount
   useEffect(() => {
     (async () => {
-      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts] = await Promise.all([
+      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, eula, blocked, reported] = await Promise.all([
         safeStorageGet(STORAGE_KEYS.NOTES),
         safeStorageGet(STORAGE_KEYS.PROFILE),
         safeStorageGet(STORAGE_KEYS.DARK_MODE),
@@ -55,6 +58,9 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.PORTFOLIO_ITEMS),
         safeStorageGet(STORAGE_KEYS.PORTFOLIO_SUMMARY),
         safeStorageGet(STORAGE_KEYS.MATCHING_POSTS),
+        safeStorageGet(STORAGE_KEYS.EULA_ACCEPTED),
+        safeStorageGet(STORAGE_KEYS.BLOCKED_USERS),
+        safeStorageGet(STORAGE_KEYS.REPORTED_CONTENT),
       ]);
       if (notes) setSavedNotes(notes);
       if (profile) { setUserProfile(profile); setAuthState("app"); }
@@ -66,6 +72,9 @@ export function AppProvider({ children }) {
       if (pItems) setPortfolioItems(pItems);
       if (pSummary) setPortfolioSummary(pSummary);
       if (mPosts) setMatchingPosts(mPosts);
+      if (eula) setEulaAccepted(eula);
+      if (blocked) setBlockedUsers(blocked);
+      if (reported) setReportedContent(reported);
       setStorageReady(true);
     })();
   }, []);
@@ -197,6 +206,42 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.DARK_MODE, v);
   }, []);
 
+  // ─── EULA ───
+  const handleAcceptEula = useCallback(() => {
+    setEulaAccepted(true);
+    safeStorageSet(STORAGE_KEYS.EULA_ACCEPTED, true);
+  }, []);
+
+  // ─── Block & Report ───
+  const handleBlockUser = useCallback((userName) => {
+    setBlockedUsers((prev) => {
+      if (prev.includes(userName)) return prev;
+      const updated = [...prev, userName];
+      safeStorageSet(STORAGE_KEYS.BLOCKED_USERS, updated);
+      return updated;
+    });
+    showToast("사용자가 차단되었습니다", "success");
+  }, [showToast]);
+
+  const handleUnblockUser = useCallback((userName) => {
+    setBlockedUsers((prev) => {
+      const updated = prev.filter((u) => u !== userName);
+      safeStorageSet(STORAGE_KEYS.BLOCKED_USERS, updated);
+      return updated;
+    });
+    showToast("차단이 해제되었습니다", "success");
+  }, [showToast]);
+
+  const handleReportContent = useCallback((report) => {
+    const newReport = { ...report, reportedAt: new Date().toISOString() };
+    setReportedContent((prev) => {
+      const updated = [newReport, ...prev];
+      safeStorageSet(STORAGE_KEYS.REPORTED_CONTENT, updated);
+      return updated;
+    });
+    showToast("신고가 접수되었습니다. 24시간 이내에 조치됩니다.", "success");
+  }, [showToast]);
+
   const handleDeleteAccount = useCallback(async () => {
     await AsyncStorage.clear();
     setSavedNotes([]);
@@ -214,6 +259,7 @@ export function AppProvider({ children }) {
     savedNotes, userProfile, darkMode, goals, subscription, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
+    eulaAccepted, blockedUsers, reportedContent,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleUpdateSubscription, handleSubmitFeedback,
@@ -221,10 +267,12 @@ export function AppProvider({ children }) {
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
     handleUpdateProfile, handleDeleteAccount, setUserProfile, setAuthState,
+    handleAcceptEula, handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
     savedNotes, userProfile, darkMode, goals, subscription, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
+    eulaAccepted, blockedUsers, reportedContent,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleUpdateSubscription, handleSubmitFeedback,
@@ -232,6 +280,7 @@ export function AppProvider({ children }) {
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
     handleUpdateProfile, handleDeleteAccount,
+    handleAcceptEula, handleBlockUser, handleUnblockUser, handleReportContent,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

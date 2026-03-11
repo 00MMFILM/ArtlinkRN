@@ -17,6 +17,19 @@ import TopBar from "../components/TopBar";
 
 const TABS = ["프로젝트", "오디션", "콜라보"];
 
+// Basic objectionable content filter
+const BLOCKED_PATTERNS = [
+  /porn/i, /sex(?:ual)?/i, /nude/i, /naked/i,
+  /약물/, /마약/, /대마/, /필로폰/,
+  /성매매/, /원조교제/, /조건만남/,
+  /도박/, /불법/, /사기/,
+];
+
+function containsObjectionableContent(text) {
+  if (!text) return false;
+  return BLOCKED_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 export default function MatchingPostCreateScreen({ navigation, route }) {
   const { handleAddMatchingPost, handleUpdateMatchingPost } = useApp();
   const editPost = route.params?.post;
@@ -71,6 +84,10 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
   const handleSave = useCallback(() => {
     if (!title.trim()) { Alert.alert("제목 필요", "제목을 입력해주세요."); return; }
     if (!description.trim()) { Alert.alert("내용 필요", "설명을 입력해주세요."); return; }
+    if (containsObjectionableContent(title) || containsObjectionableContent(description)) {
+      Alert.alert("게시 불가", "부적절한 내용이 포함되어 있습니다. 이용약관에 따라 부적절한 콘텐츠는 게시할 수 없습니다.");
+      return;
+    }
 
     const requirements = {};
     if (showRequirements) {

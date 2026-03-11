@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -70,7 +70,7 @@ const TYPE_COLORS = {
 };
 
 // ─── Post Card ───────────────────────────────────────────────
-function PostCard({ post }) {
+function PostCard({ post, onReport }) {
   const emoji = FIELD_EMOJIS[post.field] || "";
   const badgeColor = TYPE_COLORS[post.type] || CLight.gray500;
 
@@ -84,7 +84,9 @@ function PostCard({ post }) {
             {post.author}
           </Text>
         </View>
-        <Text style={[T.micro, { color: CLight.gray400 }]}>{post.timeAgo}</Text>
+        <TouchableOpacity onPress={() => onReport(post)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={styles.moreBtn}>···</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Type Badge */}
@@ -122,16 +124,44 @@ function PostCard({ post }) {
 
 // ─── Community Screen ────────────────────────────────────────
 export default function CommunityScreen() {
-  const { darkMode } = useApp();
+  const { darkMode, blockedUsers, handleBlockUser, handleReportContent } = useApp();
   const [activeTab, setActiveTab] = useState("전체");
 
   const filtered = useMemo(
-    () =>
-      activeTab === "전체"
+    () => {
+      const posts = activeTab === "전체"
         ? demoPosts
-        : demoPosts.filter((p) => p.type === activeTab),
-    [activeTab]
+        : demoPosts.filter((p) => p.type === activeTab);
+      return posts.filter((p) => !blockedUsers.includes(p.author));
+    },
+    [activeTab, blockedUsers]
   );
+
+  const handlePostAction = useCallback((post) => {
+    Alert.alert("게시물 관리", null, [
+      {
+        text: "신고하기",
+        onPress: () => {
+          Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
+            { text: "취소", style: "cancel" },
+            { text: "부적절한 콘텐츠", onPress: () => handleReportContent({ contentId: post.id, type: "community_post", reason: "inappropriate_content", title: post.title }) },
+            { text: "스팸/사기", onPress: () => handleReportContent({ contentId: post.id, type: "community_post", reason: "spam", title: post.title }) },
+          ]);
+        },
+      },
+      {
+        text: "작성자 차단",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert("차단하기", `'${post.author}'님을 차단하시겠습니까?\n이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`, [
+            { text: "취소", style: "cancel" },
+            { text: "차단", style: "destructive", onPress: () => handleBlockUser(post.author) },
+          ]);
+        },
+      },
+      { text: "취소", style: "cancel" },
+    ]);
+  }, [handleBlockUser, handleReportContent]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -158,7 +188,7 @@ export default function CommunityScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <PostCard post={item} />}
+        renderItem={({ item }) => <PostCard post={item} onReport={handlePostAction} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -233,6 +263,12 @@ const styles = StyleSheet.create({
   },
   fieldEmoji: {
     fontSize: 18,
+  },
+  moreBtn: {
+    fontSize: 18,
+    color: CLight.gray400,
+    fontWeight: "700",
+    paddingHorizontal: 4,
   },
   typeBadge: {
     alignSelf: "flex-start",

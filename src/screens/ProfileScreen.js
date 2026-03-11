@@ -8,6 +8,7 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  Linking,
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, APP_VERSION } from "../constants/theme";
@@ -25,6 +26,9 @@ const MENU_ITEMS = [
   { icon: "\uD83C\uDFE2", label: "B2B \uB300\uC2DC\uBCF4\uB4DC", route: "B2B" },
   { icon: "\uD83D\uDDFA\uFE0F", label: "\uAC1C\uBC1C \uB85C\uB4DC\uB9F5", route: "DevRoadmap" },
   { icon: "\uD83D\uDCAC", label: "\uD53C\uB4DC\uBC31 \uBCF4\uB0B4\uAE30", route: "__feedback__" },
+  { icon: "\uD83D\uDCE7", label: "\uACE0\uAC1D \uC9C0\uC6D0", route: "__support__" },
+  { icon: "\uD83D\uDCDC", label: "\uC774\uC6A9\uC57D\uAD00", route: "__terms__" },
+  { icon: "\uD83D\uDD12", label: "\uAC1C\uC778\uC815\uBCF4 \uCC98\uB9AC\uBC29\uCE68", route: "__privacy__" },
 ];
 
 // ─── Skill bar config ───
@@ -92,6 +96,33 @@ export default function ProfileScreen({ navigation }) {
               "\uD53C\uB4DC\uBC31 \uAE30\uB2A5\uC740 iOS\uC5D0\uC11C \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
               [{ text: "\uD655\uC778" }]
             );
+        return;
+      }
+      if (item.route === "__support__") {
+        Alert.alert(
+          "고객 지원",
+          "문의사항이나 도움이 필요하시면 아래 이메일로 연락해 주세요.\n\nlcy1152@naver.com",
+          [
+            { text: "닫기", style: "cancel" },
+            { text: "이메일 보내기", onPress: () => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20%EB%AC%B8%EC%9D%98") },
+          ]
+        );
+        return;
+      }
+      if (item.route === "__terms__") {
+        Alert.alert(
+          "이용약관",
+          "ArtLink 이용약관\n\n1. 본 앱은 부적절한 콘텐츠 및 악용 행위에 대해 무관용 정책을 적용합니다.\n2. 이용자는 부적절한 콘텐츠를 신고할 수 있으며, 신고된 콘텐츠는 24시간 이내에 검토됩니다.\n3. 약관을 위반한 이용자는 서비스에서 퇴출될 수 있습니다.\n4. 자세한 약관은 앱 최초 실행 시 동의한 전문을 참고해 주세요.\n\n문의: lcy1152@naver.com",
+          [{ text: "확인" }]
+        );
+        return;
+      }
+      if (item.route === "__privacy__") {
+        Alert.alert(
+          "개인정보 처리방침",
+          "ArtLink 개인정보 처리방침\n\n1. 수집하는 개인정보: 이름, 이메일, 프로필 정보\n2. 수집 목적: 서비스 제공 및 개선\n3. 보관 기간: 계정 삭제 시까지\n4. 제3자 제공: 하지 않음\n5. 이용자는 언제든지 계정 삭제를 통해 개인정보를 삭제할 수 있습니다.\n\n문의: lcy1152@naver.com",
+          [{ text: "확인" }]
+        );
         return;
       }
       navigation.navigate(item.route);

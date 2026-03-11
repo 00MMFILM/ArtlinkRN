@@ -34,6 +34,7 @@ export default function MatchingScreen({ navigation }) {
   const {
     artistProfile, userProfile, savedNotes, portfolioItems,
     matchingPosts, handleDeleteMatchingPost,
+    blockedUsers, handleBlockUser, handleReportContent,
   } = useApp();
 
   const [sourceTab, setSourceTab] = useState("ai");
@@ -63,6 +64,7 @@ export default function MatchingScreen({ navigation }) {
   const filtered = useMemo(() => {
     let items = dataSource
       .filter((item) => item.tab === activeTab)
+      .filter((item) => !blockedUsers.includes(item.authorName || `user_${item.id}`))
       .map((item) => ({
         ...item,
         matchPercent: computeMatchPercent(item, artistProfile, userProfile, portfolioItems),
@@ -83,7 +85,7 @@ export default function MatchingScreen({ navigation }) {
 
     items.sort((a, b) => b.matchPercent - a.matchPercent);
     return items;
-  }, [dataSource, activeTab, selectedField, searchQuery, artistProfile, userProfile, portfolioItems]);
+  }, [dataSource, activeTab, selectedField, searchQuery, artistProfile, userProfile, portfolioItems, blockedUsers]);
 
   const getMatchColor = (percent) => {
     if (percent >= 70) return CLight.green;
@@ -110,6 +112,44 @@ export default function MatchingScreen({ navigation }) {
       );
     }
   }, []);
+
+  const handleReportPost = useCallback((item) => {
+    Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "부적절한 콘텐츠",
+        onPress: () => handleReportContent({ contentId: item.id, type: "matching_post", reason: "inappropriate_content", title: item.title }),
+      },
+      {
+        text: "스팸/사기",
+        onPress: () => handleReportContent({ contentId: item.id, type: "matching_post", reason: "spam", title: item.title }),
+      },
+      {
+        text: "괴롭힘/혐오",
+        onPress: () => handleReportContent({ contentId: item.id, type: "matching_post", reason: "harassment", title: item.title }),
+      },
+    ]);
+  }, [handleReportContent]);
+
+  const handleBlockPost = useCallback((item) => {
+    const authorName = item.authorName || `user_${item.id}`;
+    Alert.alert("차단하기", `이 작성자를 차단하시겠습니까?\n차단하면 이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`, [
+      { text: "취소", style: "cancel" },
+      {
+        text: "차단",
+        style: "destructive",
+        onPress: () => handleBlockUser(authorName),
+      },
+    ]);
+  }, [handleBlockUser]);
+
+  const handlePostAction = useCallback((item) => {
+    Alert.alert("게시물 관리", null, [
+      { text: "신고하기", onPress: () => handleReportPost(item) },
+      { text: "작성자 차단", style: "destructive", onPress: () => handleBlockPost(item) },
+      { text: "취소", style: "cancel" },
+    ]);
+  }, [handleReportPost, handleBlockPost]);
 
   const handleLongPressUserPost = useCallback((item) => {
     Alert.alert("매칭 글 관리", item.title, [
@@ -143,13 +183,16 @@ export default function MatchingScreen({ navigation }) {
         onPress={() => handleDetailPress(item)}
         onLongPress={!isAi ? () => handleLongPressUserPost(item) : undefined}
       >
-        {/* Source badge */}
+        {/* Source badge + report */}
         <View style={styles.sourceBadgeRow}>
           <View style={[styles.sourceBadge, isAi ? styles.sourceBadgeAi : styles.sourceBadgeUser]}>
             <Text style={[T.tiny, { color: isAi ? CLight.blue : CLight.purple, fontWeight: "600" }]}>
               {isAi ? `🤖 AI수집${item.sourcePlatform ? ` · ${item.sourcePlatform}` : ""}` : "👤 직접 등록"}
             </Text>
           </View>
+          <TouchableOpacity onPress={() => handlePostAction(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.moreBtn}>···</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Header badges */}
@@ -483,7 +526,8 @@ const styles = StyleSheet.create({
   profileBadge: { alignItems: "center" },
 
   // Source badge
-  sourceBadgeRow: { marginBottom: 6 },
+  sourceBadgeRow: { marginBottom: 6, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  moreBtn: { fontSize: 18, color: CLight.gray400, fontWeight: "700", paddingHorizontal: 4 },
   sourceBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,

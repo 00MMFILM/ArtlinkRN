@@ -27,6 +27,7 @@ import B2BDashboardScreen from "./src/screens/B2BDashboardScreen";
 import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
 import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
 import ProfileEditScreen from "./src/screens/ProfileEditScreen";
+import EULAScreen from "./src/screens/EULAScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -91,7 +92,17 @@ function MainTabs() {
 }
 
 function AppNavigator() {
-  const { authState, toast, hideToast, darkMode } = useApp();
+  const { authState, toast, hideToast, darkMode, eulaAccepted, handleAcceptEula } = useApp();
+
+  if (authState !== "auth" && !eulaAccepted) {
+    return (
+      <View style={{ flex: 1 }}>
+        <EULAScreen onAccept={handleAcceptEula} />
+        <Toast message={toast.message} type={toast.type} visible={toast.visible} onHide={hideToast} />
+        <StatusBar style={darkMode ? "light" : "dark"} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
