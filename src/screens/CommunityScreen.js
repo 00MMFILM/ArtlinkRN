@@ -83,9 +83,17 @@ function PostCard({ post, onReport }) {
           <Text style={[T.captionBold, { color: CLight.gray900 }]}>
             {post.author}
           </Text>
+          <Text style={[T.tiny, { color: CLight.gray400, marginLeft: 4 }]}>
+            {post.timeAgo}
+          </Text>
         </View>
-        <TouchableOpacity onPress={() => onReport(post)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={styles.moreBtn}>···</Text>
+        <TouchableOpacity
+          style={styles.reportBtn}
+          onPress={() => onReport(post)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.reportBtnIcon}>⚠</Text>
+          <Text style={styles.reportBtnText}>신고</Text>
         </TouchableOpacity>
       </View>
 
@@ -107,15 +115,17 @@ function PostCard({ post, onReport }) {
 
       {/* Footer */}
       <View style={styles.cardFooter}>
-        <View style={styles.statRow}>
-          <Text style={styles.statIcon}>{"<3"}</Text>
-          <Text style={[T.small, { color: CLight.gray500 }]}>{post.likes}</Text>
-        </View>
-        <View style={[styles.statRow, { marginLeft: 16 }]}>
-          <Text style={styles.statIcon}>{"..."}</Text>
-          <Text style={[T.small, { color: CLight.gray500 }]}>
-            {post.comments}
-          </Text>
+        <View style={styles.footerLeft}>
+          <View style={styles.statRow}>
+            <Text style={styles.statIcon}>{"<3"}</Text>
+            <Text style={[T.small, { color: CLight.gray500 }]}>{post.likes}</Text>
+          </View>
+          <View style={[styles.statRow, { marginLeft: 16 }]}>
+            <Text style={styles.statIcon}>{"..."}</Text>
+            <Text style={[T.small, { color: CLight.gray500 }]}>
+              {post.comments}
+            </Text>
+          </View>
         </View>
       </View>
     </View>
@@ -257,11 +267,26 @@ const styles = StyleSheet.create({
   fieldEmoji: {
     fontSize: 18,
   },
-  moreBtn: {
-    fontSize: 18,
-    color: CLight.gray400,
-    fontWeight: "700",
-    paddingHorizontal: 4,
+  reportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CLight.gray100,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  reportBtnIcon: {
+    fontSize: 12,
+  },
+  reportBtnText: {
+    fontSize: 12,
+    color: CLight.gray500,
+    fontWeight: "600",
+  },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   typeBadge: {
     alignSelf: "flex-start",

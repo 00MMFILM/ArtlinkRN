@@ -190,8 +190,13 @@ export default function MatchingScreen({ navigation }) {
               {isAi ? `🤖 AI수집${item.sourcePlatform ? ` · ${item.sourcePlatform}` : ""}` : "👤 직접 등록"}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => handlePostAction(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.moreBtn}>···</Text>
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={() => handlePostAction(item)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.reportBtnIcon}>⚠</Text>
+            <Text style={styles.reportBtnText}>신고</Text>
           </TouchableOpacity>
         </View>
 
@@ -527,7 +532,17 @@ const styles = StyleSheet.create({
 
   // Source badge
   sourceBadgeRow: { marginBottom: 6, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  moreBtn: { fontSize: 18, color: CLight.gray400, fontWeight: "700", paddingHorizontal: 4 },
+  reportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CLight.gray100,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  reportBtnIcon: { fontSize: 12 },
+  reportBtnText: { fontSize: 12, color: CLight.gray500, fontWeight: "600" },
   sourceBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,
