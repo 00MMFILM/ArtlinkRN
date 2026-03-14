@@ -70,12 +70,12 @@ const TYPE_COLORS = {
 };
 
 // ─── Post Card ───────────────────────────────────────────────
-function PostCard({ post, onReport }) {
+function PostCard({ post, onReport, onPress }) {
   const emoji = FIELD_EMOJIS[post.field] || "";
   const badgeColor = TYPE_COLORS[post.type] || CLight.gray500;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => onPress(post)}>
       {/* Header */}
       <View style={styles.cardHeader}>
         <View style={styles.authorRow}>
@@ -128,7 +128,7 @@ function PostCard({ post, onReport }) {
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -146,6 +146,14 @@ export default function CommunityScreen() {
     },
     [activeTab, blockedUsers]
   );
+
+  const handlePostPress = useCallback((post) => {
+    const fieldLabel = FIELD_EMOJIS[post.field] || "";
+    Alert.alert(
+      post.title,
+      `${post.content}\n\n${fieldLabel} ${post.author} · ${post.timeAgo}\n♡ ${post.likes}  댓글 ${post.comments}`,
+    );
+  }, []);
 
   const handlePostAction = useCallback((post) => {
     Alert.alert("게시물 관리", null, [
@@ -198,7 +206,7 @@ export default function CommunityScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <PostCard post={item} onReport={handlePostAction} />}
+        renderItem={({ item }) => <PostCard post={item} onReport={handlePostAction} onPress={handlePostPress} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
