@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,73 +6,49 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
+import { useNavigation } from "@react-navigation/native";
 import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
 import Pill from "../components/Pill";
+import {
+  fetchPosts,
+  getDemoPosts,
+  invalidatePostsCache,
+} from "../services/communityService";
 
-// ─── Demo Data ───────────────────────────────────────────────
-const demoPosts = [
-  {
-    id: 1,
-    author: "연기하는 민수",
-    field: "acting",
-    type: "팁 공유",
-    title: "셀프테이프 조명 세팅 공유합니다",
-    content: "자연광 + 링라이트 조합이 가장 자연스러워요...",
-    likes: 24,
-    comments: 8,
-    timeAgo: "2시간 전",
-  },
-  {
-    id: 2,
-    author: "재즈피아니스트 윤아",
-    field: "music",
-    type: "작품 공유",
-    title: "즉흥 연주 세션 녹음",
-    content: "Miles Davis 트리뷰트 세션에서...",
-    likes: 31,
-    comments: 12,
-    timeAgo: "5시간 전",
-  },
-  {
-    id: 3,
-    author: "무용가 지현",
-    field: "dance",
-    type: "질문",
-    title: "컨템포러리 워크숍 추천해주세요",
-    content: "서울 근처 주말 워크숍 찾고 있어요...",
-    likes: 15,
-    comments: 22,
-    timeAgo: "어제",
-  },
-  {
-    id: 4,
-    author: "일러스트 소영",
-    field: "art",
-    type: "콜라보",
-    title: "뮤지션과 앨범 아트 콜라보 원해요",
-    content: "포트폴리오 보시고 관심있으시면...",
-    likes: 42,
-    comments: 6,
-    timeAgo: "2일 전",
-  },
-];
-
-const TABS = ["전체", "팁 공유", "작품 공유", "질문", "콜라보"];
+const TABS = ["전체", "공지", "팁 공유", "작품 공유", "질문", "콜라보"];
 
 const TYPE_COLORS = {
+  "공지": CLight.red,
   "팁 공유": CLight.blue,
   "작품 공유": CLight.purple,
   "질문": CLight.orange,
   "콜라보": CLight.pink,
 };
 
+function formatTimeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "방금";
+  if (mins < 60) return `${mins}분 전`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}일 전`;
+  return new Date(dateStr).toLocaleDateString("ko-KR");
+}
+
 // ─── Post Card ───────────────────────────────────────────────
 function PostCard({ post, onReport, onPress }) {
-  const emoji = FIELD_EMOJIS[post.field] || "";
+  const field = post.author_field || post.field;
+  const emoji = FIELD_EMOJIS[field] || "";
   const badgeColor = TYPE_COLORS[post.type] || CLight.gray500;
+  const author = post.author_name || post.author;
+  const timeAgo = post.created_at ? formatTimeAgo(post.created_at) : post.timeAgo;
 
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => onPress(post)}>
@@ -81,10 +57,10 @@ function PostCard({ post, onReport, onPress }) {
         <View style={styles.authorRow}>
           <Text style={styles.fieldEmoji}>{emoji}</Text>
           <Text style={[T.captionBold, { color: CLight.gray900 }]}>
-            {post.author}
+            {author}
           </Text>
           <Text style={[T.tiny, { color: CLight.gray400, marginLeft: 4 }]}>
-            {post.timeAgo}
+            {timeAgo}
           </Text>
         </View>
         <TouchableOpacity
@@ -117,13 +93,15 @@ function PostCard({ post, onReport, onPress }) {
       <View style={styles.cardFooter}>
         <View style={styles.footerLeft}>
           <View style={styles.statRow}>
-            <Text style={styles.statIcon}>{"<3"}</Text>
-            <Text style={[T.small, { color: CLight.gray500 }]}>{post.likes}</Text>
+            <Text style={styles.statIcon}>{"♡"}</Text>
+            <Text style={[T.small, { color: CLight.gray500 }]}>
+              {post.likes_count ?? post.likes ?? 0}
+            </Text>
           </View>
           <View style={[styles.statRow, { marginLeft: 16 }]}>
-            <Text style={styles.statIcon}>{"..."}</Text>
+            <Text style={styles.statIcon}>{"💬"}</Text>
             <Text style={[T.small, { color: CLight.gray500 }]}>
-              {post.comments}
+              {post.comments_count ?? post.comments ?? 0}
             </Text>
           </View>
         </View>
@@ -134,28 +112,59 @@ function PostCard({ post, onReport, onPress }) {
 
 // ─── Community Screen ────────────────────────────────────────
 export default function CommunityScreen() {
-  const { darkMode, blockedUsers, handleBlockUser, handleReportContent } = useApp();
+  const { darkMode, blockedUsers, handleBlockUser, handleReportContent, deviceUserId } = useApp();
+  const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("전체");
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [usingDemo, setUsingDemo] = useState(false);
 
-  const filtered = useMemo(
-    () => {
-      const posts = activeTab === "전체"
-        ? demoPosts
-        : demoPosts.filter((p) => p.type === activeTab);
-      return posts.filter((p) => !blockedUsers.includes(p.author));
-    },
-    [activeTab, blockedUsers]
-  );
+  const loadPosts = useCallback(async (forceRefresh = false) => {
+    try {
+      if (forceRefresh) invalidatePostsCache();
+      const data = await fetchPosts(activeTab);
+      setPosts(data);
+      setUsingDemo(false);
+    } catch (_) {
+      // Fallback to demo data
+      setPosts(getDemoPosts());
+      setUsingDemo(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadPosts();
+  }, [activeTab]);
+
+  // Refresh when returning from post create
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      loadPosts(true);
+    });
+    return unsub;
+  }, [navigation, loadPosts]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadPosts(true);
+  }, [loadPosts]);
+
+  const filtered = useMemo(() => {
+    const authorKey = (p) => p.author_name || p.author;
+    return posts.filter((p) => !blockedUsers.includes(authorKey(p)));
+  }, [posts, blockedUsers]);
 
   const handlePostPress = useCallback((post) => {
-    const fieldLabel = FIELD_EMOJIS[post.field] || "";
-    Alert.alert(
-      post.title,
-      `${post.content}\n\n${fieldLabel} ${post.author} · ${post.timeAgo}\n♡ ${post.likes}  댓글 ${post.comments}`,
-    );
-  }, []);
+    navigation.navigate("CommunityPostDetail", { post, isDemo: usingDemo });
+  }, [navigation, usingDemo]);
 
   const handlePostAction = useCallback((post) => {
+    const author = post.author_name || post.author;
     Alert.alert("게시물 관리", null, [
       {
         text: "신고하기",
@@ -171,15 +180,23 @@ export default function CommunityScreen() {
         text: "작성자 차단",
         style: "destructive",
         onPress: () => {
-          Alert.alert("차단하기", `'${post.author}'님을 차단하시겠습니까?\n이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`, [
+          Alert.alert("차단하기", `'${author}'님을 차단하시겠습니까?\n이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`, [
             { text: "취소", style: "cancel" },
-            { text: "차단", style: "destructive", onPress: () => handleBlockUser(post.author) },
+            { text: "차단", style: "destructive", onPress: () => handleBlockUser(author) },
           ]);
         },
       },
       { text: "취소", style: "cancel" },
     ]);
   }, [handleBlockUser, handleReportContent]);
+
+  const handleCreatePost = useCallback(() => {
+    if (!deviceUserId) {
+      Alert.alert("잠시만요", "커뮤니티 연결 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    navigation.navigate("CommunityPostCreate");
+  }, [navigation, deviceUserId]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -203,22 +220,44 @@ export default function CommunityScreen() {
       </View>
 
       {/* Post List */}
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <PostCard post={item} onReport={handlePostAction} onPress={handlePostPress} />}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-              해당 카테고리의 게시물이 없습니다.
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={CLight.pink} />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => <PostCard post={item} onReport={handlePostAction} onPress={handlePostPress} />}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={CLight.pink}
+              colors={[CLight.pink]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={{ fontSize: 48, marginBottom: 16 }}>💬</Text>
+              <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
+                아직 게시물이 없습니다.{"\n"}첫 글을 작성해보세요!
+              </Text>
+            </View>
+          }
+        />
+      )}
 
-      {/* FAB removed - community posting not yet available */}
+      {/* FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.85}
+        onPress={handleCreatePost}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -246,6 +285,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 4,
     paddingBottom: 100,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   // Card

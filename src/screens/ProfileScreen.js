@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Alert,
   Linking,
+  Image,
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, APP_VERSION } from "../constants/theme";
@@ -156,9 +157,13 @@ export default function ProfileScreen({ navigation }) {
       >
         {/* ─── Avatar & Name ─── */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarEmoji}>{avatarEmoji}</Text>
-          </View>
+          {(userProfile.photos?.[0] || userProfile.photoUrl) ? (
+            <Image source={{ uri: userProfile.photos?.[0] || userProfile.photoUrl }} style={styles.avatarPhoto} />
+          ) : (
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarEmoji}>{avatarEmoji}</Text>
+            </View>
+          )}
           <Text style={[T.h2, { color: CLight.gray900, marginTop: 14 }]}>{displayName}</Text>
           {displayFields ? (
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 4 }]}>{displayFields}</Text>
@@ -331,6 +336,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   avatarEmoji: { fontSize: 40 },
+  avatarPhoto: { width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: CLight.pink },
   bodyBadgeRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   bodyBadge: { backgroundColor: CLight.pinkSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   bodyBadgeText: { ...T.micro, color: CLight.pink, fontWeight: "600" },

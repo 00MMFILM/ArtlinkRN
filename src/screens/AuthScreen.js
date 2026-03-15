@@ -11,7 +11,10 @@ import {
   Animated,
   Dimensions,
   Alert,
+  Switch,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
 import {
@@ -57,7 +60,8 @@ export default function AuthScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedUserType, setSelectedUserType] = useState("");
   const [selectedFields, setSelectedFields] = useState([]);
-  // Step 3: Body info
+  // Step 3: Body info + photos
+  const [photoUris, setPhotoUris] = useState([]);
   const [gender, setGender] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [height, setHeight] = useState("");
@@ -76,6 +80,8 @@ export default function AuthScreen({ navigation }) {
   // Step 5,6: role models, interests
   const [selectedRoleModels, setSelectedRoleModels] = useState([]);
   const [selectedInterests, setSelectedInterests] = useState([]);
+  // Profile public consent
+  const [profilePublic, setProfilePublic] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -128,6 +134,31 @@ export default function AuthScreen({ navigation }) {
     }
   };
 
+  const handleAddPhoto = async () => {
+    if (photoUris.length >= 6) return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("권한 필요", "사진 앨범 접근 권한을 허용해주세요.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        setPhotoUris((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch (e) {
+      Alert.alert("오류", "사진을 불러올 수 없습니다.");
+    }
+  };
+
+  const handleRemovePhoto = (index) => {
+    setPhotoUris((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleComplete = () => {
     const profileData = {
       name: name.trim(),
@@ -146,6 +177,9 @@ export default function AuthScreen({ navigation }) {
       bio: "",
       roleModels: selectedRoleModels,
       interests: selectedInterests,
+      profilePublic,
+      photos: photoUris,
+      pendingPhotoUris: photoUris,
     };
     handleAuth(profileData);
   };
@@ -324,6 +358,25 @@ export default function AuthScreen({ navigation }) {
       <Text style={styles.stepTitle}>신체 정보</Text>
       <Text style={styles.stepSubtitle}>캐스팅 매칭에 활용됩니다 (건너뛰기 가능)</Text>
 
+      <Text style={styles.inputLabel}>프로필 사진 (최대 6장)</Text>
+      <View style={styles.photoGrid}>
+        {photoUris.map((uri, i) => (
+          <View key={i} style={styles.photoGridItem}>
+            <Image source={{ uri }} style={styles.photoGridImg} />
+            <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => handleRemovePhoto(i)}>
+              <Text style={styles.photoRemoveText}>x</Text>
+            </TouchableOpacity>
+            {i === 0 && <View style={styles.mainBadge}><Text style={styles.mainBadgeText}>대표</Text></View>}
+          </View>
+        ))}
+        {photoUris.length < 6 && (
+          <TouchableOpacity style={styles.photoAddBtn} onPress={handleAddPhoto} activeOpacity={0.7}>
+            <Text style={{ fontSize: 28, color: CLight.gray400 }}>+</Text>
+            <Text style={[T.micro, { color: CLight.gray400 }]}>추가</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <Text style={styles.inputLabel}>성별</Text>
       <View style={styles.genderRow}>
         {GENDER_OPTIONS.map((g) => (
@@ -472,6 +525,24 @@ export default function AuthScreen({ navigation }) {
       {availableInterests.length === 0 && (
         <Text style={styles.emptyHint}>이전 단계에서 분야를 선택해주세요</Text>
       )}
+
+      {/* Profile Public Consent */}
+      <View style={styles.consentSection}>
+        <View style={styles.consentRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[T.captionBold, { color: CLight.gray900 }]}>프로필 공개</Text>
+            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2, lineHeight: 18 }]}>
+              업계 관계자(기획사, 캐스팅 디렉터 등)가 B2B 대시보드에서 내 프로필을 열람할 수 있습니다.
+            </Text>
+          </View>
+          <Switch
+            value={profilePublic}
+            onValueChange={setProfilePublic}
+            trackColor={{ false: CLight.gray200, true: CLight.pink }}
+            thumbColor={CLight.white}
+          />
+        </View>
+      </View>
     </View>
   );
 
@@ -629,4 +700,18 @@ const styles = StyleSheet.create({
   miniPillActive: { borderColor: CLight.pink, backgroundColor: CLight.pinkSoft },
   miniPillText: { ...T.micro, color: CLight.gray500 },
   miniPillTextActive: { color: CLight.pink, fontWeight: "600" },
+
+  // Photo gallery
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
+  photoGridItem: { width: (SCREEN_WIDTH - 48 - 20) / 3, aspectRatio: 3 / 4, borderRadius: 12, overflow: "hidden", position: "relative" },
+  photoGridImg: { width: "100%", height: "100%", borderRadius: 12 },
+  photoRemoveBtn: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  photoRemoveText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  mainBadge: { position: "absolute", bottom: 4, left: 4, backgroundColor: CLight.pink, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  mainBadgeText: { ...T.micro, color: "#fff", fontWeight: "700" },
+  photoAddBtn: { width: (SCREEN_WIDTH - 48 - 20) / 3, aspectRatio: 3 / 4, borderRadius: 12, borderWidth: 2, borderColor: CLight.gray200, borderStyle: "dashed", justifyContent: "center", alignItems: "center", backgroundColor: CLight.gray50 },
+
+  // Consent toggle
+  consentSection: { marginTop: 28, borderTopWidth: 1, borderTopColor: CLight.gray200, paddingTop: 20 },
+  consentRow: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: CLight.white, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: CLight.gray200 },
 });

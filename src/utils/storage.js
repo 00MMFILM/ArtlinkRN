@@ -33,4 +33,6 @@ export const STORAGE_KEYS = {
   EULA_ACCEPTED: "artlink-eula-accepted",
   BLOCKED_USERS: "artlink-blocked-users",
   REPORTED_CONTENT: "artlink-reported-content",
+  DEVICE_ID: "artlink-device-id",
+  DEVICE_USER_ID: "artlink-device-user-id",
 };

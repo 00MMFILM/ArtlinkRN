@@ -15,6 +15,7 @@ import {
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS } from "../utils/helpers";
+import { SafeAreaView } from "react-native-safe-area-context";
 import EmptyState from "../components/EmptyState";
 
 const SORT_OPTIONS = [
@@ -131,7 +132,7 @@ export default function NotesScreen({ navigation }) {
   const keyExtractor = useCallback((item) => String(item.id), []);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
@@ -239,7 +240,7 @@ export default function NotesScreen({ navigation }) {
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -53,14 +53,14 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
   const [reqLocation, setReqLocation] = useState(editPost?.requirements?.location || "");
 
   // Warn on unsaved changes
-  const [hasChanges, setHasChanges] = useState(false);
+  const hasChangesRef = React.useRef(false);
   useEffect(() => {
-    if (title || description || tags.length > 0 || deadline) setHasChanges(true);
+    if (title || description || tags.length > 0 || deadline) hasChangesRef.current = true;
   }, [title, description, tags, deadline]);
 
   useEffect(() => {
     const unsub = navigation.addListener("beforeRemove", (e) => {
-      if (!hasChanges) return;
+      if (!hasChangesRef.current) return;
       e.preventDefault();
       Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
         { text: "계속 작성", style: "cancel" },
@@ -68,7 +68,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
       ]);
     });
     return unsub;
-  }, [navigation, hasChanges]);
+  }, [navigation]);
 
   const handleAddTag = useCallback(() => {
     const trimmed = tagInput.trim().replace(/^#/, "");
@@ -113,12 +113,12 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
     } else {
       handleAddMatchingPost(postData);
     }
-    setHasChanges(false);
+    hasChangesRef.current = false;
     navigation.goBack();
   }, [tab, title, field, description, deadline, tags, editPost, handleAddMatchingPost, handleUpdateMatchingPost, navigation]);
 
   const handleCancel = useCallback(() => {
-    if (hasChanges) {
+    if (hasChangesRef.current) {
       Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
         { text: "계속 작성", style: "cancel" },
         { text: "나가기", style: "destructive", onPress: () => navigation.goBack() },
@@ -126,7 +126,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
     } else {
       navigation.goBack();
     }
-  }, [hasChanges, navigation]);
+  }, [navigation]);
 
   return (
     <KeyboardAvoidingView

@@ -39,9 +39,9 @@ function buildAIPrompt(field, content, savedNotes = [], currentNote = null, user
   const fieldConfig = FIELD_AI_PROMPTS[field] || FIELD_AI_PROMPTS.acting;
   const fieldLabel = FIELD_LABELS[field] || "예술";
 
-  const sameFieldNotes = savedNotes.filter((n) => n.field === field && n.aiComment).slice(0, 3);
+  const sameFieldNotes = savedNotes.filter((n) => n.field === field && n.aiComment).slice(0, 5);
   const historyContext = sameFieldNotes.length > 0
-    ? `\n[이전 ${fieldLabel} 피드백 히스토리]\n${sameFieldNotes.map((n, i) => `${i + 1}. ${(n.aiComment || "").slice(0, 150)}`).join("\n")}`
+    ? `\n[이전 ${fieldLabel} 피드백 히스토리]\n${sameFieldNotes.map((n, i) => `${i + 1}. ${(n.aiComment || "").slice(0, 200)}`).join("\n")}`
     : "";
 
   const personalContext = userProfile.roleModels?.length
@@ -50,6 +50,14 @@ function buildAIPrompt(field, content, savedNotes = [], currentNote = null, user
 
   const interestContext = userProfile.interests?.length
     ? `\n[관심 분야: ${userProfile.interests.join(", ")}]`
+    : "";
+
+  const careerContext = userProfile.career?.length
+    ? `\n[경력: ${userProfile.career.slice(0, 5).map((c) => `${c.title}(${c.role})`).join(", ")}]`
+    : "";
+
+  const specialtyContext = userProfile.specialties?.length
+    ? `\n[특기: ${userProfile.specialties.join(", ")}]`
     : "";
 
   // Media metadata context
@@ -65,16 +73,18 @@ function buildAIPrompt(field, content, savedNotes = [], currentNote = null, user
   const mediaContext = mediaParts.length > 0 ? `\n[${mediaParts.join(", ")}]` : "";
 
   return `${fieldConfig.system}
-${historyContext}${personalContext}${interestContext}${mediaContext}
+${historyContext}${personalContext}${interestContext}${careerContext}${specialtyContext}${mediaContext}
 
 [사용자의 ${fieldLabel} 연습 노트]
 ${content}
 
-위 내용을 분석하고 아래 형식으로 피드백해주세요 (500-700자):
+위 내용을 분석하고 아래 형식으로 피드백해주세요 (600-900자):
 📌 전체 인상 (1-2문장)
 💪 강점 분석 (구체적 근거와 함께)
 🎯 개선 포인트 (실천 가능한 제안)
+🎭 기술 분석 (${fieldLabel} 분야 전문 용어로 구체적 기술 평가)
 🎨 롤모델 연결 (관련 아티스트/작품 레퍼런스)
+💡 영감 포인트 (다른 분야와의 연결점, 크로스오버 아이디어)
 📈 성장 트래킹 (이전 대비 변화 관찰)
 🔜 다음 스텝 (구체적 연습 과제 1개)`;
 }

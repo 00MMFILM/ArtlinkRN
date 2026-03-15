@@ -106,12 +106,9 @@ export default function MatchingScreen({ navigation }) {
         Alert.alert("링크 열기 실패", "외부 브라우저에서 열 수 없습니다.");
       });
     } else {
-      Alert.alert(
-        item.title,
-        `${item.description}\n\n분야: ${FIELD_LABELS[item.field] || item.field}${item.deadline ? `\n마감: ${item.deadline}` : ""}${item.tags?.length ? `\n태그: ${item.tags.map((t) => `#${t}`).join(" ")}` : ""}`,
-      );
+      navigation.navigate("MatchingPostDetail", { post: item });
     }
-  }, []);
+  }, [navigation]);
 
   const handleReportPost = useCallback((item) => {
     Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [

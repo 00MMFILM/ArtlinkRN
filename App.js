@@ -28,6 +28,9 @@ import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
 import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
 import ProfileEditScreen from "./src/screens/ProfileEditScreen";
 import EULAScreen from "./src/screens/EULAScreen";
+import CommunityPostDetailScreen from "./src/screens/CommunityPostDetailScreen";
+import CommunityPostCreateScreen from "./src/screens/CommunityPostCreateScreen";
+import MatchingPostDetailScreen from "./src/screens/MatchingPostDetailScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -132,6 +135,13 @@ function AppNavigator() {
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="B2B" component={B2BDashboardScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
+              <Stack.Screen name="CommunityPostDetail" component={CommunityPostDetailScreen} />
+              <Stack.Screen
+                name="CommunityPostCreate"
+                component={CommunityPostCreateScreen}
+                options={{ presentation: "modal", animation: "slide_from_bottom" }}
+              />
+              <Stack.Screen name="MatchingPostDetail" component={MatchingPostDetailScreen} />
               <Stack.Screen
                 name="ProfileEdit"
                 component={ProfileEditScreen}

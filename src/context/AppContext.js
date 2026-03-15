@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, STORAGE_KEYS } from "../utils/storage";
 import { computeArtistProfile } from "../services/analyticsService";
+import { ensureDeviceUser } from "../services/communityService";
+import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
 
 const AppContext = createContext();
 
@@ -29,6 +31,7 @@ export function AppProvider({ children }) {
   const [eulaAccepted, setEulaAccepted] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [reportedContent, setReportedContent] = useState([]);
+  const [deviceUserId, setDeviceUserId] = useState(null);
 
   const artistProfile = useMemo(
     () => computeArtistProfile(savedNotes, userProfile),
@@ -77,6 +80,52 @@ export function AppProvider({ children }) {
       setStorageReady(true);
     })();
   }, []);
+
+  // Register device user with Supabase
+  useEffect(() => {
+    if (!storageReady || authState !== "app") return;
+    (async () => {
+      try {
+        let deviceId = await safeStorageGet(STORAGE_KEYS.DEVICE_ID);
+        if (!deviceId) {
+          deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+          await safeStorageSet(STORAGE_KEYS.DEVICE_ID, deviceId);
+        }
+        // Check cached userId first
+        const cachedUserId = await safeStorageGet(STORAGE_KEYS.DEVICE_USER_ID);
+        if (cachedUserId) {
+          setDeviceUserId(cachedUserId);
+          return;
+        }
+        const userId = await ensureDeviceUser(deviceId, userProfile.name, userProfile.fields?.[0]);
+        setDeviceUserId(userId);
+        await safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, userId);
+      } catch (_) {
+        // Silent fail — community features will use demo fallback
+      }
+    })();
+  }, [storageReady, authState]);
+
+  // Sync profile to Supabase when profilePublic is enabled
+  useEffect(() => {
+    if (!deviceUserId || !userProfile.profilePublic) return;
+    upsertArtistProfile(deviceUserId, userProfile).catch(() => {});
+
+    // Upload pending local photos
+    const pendingUris = (userProfile.pendingPhotoUris || []);
+    if (pendingUris.length > 0) {
+      uploadProfilePhotos(deviceUserId, pendingUris)
+        .then((urls) => {
+          setUserProfile((prev) => {
+            const existing = (prev.photos || []).filter((p) => !p.startsWith("file://"));
+            const updated = { ...prev, photos: [...existing, ...urls], pendingPhotoUris: undefined, photoUrl: urls[0] || prev.photoUrl };
+            safeStorageSet(STORAGE_KEYS.PROFILE, updated);
+            return updated;
+          });
+        })
+        .catch(() => {});
+    }
+  }, [deviceUserId, userProfile]);
 
   // Persist notes
   useEffect(() => {
@@ -269,7 +318,7 @@ export function AppProvider({ children }) {
     savedNotes, userProfile, darkMode, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
-    eulaAccepted, blockedUsers, reportedContent,
+    eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
@@ -282,7 +331,7 @@ export function AppProvider({ children }) {
     savedNotes, userProfile, darkMode, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
-    eulaAccepted, blockedUsers, reportedContent,
+    eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,

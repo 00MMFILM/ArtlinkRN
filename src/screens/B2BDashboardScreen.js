@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,11 +9,14 @@ import {
   SafeAreaView,
   Modal,
   Dimensions,
+  ActivityIndicator,
+  Image,
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import { GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES, calculateAge, FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
+import { fetchArtistProfiles } from "../services/profileService";
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -39,8 +42,33 @@ const DEMO_ACTIVITIES = [
 
 const ACTIVITY_ICONS = { casting: { icon: "C", color: CLight.pink }, match: { icon: "M", color: CLight.green }, project: { icon: "P", color: CLight.blue }, report: { icon: "R", color: CLight.orange } };
 
+function transformProfile(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    fields: p.fields || [],
+    gender: p.gender,
+    birthDate: p.birth_date,
+    height: p.height,
+    weight: p.weight,
+    specialties: p.specialties || [],
+    career: p.career || [],
+    location: p.location,
+    agency: p.agency,
+    score: p.score || 0,
+    bio: p.bio,
+    photoUrl: p.photo_url || null,
+    photos: p.photos || [],
+    notes: 0,
+    streak: 0,
+  };
+}
+
 export default function B2BDashboardScreen({ navigation }) {
   const { showToast } = useApp();
+  const [artists, setArtists] = useState(DEMO_ACTORS);
+  const [loading, setLoading] = useState(true);
+  const [usingDemo, setUsingDemo] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterGender, setFilterGender] = useState("");
@@ -52,6 +80,19 @@ export default function B2BDashboardScreen({ navigation }) {
   const [filterSpecialties, setFilterSpecialties] = useState([]);
   const [filterLocation, setFilterLocation] = useState("");
   const [selectedActor, setSelectedActor] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await fetchArtistProfiles();
+        if (data && data.length > 0) {
+          setArtists(data.map(transformProfile));
+          setUsingDemo(false);
+        }
+      } catch (_) {}
+      setLoading(false);
+    })();
+  }, []);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -65,7 +106,7 @@ export default function B2BDashboardScreen({ navigation }) {
   }, [filterGender, filterAgeMin, filterAgeMax, filterHeightMin, filterHeightMax, filterField, filterSpecialties, filterLocation]);
 
   const filteredArtists = useMemo(() => {
-    return DEMO_ACTORS.filter((a) => {
+    return artists.filter((a) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = a.name.toLowerCase().includes(q);
@@ -84,7 +125,7 @@ export default function B2BDashboardScreen({ navigation }) {
       if (filterLocation && a.location && !a.location.includes(filterLocation)) return false;
       return true;
     });
-  }, [searchQuery, filterGender, filterAgeMin, filterAgeMax, filterHeightMin, filterHeightMax, filterField, filterSpecialties, filterLocation]);
+  }, [artists, searchQuery, filterGender, filterAgeMin, filterAgeMax, filterHeightMin, filterHeightMax, filterField, filterSpecialties, filterLocation]);
 
   const clearFilters = () => {
     setFilterGender("");
@@ -106,9 +147,13 @@ export default function B2BDashboardScreen({ navigation }) {
     return (
       <TouchableOpacity key={actor.id} style={styles.actorCard} onPress={() => setSelectedActor(actor)} activeOpacity={0.7}>
         <View style={styles.actorRow}>
-          <View style={[styles.actorAvatar, { backgroundColor: fieldColor + "18" }]}>
-            <Text style={[T.bodyBold, { color: fieldColor }]}>{actor.name.charAt(0)}</Text>
-          </View>
+          {actor.photoUrl ? (
+            <Image source={{ uri: actor.photoUrl }} style={styles.actorAvatarImg} />
+          ) : (
+            <View style={[styles.actorAvatar, { backgroundColor: fieldColor + "18" }]}>
+              <Text style={[T.bodyBold, { color: fieldColor }]}>{actor.name.charAt(0)}</Text>
+            </View>
+          )}
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={[T.captionBold, { color: CLight.gray900 }]}>{actor.name}</Text>
@@ -161,11 +206,24 @@ export default function B2BDashboardScreen({ navigation }) {
             <View style={{ width: 40 }} />
           </View>
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+            {/* Photo gallery */}
+            {actor.photos && actor.photos.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalPhotoScroll} style={{ marginBottom: 16 }}>
+                {actor.photos.map((url, i) => (
+                  <Image key={i} source={{ uri: url }} style={styles.modalPhotoItem} />
+                ))}
+              </ScrollView>
+            ) : null}
+
             {/* Profile header */}
             <View style={styles.modalProfile}>
-              <View style={[styles.modalAvatar, { backgroundColor: fieldColor + "18" }]}>
-                <Text style={{ fontSize: 32, color: fieldColor }}>{FIELD_EMOJIS[primaryField] || actor.name.charAt(0)}</Text>
-              </View>
+              {!actor.photos?.length && (actor.photoUrl ? (
+                <Image source={{ uri: actor.photoUrl }} style={styles.modalAvatarImg} />
+              ) : (
+                <View style={[styles.modalAvatar, { backgroundColor: fieldColor + "18" }]}>
+                  <Text style={{ fontSize: 32, color: fieldColor }}>{FIELD_EMOJIS[primaryField] || actor.name.charAt(0)}</Text>
+                </View>
+              ))}
               <Text style={[T.h2, { color: CLight.gray900, marginTop: 12 }]}>{actor.name}</Text>
               {actor.agency ? <Text style={[T.caption, { color: CLight.gray500, marginTop: 2 }]}>{actor.agency}</Text> : null}
               <View style={styles.modalBadgeRow}>
@@ -255,10 +313,24 @@ export default function B2BDashboardScreen({ navigation }) {
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Demo notice */}
+        {usingDemo && (
+          <View style={styles.demoNoticeBanner}>
+            <Text style={styles.demoNoticeIcon}>💡</Text>
+            <Text style={styles.demoNoticeText}>
+              현재 예시 데이터로 표시됩니다. 실제 아티스트 데이터는 프로필 공개 동의 후 연동됩니다.
+            </Text>
+          </View>
+        )}
+
+        {loading && (
+          <ActivityIndicator size="large" color={CLight.pink} style={{ marginVertical: 20 }} />
+        )}
+
         {/* Stats overview */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderLeftColor: CLight.pink }]}>
-            <Text style={[T.h2, { color: CLight.pink }]}>{DEMO_STATS.registeredArtists.toLocaleString()}</Text>
+            <Text style={[T.h2, { color: CLight.pink }]}>{usingDemo ? DEMO_STATS.registeredArtists.toLocaleString() : artists.length}</Text>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>등록 아티스트</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.blue }]}>
@@ -426,6 +498,7 @@ const styles = StyleSheet.create({
   actorCard: { backgroundColor: CLight.white, borderRadius: 14, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
   actorRow: { flexDirection: "row", alignItems: "center" },
   actorAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  actorAvatarImg: { width: 44, height: 44, borderRadius: 22 },
   scoreCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: CLight.pinkSoft, alignItems: "center", justifyContent: "center" },
   specRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   specPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CLight.gray50, borderWidth: 1, borderColor: CLight.gray200 },
@@ -438,13 +511,18 @@ const styles = StyleSheet.create({
   activityRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 10 },
   activityBorder: { borderBottomWidth: 1, borderBottomColor: CLight.gray100 },
   activityIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  demoNotice: { marginTop: 20, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: CLight.gray50, borderRadius: 10 },
+  demoNoticeBanner: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFF8E1", borderRadius: 12, padding: 14, marginBottom: 14, gap: 10, borderWidth: 1, borderColor: "#FFE082" },
+  demoNoticeIcon: { fontSize: 18 },
+  demoNoticeText: { ...T.small, color: "#795548", flex: 1, lineHeight: 20 },
 
   // Modal
   modalSafe: { flex: 1, backgroundColor: CLight.bg },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: CLight.gray200 },
   modalProfile: { alignItems: "center", marginBottom: 20 },
   modalAvatar: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+  modalAvatarImg: { width: 80, height: 80, borderRadius: 40 },
+  modalPhotoScroll: { gap: 10, paddingHorizontal: 4 },
+  modalPhotoItem: { width: 140, height: 187, borderRadius: 12 },
   modalBadgeRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   modalBadge: { backgroundColor: CLight.pinkSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   modalBadgeText: { ...T.micro, color: CLight.pink, fontWeight: "600" },

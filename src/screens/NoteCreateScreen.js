@@ -32,7 +32,7 @@ export default function NoteCreateScreen({ navigation }) {
   const [seriesName, setSeriesName] = useState("");
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedChangesRef = useRef(false);
 
   // Media state
   const [images, setImages] = useState([]); // [{ uri, type, width, height }]
@@ -93,13 +93,13 @@ export default function NoteCreateScreen({ navigation }) {
   // Track unsaved changes
   useEffect(() => {
     if (title || content || tags.length > 0 || seriesName || aiComment || images.length > 0 || voiceRecordings.length > 0) {
-      setHasUnsavedChanges(true);
+      hasUnsavedChangesRef.current = true;
     }
   }, [title, content, tags, seriesName, aiComment, images, voiceRecordings]);
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
-    if (hasUnsavedChanges) {
+    if (hasUnsavedChangesRef.current) {
       Alert.alert(
         "저장하지 않고 나가기",
         "작성 중인 내용이 사라집니다. 정말 나가시겠어요?",
@@ -111,12 +111,12 @@ export default function NoteCreateScreen({ navigation }) {
     } else {
       navigation.goBack();
     }
-  }, [hasUnsavedChanges, navigation]);
+  }, [navigation]);
 
   // Intercept hardware back / navigation gesture
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-      if (!hasUnsavedChanges) return;
+      if (!hasUnsavedChangesRef.current) return;
       e.preventDefault();
       Alert.alert(
         "저장하지 않고 나가기",
@@ -132,7 +132,7 @@ export default function NoteCreateScreen({ navigation }) {
       );
     });
     return unsubscribe;
-  }, [navigation, hasUnsavedChanges]);
+  }, [navigation]);
 
   // Add tag
   const handleAddTag = useCallback(() => {
@@ -312,7 +312,7 @@ export default function NoteCreateScreen({ navigation }) {
       images: images.length > 0 ? images : undefined,
       voiceRecordings: voiceRecordings.length > 0 ? voiceRecordings : undefined,
     };
-    setHasUnsavedChanges(false);
+    hasUnsavedChangesRef.current = false;
     handleSaveNote(noteData);
     navigation.goBack();
   }, [title, content, field, tags, seriesName, aiComment, images, voiceRecordings, handleSaveNote, navigation]);
