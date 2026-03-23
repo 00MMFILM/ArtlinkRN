@@ -15,7 +15,7 @@ export default function Pill({ children, active, color = CLight.pink, onPress })
         },
       ]}
     >
-      <Text numberOfLines={1} style={[styles.text, { color: active ? color : CLight.gray500, fontWeight: active ? "600" : "400" }]}>
+      <Text style={[styles.text, { color: active ? color : CLight.gray500, fontWeight: active ? "600" : "400" }]}>
         {children}
       </Text>
     </TouchableOpacity>

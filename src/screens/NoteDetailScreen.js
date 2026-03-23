@@ -52,7 +52,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [editContent, setEditContent] = useState(note?.content || "");
   const [aiLoading, setAiLoading] = useState(false);
   const [videoAiLoading, setVideoAiLoading] = useState(false);
-  const [videoAiProgress, setVideoAiProgress] = useState("");
+  const [videoAiProgress, setVideoAiProgress] = useState({ phase: "", percent: 0, message: "" });
 
   const noteVideos = useMemo(
     () => (note?.images || []).filter((i) => i.type === "video"),
@@ -235,7 +235,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   const handleRequestVideoAI = useCallback(async () => {
     if (!note || noteVideos.length === 0) return;
     setVideoAiLoading(true);
-    setVideoAiProgress("extracting");
+    setVideoAiProgress({ phase: "extracting", percent: 0, message: "준비 중..." });
     try {
       const result = await analyzeVideoFrames(
         note.field,
@@ -243,7 +243,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         note.title,
         noteVideos,
         userProfile,
-        (phase) => setVideoAiProgress(phase)
+        (progress) => setVideoAiProgress(progress)
       );
       handleUpdateNote({ ...note, videoAnalysis: result });
       showToast("영상 AI 분석이 완료되었습니다!", "success");
@@ -251,7 +251,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       showToast("영상 AI 분석에 실패했습니다", "error");
     } finally {
       setVideoAiLoading(false);
-      setVideoAiProgress("");
+      setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
   }, [note, noteVideos, userProfile, handleUpdateNote, showToast]);
 
@@ -527,12 +527,8 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── AI Analysis Tab ───
   function renderAITab() {
-    const videoProgressText =
-      videoAiProgress === "extracting"
-        ? "프레임 추출 중..."
-        : videoAiProgress === "analyzing"
-        ? "AI 분석 중..."
-        : "영상 분석 준비 중...";
+    const videoProgressText = videoAiProgress.message || "영상 분석 준비 중...";
+    const videoPercent = videoAiProgress.percent || 0;
 
     return (
       <View style={styles.tabContent}>
@@ -581,9 +577,11 @@ export default function NoteDetailScreen({ route, navigation }) {
           <View style={styles.videoAiSection}>
             {videoAiLoading ? (
               <View style={styles.videoAiLoadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={[T.caption, { color: CLight.gray500, marginTop: 16 }]}>
-                  {videoProgressText}
+                <View style={{ width: "100%", height: 6, backgroundColor: "#007AFF15", borderRadius: 3, marginBottom: 12 }}>
+                  <View style={{ width: `${videoPercent}%`, height: 6, backgroundColor: "#007AFF", borderRadius: 3 }} />
+                </View>
+                <Text style={[T.caption, { color: CLight.gray500 }]}>
+                  {videoProgressText} ({videoPercent}%)
                 </Text>
               </View>
             ) : note.videoAnalysis ? (

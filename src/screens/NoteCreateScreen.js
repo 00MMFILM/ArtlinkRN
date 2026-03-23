@@ -35,7 +35,7 @@ export default function NoteCreateScreen({ navigation }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [videoAnalysis, setVideoAnalysis] = useState("");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
-  const [videoAiProgress, setVideoAiProgress] = useState("");
+  const [videoAiProgress, setVideoAiProgress] = useState({ phase: "", percent: 0, message: "" });
   const hasUnsavedChangesRef = useRef(false);
 
   // Media state
@@ -183,7 +183,7 @@ export default function NoteCreateScreen({ navigation }) {
       return;
     }
     setVideoAiLoading(true);
-    setVideoAiProgress("extracting");
+    setVideoAiProgress({ phase: "extracting", percent: 0, message: "준비 중..." });
     try {
       const result = await analyzeVideoFrames(
         field,
@@ -191,14 +191,14 @@ export default function NoteCreateScreen({ navigation }) {
         title,
         noteVideos,
         userProfile,
-        (phase) => setVideoAiProgress(phase)
+        (progress) => setVideoAiProgress(progress)
       );
       setVideoAnalysis(result);
     } catch (e) {
       Alert.alert("분석 실패", "영상 AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
     } finally {
       setVideoAiLoading(false);
-      setVideoAiProgress("");
+      setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
   }, [noteVideos, field, content, title, userProfile]);
 
@@ -738,10 +738,11 @@ export default function NoteCreateScreen({ navigation }) {
           <>
             {videoAiLoading ? (
               <View style={[styles.aiLoadingContainer, { marginTop: 12 }]}>
-                <Animated.View style={[styles.shimmerBar, { opacity: shimmerOpacity, backgroundColor: "#007AFF30" }]} />
-                <Animated.View style={[styles.shimmerBar, styles.shimmerBarShort, { opacity: shimmerOpacity, backgroundColor: "#007AFF30" }]} />
+                <View style={{ width: "100%", height: 6, backgroundColor: "#007AFF15", borderRadius: 3, marginBottom: 10 }}>
+                  <View style={{ width: `${videoAiProgress.percent || 0}%`, height: 6, backgroundColor: "#007AFF", borderRadius: 3 }} />
+                </View>
                 <Text style={styles.aiLoadingText}>
-                  {videoAiProgress === "extracting" ? "프레임 추출 중..." : videoAiProgress === "analyzing" ? "AI 영상 분석 중..." : "준비 중..."}
+                  {videoAiProgress.message || "준비 중..."} ({videoAiProgress.percent || 0}%)
                 </Text>
               </View>
             ) : (

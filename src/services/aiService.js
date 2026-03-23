@@ -420,40 +420,61 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
   const durationSec = video.duration ? Math.round(video.duration / 1000) : 30;
 
   try {
-    // Phase 1: Extract frames + transcribe in parallel
-    onProgress?.("extracting");
+    // Phase 1: Extract frames + transcribe in parallel (0-40%)
+    onProgress?.({ phase: "extracting", percent: 5, message: "프레임 추출 중..." });
 
-    const [frames, transcript] = await Promise.all([
-      extractVideoFrames(video.uri, durationSec),
-      transcribeVideo(video.uri),
-    ]);
+    const framePromise = extractVideoFrames(video.uri, durationSec);
+    onProgress?.({ phase: "extracting", percent: 15, message: "영상 프레임 추출 중..." });
+
+    const transcribePromise = transcribeVideo(video.uri);
+    onProgress?.({ phase: "extracting", percent: 20, message: "음성 전사 중..." });
+
+    const [frames, transcript] = await Promise.all([framePromise, transcribePromise]);
+    onProgress?.({ phase: "extracting", percent: 40, message: "전처리 완료" });
 
     if (frames.length === 0) {
       console.log("[analyzeVideoFrames] No frames extracted");
       return heuristicVideoFallback(field, videos.length);
     }
 
-    // Phase 2: Send to Claude Vision
-    onProgress?.("analyzing");
+    // Phase 2: Send to Claude Vision (40-95%)
+    onProgress?.({ phase: "analyzing", percent: 45, message: "AI 분석 요청 중..." });
 
     const prompt = buildVideoPrompt(field, content, title);
 
-    const response = await fetch(`${SERVER_URL}/api/analyze-video`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        field,
-        noteTitle: title || "",
-        frames,
-        transcript: transcript || undefined,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 100000);
 
-    if (!response.ok) throw new Error("Server error");
-    const data = await response.json();
-    return data.analysis || heuristicVideoFallback(field, videos.length);
+    try {
+      onProgress?.({ phase: "analyzing", percent: 55, message: "AI가 영상을 분석하고 있습니다..." });
+
+      const response = await fetch(`${SERVER_URL}/api/analyze-video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          field,
+          noteTitle: title || "",
+          frames,
+          transcript: transcript || undefined,
+        }),
+        signal: controller.signal,
+      });
+
+      onProgress?.({ phase: "analyzing", percent: 85, message: "응답 처리 중..." });
+
+      if (!response.ok) throw new Error("Server error");
+      const data = await response.json();
+      onProgress?.({ phase: "done", percent: 100, message: "분석 완료!" });
+      return data.analysis || heuristicVideoFallback(field, videos.length);
+    } finally {
+      clearTimeout(timeout);
+    }
   } catch (e) {
+    if (e.name === "AbortError") {
+      console.log("[analyzeVideoFrames] Timeout after 100s");
+      return heuristicVideoFallback(field, videos.length);
+    }
     console.log("[analyzeVideoFrames] Error:", e.message);
     return heuristicVideoFallback(field, videos.length);
   }
