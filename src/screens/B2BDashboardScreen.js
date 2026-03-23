@@ -11,12 +11,14 @@ import {
   Dimensions,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import { GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES, calculateAge, FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 import { fetchArtistProfiles } from "../services/profileService";
+import { sendProposal } from "../services/proposalService";
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -45,12 +47,15 @@ const ACTIVITY_ICONS = { casting: { icon: "C", color: CLight.pink }, match: { ic
 function transformProfile(p) {
   return {
     id: p.id,
+    userId: p.user_id,
     name: p.name,
     fields: p.fields || [],
     gender: p.gender,
     birthDate: p.birth_date,
     height: p.height,
     weight: p.weight,
+    heightPrivate: p.height_private || false,
+    weightPrivate: p.weight_private || false,
     specialties: p.specialties || [],
     career: p.career || [],
     location: p.location,
@@ -59,13 +64,13 @@ function transformProfile(p) {
     bio: p.bio,
     photoUrl: p.photo_url || null,
     photos: p.photos || [],
-    notes: 0,
-    streak: 0,
+    notes: p.notes_count || 0,
+    streak: p.streak_days || 0,
   };
 }
 
 export default function B2BDashboardScreen({ navigation }) {
-  const { showToast } = useApp();
+  const { showToast, userProfile, deviceUserId } = useApp();
   const [artists, setArtists] = useState(DEMO_ACTORS);
   const [loading, setLoading] = useState(true);
   const [usingDemo, setUsingDemo] = useState(true);
@@ -80,6 +85,11 @@ export default function B2BDashboardScreen({ navigation }) {
   const [filterSpecialties, setFilterSpecialties] = useState([]);
   const [filterLocation, setFilterLocation] = useState("");
   const [selectedActor, setSelectedActor] = useState(null);
+  const [showProposalModal, setShowProposalModal] = useState(false);
+  const [proposalTitle, setProposalTitle] = useState("");
+  const [proposalContent, setProposalContent] = useState("");
+  const [proposalType, setProposalType] = useState("casting");
+  const [sendingProposal, setSendingProposal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -187,6 +197,37 @@ export default function B2BDashboardScreen({ navigation }) {
     );
   }, []);
 
+  const handleCloseDetailModal = useCallback(() => {
+    setSelectedActor(null);
+    setShowProposalModal(false);
+    setProposalTitle("");
+    setProposalContent("");
+  }, []);
+
+  const handleSendProposal = useCallback(async () => {
+    if (!proposalTitle.trim() || !proposalContent.trim() || sendingProposal) return;
+    if (!deviceUserId) { Alert.alert("오류", "로그인이 필요합니다."); return; }
+    if (!selectedActor?.userId) { Alert.alert("오류", "이 아티스트에게는 제안을 보낼 수 없습니다."); return; }
+    setSendingProposal(true);
+    try {
+      await sendProposal({
+        senderId: deviceUserId,
+        recipientId: selectedActor.userId,
+        type: proposalType,
+        title: proposalTitle.trim(),
+        content: proposalContent.trim(),
+        senderName: userProfile.name || "익명",
+        senderField: userProfile.fields?.[0] || null,
+      });
+      showToast(proposalType === "casting" ? "캐스팅 제안이 전송되었습니다!" : "협업 제안이 전송되었습니다!", "success");
+      handleCloseDetailModal();
+    } catch (e) {
+      Alert.alert("오류", "제안 전송에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setSendingProposal(false);
+    }
+  }, [proposalTitle, proposalContent, sendingProposal, deviceUserId, selectedActor, proposalType, userProfile, showToast, handleCloseDetailModal]);
+
   const renderActorDetailModal = () => {
     if (!selectedActor) return null;
     const actor = selectedActor;
@@ -196,106 +237,183 @@ export default function B2BDashboardScreen({ navigation }) {
     const fieldColor = FIELD_COLORS[primaryField] || CLight.pink;
 
     return (
-      <Modal visible={!!selectedActor} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSelectedActor(null)}>
+      <Modal visible={!!selectedActor} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleCloseDetailModal}>
         <SafeAreaView style={styles.modalSafe}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSelectedActor(null)}>
-              <Text style={[T.body, { color: CLight.gray500 }]}>닫기</Text>
-            </TouchableOpacity>
-            <Text style={[T.title, { color: CLight.gray900 }]}>배우 상세</Text>
-            <View style={{ width: 40 }} />
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-            {/* Photo gallery */}
-            {actor.photos && actor.photos.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalPhotoScroll} style={{ marginBottom: 16 }}>
-                {actor.photos.map((url, i) => (
-                  <Image key={i} source={{ uri: url }} style={styles.modalPhotoItem} />
-                ))}
-              </ScrollView>
-            ) : null}
-
-            {/* Profile header */}
-            <View style={styles.modalProfile}>
-              {!actor.photos?.length && (actor.photoUrl ? (
-                <Image source={{ uri: actor.photoUrl }} style={styles.modalAvatarImg} />
-              ) : (
-                <View style={[styles.modalAvatar, { backgroundColor: fieldColor + "18" }]}>
-                  <Text style={{ fontSize: 32, color: fieldColor }}>{FIELD_EMOJIS[primaryField] || actor.name.charAt(0)}</Text>
-                </View>
-              ))}
-              <Text style={[T.h2, { color: CLight.gray900, marginTop: 12 }]}>{actor.name}</Text>
-              {actor.agency ? <Text style={[T.caption, { color: CLight.gray500, marginTop: 2 }]}>{actor.agency}</Text> : null}
-              <View style={styles.modalBadgeRow}>
-                {genderLabel ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{genderLabel}</Text></View> : null}
-                {age ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{age}세</Text></View> : null}
-                {actor.height ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{actor.height}cm</Text></View> : null}
-                {actor.weight ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{actor.weight}kg</Text></View> : null}
+          {showProposalModal ? (
+            <>
+              {/* Proposal form inside the same modal */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => { setShowProposalModal(false); setProposalTitle(""); setProposalContent(""); }}>
+                  <Text style={[T.body, { color: CLight.gray500 }]}>뒤로</Text>
+                </TouchableOpacity>
+                <Text style={[T.title, { color: CLight.gray900 }]}>
+                  {proposalType === "casting" ? "캐스팅 제안" : "협업 제안"}
+                </Text>
+                <View style={{ width: 40 }} />
               </View>
-            </View>
+              <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+                <Text style={[T.caption, { color: CLight.gray500, marginBottom: 16 }]}>
+                  받는 사람: {actor.name}
+                </Text>
+                <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6 }]}>제목</Text>
+                <TextInput
+                  style={styles.proposalInput}
+                  placeholder="제안 제목을 입력하세요"
+                  placeholderTextColor={CLight.gray400}
+                  value={proposalTitle}
+                  onChangeText={setProposalTitle}
+                  maxLength={100}
+                />
+                <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6, marginTop: 16 }]}>내용</Text>
+                <TextInput
+                  style={[styles.proposalInput, { height: 160, textAlignVertical: "top" }]}
+                  placeholder="제안 내용을 상세히 작성해주세요"
+                  placeholderTextColor={CLight.gray400}
+                  value={proposalContent}
+                  onChangeText={setProposalContent}
+                  multiline
+                  maxLength={1000}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.castingBtn,
+                    { marginTop: 24 },
+                    proposalType === "collaboration" && { backgroundColor: CLight.purple },
+                    (!proposalTitle.trim() || !proposalContent.trim() || sendingProposal) && { backgroundColor: CLight.gray300 },
+                  ]}
+                  onPress={handleSendProposal}
+                  activeOpacity={0.7}
+                  disabled={!proposalTitle.trim() || !proposalContent.trim() || sendingProposal}
+                >
+                  <Text style={[T.bodyBold, { color: CLight.white }]}>{sendingProposal ? "전송 중..." : "제안 보내기"}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </>
+          ) : (
+            <>
+              {/* Actor detail view */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={handleCloseDetailModal}>
+                  <Text style={[T.body, { color: CLight.gray500 }]}>닫기</Text>
+                </TouchableOpacity>
+                <Text style={[T.title, { color: CLight.gray900 }]}>배우 상세</Text>
+                <View style={{ width: 40 }} />
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+                {/* Photo gallery */}
+                {actor.photos && actor.photos.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalPhotoScroll} style={{ marginBottom: 16 }}>
+                    {actor.photos.map((url, i) => (
+                      <Image key={i} source={{ uri: url }} style={styles.modalPhotoItem} />
+                    ))}
+                  </ScrollView>
+                ) : null}
 
-            {/* Fields */}
-            <Text style={styles.modalSectionTitle}>분야</Text>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {(actor.fields || []).map((f) => (
-                <View key={f} style={[styles.fieldTag, { backgroundColor: (FIELD_COLORS[f] || CLight.pink) + "18" }]}>
-                  <Text style={{ fontSize: 14 }}>{FIELD_EMOJIS[f]}</Text>
-                  <Text style={[T.caption, { color: FIELD_COLORS[f] || CLight.pink, fontWeight: "600" }]}>{FIELD_LABELS[f]}</Text>
+                {/* Profile header */}
+                <View style={styles.modalProfile}>
+                  {!actor.photos?.length && (actor.photoUrl ? (
+                    <Image source={{ uri: actor.photoUrl }} style={styles.modalAvatarImg} />
+                  ) : (
+                    <View style={[styles.modalAvatar, { backgroundColor: fieldColor + "18" }]}>
+                      <Text style={{ fontSize: 32, color: fieldColor }}>{FIELD_EMOJIS[primaryField] || actor.name.charAt(0)}</Text>
+                    </View>
+                  ))}
+                  <Text style={[T.h2, { color: CLight.gray900, marginTop: 12 }]}>{actor.name}</Text>
+                  {actor.agency ? <Text style={[T.caption, { color: CLight.gray500, marginTop: 2 }]}>{actor.agency}</Text> : null}
+                  <View style={styles.modalBadgeRow}>
+                    {genderLabel ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{genderLabel}</Text></View> : null}
+                    {age ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{age}세</Text></View> : null}
+                    {actor.height ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{actor.height}cm</Text></View> : null}
+                    {actor.weight ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{actor.weight}kg</Text></View> : null}
+                  </View>
                 </View>
-              ))}
-            </View>
 
-            {/* Specialties */}
-            {actor.specialties && actor.specialties.length > 0 && (
-              <>
-                <Text style={styles.modalSectionTitle}>특기</Text>
+                {/* Fields */}
+                <Text style={styles.modalSectionTitle}>분야</Text>
                 <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                  {actor.specialties.map((s) => (
-                    <View key={s} style={styles.specPill}>
-                      <Text style={styles.specPillText}>{s}</Text>
+                  {(actor.fields || []).map((f) => (
+                    <View key={f} style={[styles.fieldTag, { backgroundColor: (FIELD_COLORS[f] || CLight.pink) + "18" }]}>
+                      <Text style={{ fontSize: 14 }}>{FIELD_EMOJIS[f]}</Text>
+                      <Text style={[T.caption, { color: FIELD_COLORS[f] || CLight.pink, fontWeight: "600" }]}>{FIELD_LABELS[f]}</Text>
                     </View>
                   ))}
                 </View>
-              </>
-            )}
 
-            {/* Career */}
-            {actor.career && actor.career.length > 0 && (
-              <>
-                <Text style={styles.modalSectionTitle}>경력</Text>
-                {actor.career.map((c, i) => (
-                  <View key={i} style={styles.careerRow}>
-                    <View style={styles.careerDot} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[T.captionBold, { color: CLight.gray900 }]}>{c.title}</Text>
-                      <Text style={[T.micro, { color: CLight.gray500 }]}>
-                        {c.role} | {c.year} | {CAREER_TYPES.find((ct) => ct.key === c.type)?.label || c.type}
-                      </Text>
+                {/* Specialties */}
+                {actor.specialties && actor.specialties.length > 0 && (
+                  <>
+                    <Text style={styles.modalSectionTitle}>특기</Text>
+                    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                      {actor.specialties.map((s) => (
+                        <View key={s} style={styles.specPill}>
+                          <Text style={styles.specPillText}>{s}</Text>
+                        </View>
+                      ))}
                     </View>
+                  </>
+                )}
+
+                {/* Career */}
+                {actor.career && actor.career.length > 0 && (
+                  <>
+                    <Text style={styles.modalSectionTitle}>경력</Text>
+                    {actor.career.map((c, i) => (
+                      <View key={i} style={styles.careerRow}>
+                        <View style={styles.careerDot} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[T.captionBold, { color: CLight.gray900 }]}>{c.title}</Text>
+                          <Text style={[T.micro, { color: CLight.gray500 }]}>
+                            {c.role} | {c.year} | {CAREER_TYPES.find((ct) => ct.key === c.type)?.label || c.type}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                {/* Skill bar */}
+                <Text style={styles.modalSectionTitle}>종합 점수</Text>
+                <View style={styles.modalScoreSection}>
+                  <View style={styles.modalScoreBarBg}>
+                    <View style={[styles.modalScoreBarFill, { width: `${actor.score}%`, backgroundColor: fieldColor }]} />
                   </View>
-                ))}
-              </>
-            )}
+                  <Text style={[T.bodyBold, { color: fieldColor }]}>{actor.score}점</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 20, marginTop: 8 }}>
+                  <Text style={[T.micro, { color: CLight.gray500 }]}>노트 {actor.notes}개</Text>
+                  <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.streak}일 연속</Text>
+                  {actor.location ? <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.location}</Text> : null}
+                </View>
 
-            {/* Skill bar */}
-            <Text style={styles.modalSectionTitle}>종합 점수</Text>
-            <View style={styles.modalScoreSection}>
-              <View style={styles.modalScoreBarBg}>
-                <View style={[styles.modalScoreBarFill, { width: `${actor.score}%`, backgroundColor: fieldColor }]} />
-              </View>
-              <Text style={[T.bodyBold, { color: fieldColor }]}>{actor.score}점</Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 20, marginTop: 8 }}>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>노트 {actor.notes}개</Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.streak}일 연속</Text>
-              {actor.location ? <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.location}</Text> : null}
-            </View>
-
-            {/* Casting proposal button */}
-            <TouchableOpacity style={styles.castingBtn} onPress={() => { setSelectedActor(null); showToast("캐스팅 제안이 전송되었습니다!", "success"); }} activeOpacity={0.7}>
-              <Text style={[T.bodyBold, { color: CLight.white }]}>캐스팅 제안</Text>
-            </TouchableOpacity>
-          </ScrollView>
+                {/* Proposal buttons */}
+                {actor.userId && actor.userId !== deviceUserId && (
+                  <View style={{ gap: 10, marginTop: 24 }}>
+                    {userProfile.userType === "industry" ? (
+                      <TouchableOpacity style={styles.castingBtn} onPress={() => { setProposalType("casting"); setShowProposalModal(true); }} activeOpacity={0.7}>
+                        <Text style={[T.bodyBold, { color: CLight.white }]}>캐스팅 제안</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity style={[styles.castingBtn, { backgroundColor: CLight.purple }]} onPress={() => { setProposalType("collaboration"); setShowProposalModal(true); }} activeOpacity={0.7}>
+                        <Text style={[T.bodyBold, { color: CLight.white }]}>협업 제안</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+                {actor.userId && actor.userId === deviceUserId && (
+                  <View style={[styles.demoNoticeBanner, { marginTop: 24 }]}>
+                    <Text style={styles.demoNoticeIcon}>{"💡"}</Text>
+                    <Text style={styles.demoNoticeText}>본인 프로필입니다.</Text>
+                  </View>
+                )}
+                {!actor.userId && (
+                  <View style={[styles.demoNoticeBanner, { marginTop: 24 }]}>
+                    <Text style={styles.demoNoticeIcon}>{"💡"}</Text>
+                    <Text style={styles.demoNoticeText}>예시 데이터에는 제안을 보낼 수 없습니다.</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </>
+          )}
         </SafeAreaView>
       </Modal>
     );
@@ -533,5 +651,6 @@ const styles = StyleSheet.create({
   modalScoreSection: { flexDirection: "row", alignItems: "center", gap: 12 },
   modalScoreBarBg: { flex: 1, height: 10, backgroundColor: CLight.gray100, borderRadius: 5, overflow: "hidden" },
   modalScoreBarFill: { height: 10, borderRadius: 5 },
-  castingBtn: { backgroundColor: CLight.pink, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 24, shadowColor: CLight.pink, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  castingBtn: { backgroundColor: CLight.pink, borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 0, shadowColor: CLight.pink, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  proposalInput: { height: 48, backgroundColor: CLight.inputBg, borderWidth: 1, borderColor: CLight.inputBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, ...T.body, color: CLight.gray900 },
 });

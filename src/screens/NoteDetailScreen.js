@@ -16,7 +16,8 @@ import { Audio, Video, ResizeMode } from "expo-av";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { getRelatedNotes } from "../services/analyticsService";
-import { analyzeNote } from "../services/aiService";
+import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
+import { submitTrainingData } from "../services/dataCollectionService";
 import { formatDate, timeAgo } from "../utils/helpers";
 
 const TABS = [
@@ -34,6 +35,10 @@ export default function NoteDetailScreen({ route, navigation }) {
     handleToggleStar,
     handleUpdateNote,
     showToast,
+    dataConsent,
+    dataConsentAsked,
+    handleSetDataConsent,
+    handleDataConsentAsked,
   } = useApp();
 
   const note = useMemo(
@@ -46,6 +51,13 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [editTitle, setEditTitle] = useState(note?.title || "");
   const [editContent, setEditContent] = useState(note?.content || "");
   const [aiLoading, setAiLoading] = useState(false);
+  const [videoAiLoading, setVideoAiLoading] = useState(false);
+  const [videoAiProgress, setVideoAiProgress] = useState("");
+
+  const noteVideos = useMemo(
+    () => (note?.images || []).filter((i) => i.type === "video"),
+    [note]
+  );
 
   // Media playback state
   const [playingSound, setPlayingSound] = useState(null);
@@ -172,12 +184,76 @@ export default function NoteDetailScreen({ route, navigation }) {
       );
       handleUpdateNote({ ...note, aiComment: result });
       showToast("AI \uBD84\uC11D\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!", "success");
+
+      // Submit training data if consented
+      if (dataConsent) {
+        submitTrainingData({
+          field: note.field,
+          noteContent: note.content,
+          aiFeedback: result,
+          noteTitle: note.title,
+        }).catch(() => {});
+      }
+
+      // Show 1-time consent popup for existing users
+      if (!dataConsentAsked) {
+        setTimeout(() => {
+          Alert.alert(
+            "AI 품질 개선에 참여하시겠어요?",
+            "연습 노트와 AI 피드백을 익명으로 수집하여 피드백 품질을 개선합니다. 개인정보는 포함되지 않습니다.",
+            [
+              {
+                text: "나중에",
+                style: "cancel",
+                onPress: () => handleDataConsentAsked(),
+              },
+              {
+                text: "참여하기",
+                onPress: () => {
+                  handleSetDataConsent(true);
+                  handleDataConsentAsked();
+                  // Submit the current result now that user consented
+                  submitTrainingData({
+                    field: note.field,
+                    noteContent: note.content,
+                    aiFeedback: result,
+                    noteTitle: note.title,
+                  }).catch(() => {});
+                },
+              },
+            ]
+          );
+        }, 500);
+      }
     } catch (e) {
       showToast("AI \uBD84\uC11D \uC694\uCCAD\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4", "error");
     } finally {
       setAiLoading(false);
     }
-  }, [note, savedNotes, userProfile, handleUpdateNote, showToast]);
+  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked]);
+
+  const handleRequestVideoAI = useCallback(async () => {
+    if (!note || noteVideos.length === 0) return;
+    setVideoAiLoading(true);
+    setVideoAiProgress("extracting");
+    try {
+      const result = await analyzeVideoFrames(
+        note.field,
+        note.content,
+        note.title,
+        noteVideos,
+        userProfile,
+        (phase) => setVideoAiProgress(phase)
+      );
+      handleUpdateNote({ ...note, videoAnalysis: result });
+      showToast("영상 AI 분석이 완료되었습니다!", "success");
+    } catch (e) {
+      showToast("영상 AI 분석에 실패했습니다", "error");
+    } finally {
+      setVideoAiLoading(false);
+      setVideoAiProgress("");
+    }
+  }, [note, noteVideos, userProfile, handleUpdateNote, showToast]);
 
   const handleRelatedNotePress = useCallback(
     (relatedNoteId) => {
@@ -324,6 +400,8 @@ export default function NoteDetailScreen({ route, navigation }) {
   function renderContentTab() {
     const noteImages = note.images || [];
     const noteVoices = note.voiceRecordings || [];
+    const noteAudioFiles = note.audioFiles || [];
+    const notePdfFiles = note.pdfFiles || [];
     const screenWidth = Dimensions.get("window").width;
 
     return (
@@ -395,11 +473,49 @@ export default function NoteDetailScreen({ route, navigation }) {
             </Text>
             {noteVoices.map((rec, idx) => (
               <View key={idx} style={styles.detailVoiceItem}>
-                <TouchableOpacity style={styles.detailVoicePlayBtn} onPress={() => handlePlayVoice(rec.uri, idx)}>
-                  <Text style={{ fontSize: 16 }}>{playingIdx === idx ? "⏸" : "▶️"}</Text>
+                <TouchableOpacity style={styles.detailVoicePlayBtn} onPress={() => handlePlayVoice(rec.uri, `voice-${idx}`)}>
+                  <Text style={{ fontSize: 16 }}>{playingIdx === `voice-${idx}` ? "⏸" : "▶️"}</Text>
                 </TouchableOpacity>
                 <Text style={[T.small, { color: CLight.gray700, flex: 1 }]}>
                   음성 {idx + 1} · {formatDuration(rec.duration)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Audio Files */}
+        {noteAudioFiles.length > 0 && (
+          <View style={styles.mediaSection}>
+            <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
+              오디오 파일 ({noteAudioFiles.length})
+            </Text>
+            {noteAudioFiles.map((file, idx) => (
+              <View key={idx} style={styles.detailVoiceItem}>
+                <TouchableOpacity style={styles.detailAudioPlayBtn} onPress={() => handlePlayVoice(file.uri, `audio-${idx}`)}>
+                  <Text style={{ fontSize: 16 }}>{playingIdx === `audio-${idx}` ? "⏸" : "▶️"}</Text>
+                </TouchableOpacity>
+                <Text style={[T.small, { color: CLight.gray700, flex: 1 }]} numberOfLines={1}>
+                  🎵 {file.name}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* PDF Files */}
+        {notePdfFiles.length > 0 && (
+          <View style={styles.mediaSection}>
+            <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
+              첨부 문서 ({notePdfFiles.length})
+            </Text>
+            {notePdfFiles.map((file, idx) => (
+              <View key={idx} style={styles.detailVoiceItem}>
+                <View style={styles.detailPdfIcon}>
+                  <Text style={{ fontSize: 16 }}>📄</Text>
+                </View>
+                <Text style={[T.small, { color: CLight.gray700, flex: 1 }]} numberOfLines={1}>
+                  {file.name}
                 </Text>
               </View>
             ))}
@@ -411,32 +527,40 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── AI Analysis Tab ───
   function renderAITab() {
+    const videoProgressText =
+      videoAiProgress === "extracting"
+        ? "프레임 추출 중..."
+        : videoAiProgress === "analyzing"
+        ? "AI 분석 중..."
+        : "영상 분석 준비 중...";
+
     return (
       <View style={styles.tabContent}>
+        {/* Text AI Analysis */}
         {aiLoading ? (
           <View style={styles.aiLoadingContainer}>
             <ActivityIndicator size="large" color={CLight.pink} />
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 16 }]}>
-              {"AI\uAC00 \uB178\uD2B8\uB97C \uBD84\uC11D\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4..."}
+              {"AI가 노트를 분석하고 있습니다..."}
             </Text>
           </View>
         ) : note.aiComment ? (
           <View style={styles.aiCard}>
             <View style={styles.aiCardHeader}>
               <Text style={styles.aiIcon}>{"\uD83E\uDD16"}</Text>
-              <Text style={[T.captionBold, { color: CLight.pink }]}>{"AI \uBD84\uC11D \uACB0\uACFC"}</Text>
+              <Text style={[T.captionBold, { color: CLight.pink }]}>{"AI 분석 결과"}</Text>
             </View>
             <View style={styles.aiDivider} />
             <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text>
             <TouchableOpacity style={styles.reAnalyzeBtn} onPress={handleRequestAI}>
-              <Text style={[T.smallBold, { color: CLight.pink }]}>{"\uD83D\uDD04 \uC7AC\uBD84\uC11D \uC694\uCCAD"}</Text>
+              <Text style={[T.smallBold, { color: CLight.pink }]}>{"\uD83D\uDD04 재분석 요청"}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.aiEmptyContainer}>
             <Text style={styles.aiEmptyIcon}>{"\uD83E\uDDE0"}</Text>
             <Text style={[T.title, { color: CLight.gray900, marginTop: 12, textAlign: "center" }]}>
-              {"AI \uBD84\uC11D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4"}
+              {"AI 분석이 아직 없습니다"}
             </Text>
             <Text
               style={[
@@ -444,11 +568,41 @@ export default function NoteDetailScreen({ route, navigation }) {
                 { color: CLight.gray500, marginTop: 6, textAlign: "center", paddingHorizontal: 20 },
               ]}
             >
-              {"AI\uAC00 \uB178\uD2B8\uB97C \uBD84\uC11D\uD558\uC5EC \uAC1C\uC778\uD654\uB41C \uD53C\uB4DC\uBC31\uC744 \uC81C\uACF5\uD569\uB2C8\uB2E4"}
+              {"AI가 노트를 분석하여 개인화된 피드백을 제공합니다"}
             </Text>
             <TouchableOpacity style={styles.requestAIBtn} onPress={handleRequestAI}>
-              <Text style={[T.bodyBold, { color: CLight.white }]}>{"\uD83E\uDD16 AI \uBD84\uC11D \uC694\uCCAD\uD558\uAE30"}</Text>
+              <Text style={[T.bodyBold, { color: CLight.white }]}>{"\uD83E\uDD16 AI 분석 요청하기"}</Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Video AI Analysis */}
+        {noteVideos.length > 0 && (
+          <View style={styles.videoAiSection}>
+            {videoAiLoading ? (
+              <View style={styles.videoAiLoadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={[T.caption, { color: CLight.gray500, marginTop: 16 }]}>
+                  {videoProgressText}
+                </Text>
+              </View>
+            ) : note.videoAnalysis ? (
+              <View style={styles.videoAiCard}>
+                <View style={styles.videoAiCardHeader}>
+                  <Text style={styles.aiIcon}>{"🎥"}</Text>
+                  <Text style={[T.captionBold, { color: "#007AFF" }]}>{"영상 AI 분석 결과"}</Text>
+                </View>
+                <View style={styles.aiDivider} />
+                <Text style={[T.body, { color: CLight.gray900 }]}>{note.videoAnalysis}</Text>
+                <TouchableOpacity style={styles.videoReAnalyzeBtn} onPress={handleRequestVideoAI}>
+                  <Text style={[T.smallBold, { color: "#007AFF" }]}>{"🔄 영상 재분석 요청"}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.videoAiBtn} onPress={handleRequestVideoAI}>
+                <Text style={[T.bodyBold, { color: CLight.white }]}>{"🎥 영상 AI 분석 요청하기"}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -723,6 +877,56 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
+  // Video AI Analysis
+  videoAiSection: {
+    marginTop: 20,
+  },
+  videoAiLoadingContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#007AFF20",
+  },
+  videoAiCard: {
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#007AFF30",
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  videoAiCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  videoReAnalyzeBtn: {
+    marginTop: 16,
+    alignSelf: "flex-end",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: "#007AFF15",
+  },
+  videoAiBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 24,
+    backgroundColor: "#007AFF",
+    alignItems: "center",
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+
   // Related Notes Tab
   relatedEmpty: {
     alignItems: "center",
@@ -803,6 +1007,22 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     backgroundColor: CLight.pinkSoft,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailAudioPlayBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#E8F4FD",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailPdfIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FFF3E0",
     justifyContent: "center",
     alignItems: "center",
   },

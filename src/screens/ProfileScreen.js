@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Switch,
   StyleSheet,
   SafeAreaView,
   Alert,
@@ -25,6 +24,7 @@ const MENU_ITEMS = [
   { icon: "\uD83C\uDFA8", label: "\uACF5\uC720 \uCE74\uB4DC", route: "ShareCard" },
   { icon: "\uD83D\uDCC1", label: "\uD3EC\uD2B8\uD3F4\uB9AC\uC624", route: "Portfolio" },
   { icon: "\uD83C\uDFE2", label: "B2B \uB300\uC2DC\uBCF4\uB4DC", route: "B2B" },
+  { icon: "\uD83D\uDCEC", label: "\uC81C\uC548\uD568", route: "Inbox" },
   { icon: "\uD83D\uDDFA\uFE0F", label: "\uAC1C\uBC1C \uB85C\uB4DC\uB9F5", route: "DevRoadmap" },
   { icon: "\uD83D\uDCAC", label: "\uD53C\uB4DC\uBC31 \uBCF4\uB0B4\uAE30", route: "__feedback__" },
   { icon: "\uD83D\uDCE7", label: "\uACE0\uAC1D \uC9C0\uC6D0", route: "__support__" },
@@ -41,9 +41,7 @@ export default function ProfileScreen({ navigation }) {
   const {
     userProfile,
     savedNotes,
-    darkMode,
     artistProfile,
-    handleSetDarkMode,
     handleSubmitFeedback,
     handleDeleteAccount,
     showToast,
@@ -236,21 +234,6 @@ export default function ProfileScreen({ navigation }) {
               {idx < MENU_ITEMS.length - 1 && <View style={styles.menuDivider} />}
             </React.Fragment>
           ))}
-
-          {/* Dark mode toggle */}
-          <View style={styles.menuDivider} />
-          <View style={styles.menuRow}>
-            <View style={styles.menuLeft}>
-              <Text style={styles.menuIcon}>{"\uD83C\uDF19"}</Text>
-              <Text style={[T.body, { color: CLight.gray900 }]}>{"\uB2E4\uD06C\uBAA8\uB4DC"}</Text>
-            </View>
-            <Switch
-              value={darkMode}
-              onValueChange={handleSetDarkMode}
-              trackColor={{ false: CLight.gray200, true: `${CLight.pink}60` }}
-              thumbColor={darkMode ? CLight.pink : CLight.gray400}
-            />
-          </View>
 
           {/* Account deletion */}
           <View style={styles.menuDivider} />

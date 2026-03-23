@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import { useApp } from "../context/AppContext";
-import { CLight, CDark, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate } from "../utils/helpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -19,10 +19,7 @@ export default function HomeScreen({ navigation }) {
     savedNotes,
     userProfile,
     artistProfile,
-    darkMode,
   } = useApp();
-
-  const C = darkMode ? CDark : CLight;
 
   // ---- Computed data ----
   const recentNotes = useMemo(() => savedNotes.slice(0, 5), [savedNotes]);
@@ -84,28 +81,28 @@ export default function HomeScreen({ navigation }) {
       key: "note",
       emoji: "\u270F\uFE0F",
       label: "\uC0C8 \uB178\uD2B8 \uC791\uC131",
-      color: C.pink,
+      color: CLight.pink,
       route: "NoteCreate",
     },
     {
       key: "growth",
       emoji: "\uD83D\uDCC8",
       label: "\uC131\uC7A5 \uB9AC\uD3EC\uD2B8",
-      color: C.purple,
+      color: CLight.purple,
       route: "Growth",
     },
     {
       key: "matching",
       emoji: "\uD83E\uDD1D",
       label: "\uB9E4\uCE6D",
-      color: C.teal,
+      color: CLight.teal,
       route: "Matching",
     },
   ];
 
   // ===== RENDER =====
   return (
-    <View style={[styles.container, { backgroundColor: C.bg }]}>
+    <View style={[styles.container, { backgroundColor: CLight.bg }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -114,17 +111,17 @@ export default function HomeScreen({ navigation }) {
         {/* ---- Top section: greeting + bell ---- */}
         <View style={styles.topSection}>
           <View style={styles.greetingContainer}>
-            <Text style={[T.h3, { color: C.gray900 }]}>
+            <Text style={[T.h3, { color: CLight.gray900 }]}>
               {greeting},{" "}
-              <Text style={{ color: C.pink }}>{userName}</Text>
+              <Text style={{ color: CLight.pink }}>{userName}</Text>
               {"\uB2D8"}
             </Text>
-            <Text style={[T.caption, { color: C.gray500, marginTop: 2 }]}>
+            <Text style={[T.caption, { color: CLight.gray500, marginTop: 2 }]}>
               {"\uC624\uB298\uB3C4 \uC608\uC220\uC744 \uAE30\uB85D\uD574\uBCFC\uAE4C\uC694?"}
             </Text>
           </View>
           <TouchableOpacity
-            style={[styles.bellButton, { backgroundColor: C.surface }]}
+            style={[styles.bellButton, { backgroundColor: CLight.surface }]}
             onPress={() => navigation.navigate("Notifications")}
             activeOpacity={0.7}
           >
@@ -133,44 +130,44 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* ---- Weekly summary card ---- */}
-        <View style={[styles.summaryCard, { backgroundColor: C.surface }]}>
-          <Text style={[T.captionBold, { color: C.gray500, marginBottom: 12 }]}>
+        <View style={[styles.summaryCard, { backgroundColor: CLight.surface }]}>
+          <Text style={[T.captionBold, { color: CLight.gray500, marginBottom: 12 }]}>
             {"\uC774\uBC88 \uC8FC \uC694\uC57D"}
           </Text>
           <View style={styles.summaryRow}>
             {/* Practice count */}
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryValue, { color: C.pink }]}>
+              <Text style={[styles.summaryValue, { color: CLight.pink }]}>
                 {weeklySummary.count}
               </Text>
-              <Text style={[T.micro, { color: C.gray500 }]}>{"\uC774\uBC88 \uC8FC \uC5F0\uC2B5"}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{"\uC774\uBC88 \uC8FC \uC5F0\uC2B5"}</Text>
             </View>
 
-            <View style={[styles.summaryDivider, { backgroundColor: C.gray200 }]} />
+            <View style={[styles.summaryDivider, { backgroundColor: CLight.gray200 }]} />
 
             {/* Streak */}
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryValue, { color: C.orange }]}>
+              <Text style={[styles.summaryValue, { color: CLight.orange }]}>
                 {weeklySummary.streak}
-                <Text style={[T.small, { color: C.gray500 }]}>{"\uC77C"}</Text>
+                <Text style={[T.small, { color: CLight.gray500 }]}>{"\uC77C"}</Text>
               </Text>
-              <Text style={[T.micro, { color: C.gray500 }]}>{"\uC5F0\uC18D \uAE30\uB85D"}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{"\uC5F0\uC18D \uAE30\uB85D"}</Text>
             </View>
 
-            <View style={[styles.summaryDivider, { backgroundColor: C.gray200 }]} />
+            <View style={[styles.summaryDivider, { backgroundColor: CLight.gray200 }]} />
 
             {/* Growth */}
             <View style={styles.summaryItem}>
               <Text
                 style={[
                   styles.summaryValue,
-                  { color: weeklySummary.weekGrowth >= 0 ? C.green : C.red },
+                  { color: weeklySummary.weekGrowth >= 0 ? CLight.green : CLight.red },
                 ]}
               >
                 {weeklySummary.weekGrowth >= 0 ? "+" : ""}
                 {weeklySummary.weekGrowth}%
               </Text>
-              <Text style={[T.micro, { color: C.gray500 }]}>{"\uC8FC\uAC04 \uC131\uC7A5"}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{"\uC8FC\uAC04 \uC131\uC7A5"}</Text>
             </View>
           </View>
         </View>
@@ -180,14 +177,14 @@ export default function HomeScreen({ navigation }) {
           {quickActions.map((action) => (
             <TouchableOpacity
               key={action.key}
-              style={[styles.quickActionCard, { backgroundColor: C.surface }]}
+              style={[styles.quickActionCard, { backgroundColor: CLight.surface }]}
               onPress={() => navigation.navigate(action.route)}
               activeOpacity={0.7}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: `${action.color}15` }]}>
                 <Text style={styles.quickActionEmoji}>{action.emoji}</Text>
               </View>
-              <Text style={[T.smallBold, { color: C.gray900, marginTop: 8 }]}>
+              <Text style={[T.smallBold, { color: CLight.gray900, marginTop: 8 }]}>
                 {action.label}
               </Text>
             </TouchableOpacity>
@@ -196,10 +193,10 @@ export default function HomeScreen({ navigation }) {
 
         {/* ---- Recent notes ---- */}
         <View style={styles.sectionHeader}>
-          <Text style={[T.title, { color: C.gray900 }]}>{"\uCD5C\uADFC \uB178\uD2B8"}</Text>
+          <Text style={[T.title, { color: CLight.gray900 }]}>{"\uCD5C\uADFC \uB178\uD2B8"}</Text>
           {savedNotes.length > 5 && (
             <TouchableOpacity onPress={() => navigation.navigate("Notes")}>
-              <Text style={[T.small, { color: C.pink }]}>{"\uBAA8\uB450 \uBCF4\uAE30"}</Text>
+              <Text style={[T.small, { color: CLight.pink }]}>{"\uBAA8\uB450 \uBCF4\uAE30"}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -207,14 +204,14 @@ export default function HomeScreen({ navigation }) {
         {recentNotes.length > 0 ? (
           <View style={styles.notesContainer}>
             {recentNotes.map((note) => {
-              const fieldColor = note.field ? FIELD_COLORS[note.field] || C.gray500 : C.gray500;
+              const fieldColor = note.field ? FIELD_COLORS[note.field] || CLight.gray500 : CLight.gray500;
               const fieldLabel = note.field ? FIELD_LABELS[note.field] : null;
               const fieldEmoji = note.field ? FIELD_EMOJIS[note.field] : null;
 
               return (
                 <TouchableOpacity
                   key={note.id}
-                  style={[styles.noteCard, { backgroundColor: C.surface }]}
+                  style={[styles.noteCard, { backgroundColor: CLight.surface }]}
                   onPress={() => navigation.navigate("NoteDetail", { noteId: note.id })}
                   activeOpacity={0.7}
                 >
@@ -228,17 +225,17 @@ export default function HomeScreen({ navigation }) {
                       </View>
                     )}
                     {note.starred && <Text style={styles.starIcon}>{"\u2B50"}</Text>}
-                    <Text style={[T.micro, { color: C.gray400, marginLeft: "auto" }]}>
+                    <Text style={[T.micro, { color: CLight.gray400, marginLeft: "auto" }]}>
                       {timeAgo(note.createdAt)}
                     </Text>
                   </View>
 
-                  <Text style={[T.bodyBold, { color: C.gray900, marginTop: 8 }]} numberOfLines={1}>
+                  <Text style={[T.bodyBold, { color: CLight.gray900, marginTop: 8 }]} numberOfLines={1}>
                     {note.title || "\uC81C\uBAA9 \uC5C6\uC74C"}
                   </Text>
 
                   {note.content && (
-                    <Text style={[T.small, { color: C.gray500, marginTop: 4 }]} numberOfLines={2}>
+                    <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]} numberOfLines={2}>
                       {truncate(note.content, 120)}
                     </Text>
                   )}
@@ -246,8 +243,8 @@ export default function HomeScreen({ navigation }) {
                   {note.keywords && note.keywords.length > 0 && (
                     <View style={styles.noteKeywords}>
                       {note.keywords.slice(0, 3).map((kw, idx) => (
-                        <View key={idx} style={[styles.keywordTag, { backgroundColor: C.gray100 }]}>
-                          <Text style={[T.tiny, { color: C.gray500 }]}>{kw}</Text>
+                        <View key={idx} style={[styles.keywordTag, { backgroundColor: CLight.gray100 }]}>
+                          <Text style={[T.tiny, { color: CLight.gray500 }]}>{kw}</Text>
                         </View>
                       ))}
                     </View>
@@ -258,12 +255,12 @@ export default function HomeScreen({ navigation }) {
           </View>
         ) : (
           /* ---- Empty state ---- */
-          <View style={[styles.emptyCard, { backgroundColor: C.surface }]}>
+          <View style={[styles.emptyCard, { backgroundColor: CLight.surface }]}>
             <Text style={styles.emptyEmoji}>{"\uD83C\uDFB5"}</Text>
-            <Text style={[T.title, { color: C.gray900, marginTop: 12 }]}>
+            <Text style={[T.title, { color: CLight.gray900, marginTop: 12 }]}>
               {"\uCCAB \uBC88\uC9F8 \uB178\uD2B8\uB97C \uC791\uC131\uD574\uBCF4\uC138\uC694!"}
             </Text>
-            <Text style={[T.caption, { color: C.gray500, marginTop: 6, textAlign: "center" }]}>
+            <Text style={[T.caption, { color: CLight.gray500, marginTop: 6, textAlign: "center" }]}>
               {"\uC5F0\uC2B5, \uACF5\uC5F0, \uC601\uAC10 \uB4F1\n\uC608\uC220 \uD65C\uB3D9\uC744 \uAE30\uB85D\uD558\uBA74 AI\uAC00 \uBD84\uC11D\uD574\uB4DC\uB824\uC694."}
             </Text>
             <TouchableOpacity

@@ -14,10 +14,11 @@ export function AppProvider({ children }) {
   const [userProfile, setUserProfile] = useState({
     name: "무아", userType: "", fields: [], roleModels: [], interests: [],
     gender: "", birthDate: "", height: null, weight: null,
+    heightPrivate: false, weightPrivate: false,
     specialties: [], school: "", career: [], bio: "",
     location: "", agency: "",
   });
-  const [darkMode, setDarkMode] = useState(false);
+
   const [goals, setGoals] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [showBetaGuide, setShowBetaGuide] = useState(false);
@@ -32,6 +33,8 @@ export function AppProvider({ children }) {
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [reportedContent, setReportedContent] = useState([]);
   const [deviceUserId, setDeviceUserId] = useState(null);
+  const [dataConsent, setDataConsent] = useState(false);
+  const [dataConsentAsked, setDataConsentAsked] = useState(false);
 
   const artistProfile = useMemo(
     () => computeArtistProfile(savedNotes, userProfile),
@@ -49,7 +52,7 @@ export function AppProvider({ children }) {
   // Load all persisted data on mount
   useEffect(() => {
     (async () => {
-      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, eula, blocked, reported] = await Promise.all([
+      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, eula, blocked, reported, consent, consentAsked] = await Promise.all([
         safeStorageGet(STORAGE_KEYS.NOTES),
         safeStorageGet(STORAGE_KEYS.PROFILE),
         safeStorageGet(STORAGE_KEYS.DARK_MODE),
@@ -63,10 +66,12 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.EULA_ACCEPTED),
         safeStorageGet(STORAGE_KEYS.BLOCKED_USERS),
         safeStorageGet(STORAGE_KEYS.REPORTED_CONTENT),
+        safeStorageGet(STORAGE_KEYS.DATA_CONSENT),
+        safeStorageGet(STORAGE_KEYS.DATA_CONSENT_ASKED),
       ]);
       if (notes) setSavedNotes(notes);
       if (profile) { setUserProfile(profile); setAuthState("app"); }
-      if (dm) setDarkMode(dm);
+
       if (g) setGoals(g);
       // subscription removed
       if (fb) setFeedbacks(fb);
@@ -77,6 +82,8 @@ export function AppProvider({ children }) {
       if (eula) setEulaAccepted(eula);
       if (blocked) setBlockedUsers(blocked);
       if (reported) setReportedContent(reported);
+      if (consent) setDataConsent(consent);
+      if (consentAsked) setDataConsentAsked(consentAsked);
       setStorageReady(true);
     })();
   }, []);
@@ -106,10 +113,16 @@ export function AppProvider({ children }) {
     })();
   }, [storageReady, authState]);
 
-  // Sync profile to Supabase when profilePublic is enabled
+  // Sync profile + stats to Supabase when profilePublic is enabled
   useEffect(() => {
     if (!deviceUserId || !userProfile.profilePublic) return;
-    upsertArtistProfile(deviceUserId, userProfile).catch(() => {});
+    const profileWithStats = {
+      ...userProfile,
+      score: artistProfile.overallScore || 0,
+      notesCount: savedNotes.length,
+      streakDays: artistProfile.streak || 0,
+    };
+    upsertArtistProfile(deviceUserId, profileWithStats).catch(() => {});
 
     // Upload pending local photos
     const pendingUris = (userProfile.pendingPhotoUris || []);
@@ -125,7 +138,7 @@ export function AppProvider({ children }) {
         })
         .catch(() => {});
     }
-  }, [deviceUserId, userProfile]);
+  }, [deviceUserId, userProfile, artistProfile, savedNotes.length]);
 
   // Persist notes
   useEffect(() => {
@@ -244,15 +257,22 @@ export function AppProvider({ children }) {
     setAuthState("app");
   }, []);
 
-  const handleSetDarkMode = useCallback((v) => {
-    setDarkMode(v);
-    safeStorageSet(STORAGE_KEYS.DARK_MODE, v);
-  }, []);
 
   // ─── EULA ───
   const handleAcceptEula = useCallback(() => {
     setEulaAccepted(true);
     safeStorageSet(STORAGE_KEYS.EULA_ACCEPTED, true);
+  }, []);
+
+  // ─── Data Consent ───
+  const handleSetDataConsent = useCallback((value) => {
+    setDataConsent(value);
+    safeStorageSet(STORAGE_KEYS.DATA_CONSENT, value);
+  }, []);
+
+  const handleDataConsentAsked = useCallback(() => {
+    setDataConsentAsked(true);
+    safeStorageSet(STORAGE_KEYS.DATA_CONSENT_ASKED, true);
   }, []);
 
   // ─── Server report notification ───
@@ -305,7 +325,7 @@ export function AppProvider({ children }) {
   const handleDeleteAccount = useCallback(async () => {
     await AsyncStorage.clear();
     setSavedNotes([]);
-    setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
+    setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, heightPrivate: false, weightPrivate: false, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
     setGoals([]);
     setFeedbacks([]);
     setPortfolioItems([]);
@@ -315,31 +335,35 @@ export function AppProvider({ children }) {
   }, []);
 
   const value = useMemo(() => ({
-    savedNotes, userProfile, darkMode, goals, feedbacks,
+    savedNotes, userProfile, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
+    dataConsent, dataConsentAsked,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
-    handleDismissGuide, handleFieldOrderChange, handleAuth, handleSetDarkMode,
+    handleDismissGuide, handleFieldOrderChange, handleAuth,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
     handleUpdateProfile, handleDeleteAccount, setUserProfile, setAuthState,
-    handleAcceptEula, handleBlockUser, handleUnblockUser, handleReportContent,
+    handleAcceptEula, handleSetDataConsent, handleDataConsentAsked,
+    handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
-    savedNotes, userProfile, darkMode, goals, feedbacks,
+    savedNotes, userProfile, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
+    dataConsent, dataConsentAsked,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
-    handleDismissGuide, handleFieldOrderChange, handleAuth, handleSetDarkMode,
+    handleDismissGuide, handleFieldOrderChange, handleAuth,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
     handleUpdateProfile, handleDeleteAccount,
-    handleAcceptEula, handleBlockUser, handleUnblockUser, handleReportContent,
+    handleAcceptEula, handleSetDataConsent, handleDataConsentAsked,
+    handleBlockUser, handleUnblockUser, handleReportContent,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

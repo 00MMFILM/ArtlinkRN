@@ -184,7 +184,7 @@ export default function MatchingScreen({ navigation }) {
         <View style={styles.sourceBadgeRow}>
           <View style={[styles.sourceBadge, isAi ? styles.sourceBadgeAi : styles.sourceBadgeUser]}>
             <Text style={[T.tiny, { color: isAi ? CLight.blue : CLight.purple, fontWeight: "600" }]}>
-              {isAi ? `🤖 AI수집${item.sourcePlatform ? ` · ${item.sourcePlatform}` : ""}` : "👤 직접 등록"}
+              {isAi ? "🤖 AI수집" : "👤 직접 등록"}
             </Text>
           </View>
           <TouchableOpacity

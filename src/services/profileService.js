@@ -12,6 +12,8 @@ export async function upsertArtistProfile(userId, profileData) {
     birth_date: profileData.birthDate || null,
     height: profileData.height || null,
     weight: profileData.weight || null,
+    height_private: profileData.heightPrivate || false,
+    weight_private: profileData.weightPrivate || false,
     specialties: profileData.specialties || [],
     school: profileData.school || null,
     location: profileData.location || null,
@@ -22,6 +24,9 @@ export async function upsertArtistProfile(userId, profileData) {
     interests: profileData.interests || [],
     photo_url: profileData.photoUrl || null,
     photos: profileData.photos || [],
+    score: profileData.score || 0,
+    notes_count: profileData.notesCount || 0,
+    streak_days: profileData.streakDays || 0,
     updated_at: new Date().toISOString(),
   };
 

@@ -29,6 +29,7 @@ const userTypes = [
   { id: "aspiring", emoji: "\uD83C\uDF31", label: "예술 지망생", desc: "전공 학생이거나 데뷔를 준비 중" },
   { id: "hobby", emoji: "\uD83C\uDFA8", label: "취미 예술가", desc: "즐기면서 예술 활동을 하고 있어요" },
   { id: "industry", emoji: "\uD83C\uDFE2", label: "업계 관계자", desc: "프로덕션, 기획사, 교육기관 등" },
+  { id: "fan", emoji: "\uD83D\uDC9C", label: "팬", desc: "좋아하는 아티스트를 응원해요" },
 ];
 
 const artFields = [
@@ -66,6 +67,8 @@ export default function AuthScreen({ navigation }) {
   const [birthDate, setBirthDate] = useState("");
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  const [heightPrivate, setHeightPrivate] = useState(false);
+  const [weightPrivate, setWeightPrivate] = useState(false);
   // Step 4: Specialties & career
   const [specialties, setSpecialties] = useState([]);
   const [customSpecialty, setCustomSpecialty] = useState("");
@@ -169,6 +172,8 @@ export default function AuthScreen({ navigation }) {
       birthDate: birthDate.trim(),
       height: height ? Number(height) : null,
       weight: weight ? Number(weight) : null,
+      heightPrivate,
+      weightPrivate,
       specialties,
       school: school.trim(),
       location: location.trim(),
@@ -398,14 +403,27 @@ export default function AuthScreen({ navigation }) {
         </View>
         <View style={{ flexDirection: "row", gap: 12 }}>
           <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <Text style={styles.inputLabel}>키 (cm)</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={styles.inputLabel}>키 (cm)</Text>
+              <TouchableOpacity onPress={() => setHeightPrivate(!heightPrivate)} style={[styles.privacyToggle, heightPrivate && styles.privacyToggleActive]}>
+                <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? "비공개" : "공개"}</Text>
+              </TouchableOpacity>
+            </View>
             <TextInput style={styles.input} placeholder="170" placeholderTextColor={CLight.gray400} value={height} onChangeText={setHeight} keyboardType="number-pad" maxLength={3} />
           </View>
           <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <Text style={styles.inputLabel}>몸무게 (kg)</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={styles.inputLabel}>몸무게 (kg)</Text>
+              <TouchableOpacity onPress={() => setWeightPrivate(!weightPrivate)} style={[styles.privacyToggle, weightPrivate && styles.privacyToggleActive]}>
+                <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? "비공개" : "공개"}</Text>
+              </TouchableOpacity>
+            </View>
             <TextInput style={styles.input} placeholder="60" placeholderTextColor={CLight.gray400} value={weight} onChangeText={setWeight} keyboardType="number-pad" maxLength={3} />
           </View>
         </View>
+        <Text style={[T.micro, { color: CLight.gray400, marginTop: 8, lineHeight: 18 }]}>
+          비공개 설정 시 관계자가 배우 프로필 열람 시에만 확인할 수 있습니다.
+        </Text>
       </View>
     </View>
   );
@@ -714,4 +732,10 @@ const styles = StyleSheet.create({
   // Consent toggle
   consentSection: { marginTop: 28, borderTopWidth: 1, borderTopColor: CLight.gray200, paddingTop: 20 },
   consentRow: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: CLight.white, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: CLight.gray200 },
+
+  // Privacy toggle
+  privacyToggle: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200 },
+  privacyToggleActive: { backgroundColor: CLight.pinkSoft, borderColor: CLight.pink },
+  privacyToggleText: { ...T.micro, color: CLight.gray500 },
+  privacyToggleTextActive: { color: CLight.pink, fontWeight: "600" },
 });

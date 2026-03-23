@@ -15,7 +15,7 @@ export default function Pill({ children, active, color = CLight.pink, onPress })
         },
       ]}
     >
-      <Text style={[styles.text, { color: active ? color : CLight.gray500, fontWeight: active ? "600" : "400" }]}>
+      <Text numberOfLines={1} style={[styles.text, { color: active ? color : CLight.gray500, fontWeight: active ? "600" : "400" }]}>
         {children}
       </Text>
     </TouchableOpacity>
@@ -23,6 +23,6 @@ export default function Pill({ children, active, color = CLight.pink, onPress })
 }
 
 const styles = StyleSheet.create({
-  pill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
-  text: { fontSize: 13 },
+  pill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, flexShrink: 0, flexGrow: 0, alignSelf: "flex-start" },
+  text: { fontSize: 13, flexShrink: 0 },
 });

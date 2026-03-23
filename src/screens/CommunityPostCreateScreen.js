@@ -96,7 +96,7 @@ export default function CommunityPostCreateScreen({ navigation }) {
     if (hasChangesRef.current) {
       Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
         { text: "계속 작성", style: "cancel" },
-        { text: "나가기", style: "destructive", onPress: () => navigation.goBack() },
+        { text: "나가기", style: "destructive", onPress: () => { hasChangesRef.current = false; navigation.goBack(); } },
       ]);
     } else {
       navigation.goBack();

@@ -31,6 +31,7 @@ import EULAScreen from "./src/screens/EULAScreen";
 import CommunityPostDetailScreen from "./src/screens/CommunityPostDetailScreen";
 import CommunityPostCreateScreen from "./src/screens/CommunityPostCreateScreen";
 import MatchingPostDetailScreen from "./src/screens/MatchingPostDetailScreen";
+import InboxScreen from "./src/screens/InboxScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -95,14 +96,20 @@ function MainTabs() {
 }
 
 function AppNavigator() {
-  const { authState, toast, hideToast, darkMode, eulaAccepted, handleAcceptEula } = useApp();
+  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked } = useApp();
 
   if (authState !== "auth" && !eulaAccepted) {
     return (
       <View style={{ flex: 1 }}>
-        <EULAScreen onAccept={handleAcceptEula} />
+        <EULAScreen
+          onAccept={handleAcceptEula}
+          onDataConsent={(value) => {
+            handleSetDataConsent(value);
+            handleDataConsentAsked();
+          }}
+        />
         <Toast message={toast.message} type={toast.type} visible={toast.visible} onHide={hideToast} />
-        <StatusBar style={darkMode ? "light" : "dark"} />
+        <StatusBar style="dark" />
       </View>
     );
   }
@@ -134,6 +141,7 @@ function AppNavigator() {
               <Stack.Screen name="Goals" component={GoalsScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="B2B" component={B2BDashboardScreen} />
+              <Stack.Screen name="Inbox" component={InboxScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
               <Stack.Screen name="CommunityPostDetail" component={CommunityPostDetailScreen} />
               <Stack.Screen
@@ -152,7 +160,7 @@ function AppNavigator() {
         </Stack.Navigator>
       </NavigationContainer>
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onHide={hideToast} />
-      <StatusBar style={darkMode ? "light" : "dark"} />
+      <StatusBar style="dark" />
     </View>
   );
 }

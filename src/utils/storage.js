@@ -35,4 +35,6 @@ export const STORAGE_KEYS = {
   REPORTED_CONTENT: "artlink-reported-content",
   DEVICE_ID: "artlink-device-id",
   DEVICE_USER_ID: "artlink-device-user-id",
+  DATA_CONSENT: "artlink-data-consent",
+  DATA_CONSENT_ASKED: "artlink-data-consent-asked",
 };

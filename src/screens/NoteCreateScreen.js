@@ -14,10 +14,11 @@ import {
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
-import { analyzeNote } from "../services/aiService";
+import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
 import { FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 
@@ -32,11 +33,16 @@ export default function NoteCreateScreen({ navigation }) {
   const [seriesName, setSeriesName] = useState("");
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [videoAnalysis, setVideoAnalysis] = useState("");
+  const [videoAiLoading, setVideoAiLoading] = useState(false);
+  const [videoAiProgress, setVideoAiProgress] = useState("");
   const hasUnsavedChangesRef = useRef(false);
 
   // Media state
   const [images, setImages] = useState([]); // [{ uri, type, width, height }]
   const [voiceRecordings, setVoiceRecordings] = useState([]); // [{ uri, duration }]
+  const [audioFiles, setAudioFiles] = useState([]); // [{ uri, name, duration }]
+  const [pdfFiles, setPdfFiles] = useState([]); // [{ uri, name }]
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
@@ -92,10 +98,10 @@ export default function NoteCreateScreen({ navigation }) {
 
   // Track unsaved changes
   useEffect(() => {
-    if (title || content || tags.length > 0 || seriesName || aiComment || images.length > 0 || voiceRecordings.length > 0) {
+    if (title || content || tags.length > 0 || seriesName || aiComment || videoAnalysis || images.length > 0 || voiceRecordings.length > 0 || audioFiles.length > 0 || pdfFiles.length > 0) {
       hasUnsavedChangesRef.current = true;
     }
-  }, [title, content, tags, seriesName, aiComment, images, voiceRecordings]);
+  }, [title, content, tags, seriesName, aiComment, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles]);
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
@@ -105,7 +111,7 @@ export default function NoteCreateScreen({ navigation }) {
         "작성 중인 내용이 사라집니다. 정말 나가시겠어요?",
         [
           { text: "계속 작성", style: "cancel" },
-          { text: "나가기", style: "destructive", onPress: () => navigation.goBack() },
+          { text: "나가기", style: "destructive", onPress: () => { hasUnsavedChangesRef.current = false; navigation.goBack(); } },
         ]
       );
     } else {
@@ -159,7 +165,7 @@ export default function NoteCreateScreen({ navigation }) {
     }
     setAiLoading(true);
     try {
-      const result = await analyzeNote(field, content, savedNotes, { title, field }, userProfile);
+      const result = await analyzeNote(field, content, savedNotes, { title, field, pdfFiles }, userProfile);
       setAiComment(result);
     } catch (e) {
       Alert.alert("분석 실패", "AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
@@ -167,6 +173,34 @@ export default function NoteCreateScreen({ navigation }) {
       setAiLoading(false);
     }
   }, [content, field, savedNotes, title, userProfile]);
+
+  // Video AI Analysis
+  const noteVideos = images.filter((i) => i.type === "video");
+
+  const handleVideoAnalyze = useCallback(async () => {
+    if (noteVideos.length === 0) {
+      Alert.alert("영상 필요", "영상 AI 분석을 받으려면 영상을 먼저 첨부해주세요.");
+      return;
+    }
+    setVideoAiLoading(true);
+    setVideoAiProgress("extracting");
+    try {
+      const result = await analyzeVideoFrames(
+        field,
+        content,
+        title,
+        noteVideos,
+        userProfile,
+        (phase) => setVideoAiProgress(phase)
+      );
+      setVideoAnalysis(result);
+    } catch (e) {
+      Alert.alert("분석 실패", "영상 AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
+    } finally {
+      setVideoAiLoading(false);
+      setVideoAiProgress("");
+    }
+  }, [noteVideos, field, content, title, userProfile]);
 
   // ─── Media Handlers ───
 
@@ -286,6 +320,95 @@ export default function NoteCreateScreen({ navigation }) {
     }
   }, [playingSound, playingIdx]);
 
+  // ─── Audio File Handlers ───
+
+  const handlePickAudio = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "audio/*",
+        multiple: true,
+      });
+      if (!result.canceled && result.assets?.length > 0) {
+        const newFiles = result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.name || "오디오 파일",
+        }));
+        setAudioFiles((prev) => [...prev, ...newFiles]);
+      }
+    } catch (e) {
+      Alert.alert("파일 선택 오류", "오디오 파일을 선택할 수 없습니다.");
+    }
+  }, []);
+
+  const handlePlayAudio = useCallback(async (uri, index) => {
+    try {
+      if (playingSound) {
+        await playingSound.unloadAsync();
+        if (playingIdx === index) {
+          setPlayingSound(null);
+          setPlayingIdx(null);
+          return;
+        }
+      }
+      const { sound } = await Audio.Sound.createAsync({ uri });
+      setPlayingSound(sound);
+      setPlayingIdx(index);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          setPlayingSound(null);
+          setPlayingIdx(null);
+        }
+      });
+      await sound.playAsync();
+    } catch (e) {
+      Alert.alert("재생 오류", "오디오 파일을 재생할 수 없습니다.");
+    }
+  }, [playingSound, playingIdx]);
+
+  const handleRemoveAudio = useCallback((index) => {
+    setAudioFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // ─── PDF File Handlers ───
+
+  const handlePickPdf = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "application/x-hwp", "application/haansofthwp"],
+        multiple: true,
+      });
+      if (!result.canceled && result.assets?.length > 0) {
+        const hwpFiles = result.assets.filter(
+          (a) => a.name?.toLowerCase().endsWith(".hwp")
+        );
+        const pdfs = result.assets.filter(
+          (a) => !a.name?.toLowerCase().endsWith(".hwp")
+        );
+
+        if (hwpFiles.length > 0) {
+          Alert.alert(
+            "HWP 미지원",
+            "HWP 파일은 직접 처리할 수 없습니다.\n한컴오피스에서 PDF로 변환 후 첨부해주세요.\n(파일 → 다른 이름으로 저장 → PDF)"
+          );
+        }
+
+        if (pdfs.length > 0) {
+          const newFiles = pdfs.map((asset) => ({
+            uri: asset.uri,
+            name: asset.name || "문서.pdf",
+          }));
+          setPdfFiles((prev) => [...prev, ...newFiles]);
+        }
+      }
+    } catch (e) {
+      Alert.alert("파일 선택 오류", "문서 파일을 선택할 수 없습니다.");
+    }
+  }, []);
+
+  const handleRemovePdf = useCallback((index) => {
+    setPdfFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const formatDuration = (sec) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -309,13 +432,16 @@ export default function NoteCreateScreen({ navigation }) {
       tags,
       seriesName: seriesName.trim() || undefined,
       aiComment: aiComment || undefined,
+      videoAnalysis: videoAnalysis || undefined,
       images: images.length > 0 ? images : undefined,
       voiceRecordings: voiceRecordings.length > 0 ? voiceRecordings : undefined,
+      audioFiles: audioFiles.length > 0 ? audioFiles : undefined,
+      pdfFiles: pdfFiles.length > 0 ? pdfFiles : undefined,
     };
     hasUnsavedChangesRef.current = false;
     handleSaveNote(noteData);
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, images, voiceRecordings, handleSaveNote, navigation]);
+  }, [title, content, field, tags, seriesName, aiComment, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -394,6 +520,14 @@ export default function NoteCreateScreen({ navigation }) {
               <Text style={styles.mediaBtnText}>녹음</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={styles.mediaBtn} onPress={handlePickAudio} activeOpacity={0.7}>
+            <Text style={styles.mediaBtnIcon}>🎵</Text>
+            <Text style={styles.mediaBtnText}>오디오</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mediaBtn} onPress={handlePickPdf} activeOpacity={0.7}>
+            <Text style={styles.mediaBtnIcon}>📄</Text>
+            <Text style={styles.mediaBtnText}>문서</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Media Preview Grid */}
@@ -420,11 +554,45 @@ export default function NoteCreateScreen({ navigation }) {
           <View style={styles.voiceList}>
             {voiceRecordings.map((rec, idx) => (
               <View key={idx} style={styles.voiceItem}>
-                <TouchableOpacity style={styles.voicePlayBtn} onPress={() => handlePlayRecording(rec.uri, idx)}>
-                  <Text style={styles.voicePlayIcon}>{playingIdx === idx ? "⏸" : "▶️"}</Text>
+                <TouchableOpacity style={styles.voicePlayBtn} onPress={() => handlePlayRecording(rec.uri, `voice-${idx}`)}>
+                  <Text style={styles.voicePlayIcon}>{playingIdx === `voice-${idx}` ? "⏸" : "▶️"}</Text>
                 </TouchableOpacity>
                 <Text style={styles.voiceDuration}>음성 {idx + 1} · {formatDuration(rec.duration)}</Text>
                 <TouchableOpacity style={styles.voiceRemoveBtn} onPress={() => handleRemoveRecording(idx)}>
+                  <Text style={styles.mediaRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Audio Files List */}
+        {audioFiles.length > 0 && (
+          <View style={styles.voiceList}>
+            {audioFiles.map((file, idx) => (
+              <View key={idx} style={styles.voiceItem}>
+                <TouchableOpacity style={[styles.voicePlayBtn, styles.audioPlayBtn]} onPress={() => handlePlayAudio(file.uri, `audio-${idx}`)}>
+                  <Text style={styles.voicePlayIcon}>{playingIdx === `audio-${idx}` ? "⏸" : "▶️"}</Text>
+                </TouchableOpacity>
+                <Text style={styles.voiceDuration} numberOfLines={1}>🎵 {file.name}</Text>
+                <TouchableOpacity style={styles.voiceRemoveBtn} onPress={() => handleRemoveAudio(idx)}>
+                  <Text style={styles.mediaRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* PDF Files List */}
+        {pdfFiles.length > 0 && (
+          <View style={styles.voiceList}>
+            {pdfFiles.map((file, idx) => (
+              <View key={idx} style={styles.voiceItem}>
+                <View style={[styles.voicePlayBtn, styles.pdfIconBtn]}>
+                  <Text style={styles.voicePlayIcon}>📄</Text>
+                </View>
+                <Text style={styles.voiceDuration} numberOfLines={1}>{file.name}</Text>
+                <TouchableOpacity style={styles.voiceRemoveBtn} onPress={() => handleRemovePdf(idx)}>
                   <Text style={styles.mediaRemoveText}>✕</Text>
                 </TouchableOpacity>
               </View>
@@ -564,6 +732,38 @@ export default function NoteCreateScreen({ navigation }) {
             <Text style={styles.aiResultContent}>{aiComment}</Text>
           </View>
         ) : null}
+
+        {/* Video AI Analysis */}
+        {noteVideos.length > 0 && (
+          <>
+            {videoAiLoading ? (
+              <View style={[styles.aiLoadingContainer, { marginTop: 12 }]}>
+                <Animated.View style={[styles.shimmerBar, { opacity: shimmerOpacity, backgroundColor: "#007AFF30" }]} />
+                <Animated.View style={[styles.shimmerBar, styles.shimmerBarShort, { opacity: shimmerOpacity, backgroundColor: "#007AFF30" }]} />
+                <Text style={styles.aiLoadingText}>
+                  {videoAiProgress === "extracting" ? "프레임 추출 중..." : videoAiProgress === "analyzing" ? "AI 영상 분석 중..." : "준비 중..."}
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.videoAiButton}
+                onPress={handleVideoAnalyze}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.videoAiButtonText}>🎥 영상 AI 분석 받기</Text>
+              </TouchableOpacity>
+            )}
+
+            {videoAnalysis ? (
+              <View style={styles.videoAiResultCard}>
+                <View style={styles.videoAiResultHeader}>
+                  <Text style={styles.videoAiResultHeaderText}>🎥 영상 AI 분석 결과</Text>
+                </View>
+                <Text style={styles.aiResultContent}>{videoAnalysis}</Text>
+              </View>
+            ) : null}
+          </>
+        )}
 
         {/* Bottom spacing */}
         <View style={{ height: 40 }} />
@@ -806,6 +1006,49 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
+  // Video AI Button
+  videoAiButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 12,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  videoAiButtonText: {
+    ...T.title,
+    color: CLight.white,
+    letterSpacing: 0.3,
+  },
+  videoAiResultCard: {
+    marginTop: 16,
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+    borderLeftWidth: 4,
+    borderLeftColor: "#007AFF",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  videoAiResultHeader: {
+    backgroundColor: "#007AFF15",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  videoAiResultHeaderText: {
+    ...T.captionBold,
+    color: "#007AFF",
+  },
+
   // ─── Media Attachment ───
   mediaButtonRow: {
     flexDirection: "row",
@@ -929,5 +1172,15 @@ const styles = StyleSheet.create({
     backgroundColor: CLight.gray200,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Audio file play button
+  audioPlayBtn: {
+    backgroundColor: "#E8F4FD",
+  },
+
+  // PDF icon button
+  pdfIconBtn: {
+    backgroundColor: "#FFF3E0",
   },
 });

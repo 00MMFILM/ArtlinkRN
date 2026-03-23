@@ -19,6 +19,7 @@ import {
   createComment,
   checkLiked,
   toggleLike,
+  deletePost,
   getDemoComments,
 } from "../services/communityService";
 
@@ -66,7 +67,7 @@ function CommentItem({ comment }) {
 
 export default function CommunityPostDetailScreen({ route, navigation }) {
   const { post, isDemo: routeIsDemo } = route.params;
-  const { handleBlockUser, handleReportContent, deviceUserId, userProfile } = useApp();
+  const { handleBlockUser, handleReportContent, deviceUserId, userProfile, showToast } = useApp();
   const [commentText, setCommentText] = useState("");
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count ?? post.likes ?? 0);
@@ -112,9 +113,42 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
     navigation.goBack();
   }, [navigation]);
 
+  const isMyPost = post.user_id && deviceUserId && post.user_id === deviceUserId;
+
   const handleReport = useCallback(() => {
-    Alert.alert("게시물 관리", null, [
-      {
+    const options = [];
+
+    if (isMyPost) {
+      options.push({
+        text: "삭제하기",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "게시물 삭제",
+            "이 게시물을 삭제하시겠습니까?\n삭제된 게시물은 되돌릴 수 없습니다.",
+            [
+              { text: "취소", style: "cancel" },
+              {
+                text: "삭제",
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                    if (!isDemo) {
+                      await deletePost(post.id, deviceUserId);
+                    }
+                    showToast("게시물이 삭제되었습니다.", "success");
+                    navigation.goBack();
+                  } catch (_) {
+                    Alert.alert("오류", "게시물 삭제에 실패했습니다. 다시 시도해주세요.");
+                  }
+                },
+              },
+            ]
+          );
+        },
+      });
+    } else {
+      options.push({
         text: "신고하기",
         onPress: () => {
           Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
@@ -141,8 +175,8 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
             },
           ]);
         },
-      },
-      {
+      });
+      options.push({
         text: "작성자 차단",
         style: "destructive",
         onPress: () => {
@@ -162,10 +196,12 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
             ]
           );
         },
-      },
-      { text: "취소", style: "cancel" },
-    ]);
-  }, [post, author, handleBlockUser, handleReportContent, navigation]);
+      });
+    }
+
+    options.push({ text: "취소", style: "cancel" });
+    Alert.alert("게시물 관리", null, options);
+  }, [post, author, isMyPost, isDemo, deviceUserId, handleBlockUser, handleReportContent, navigation, showToast]);
 
   const handleToggleLike = useCallback(async () => {
     if (isDemo || !deviceUserId) {

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -112,7 +113,7 @@ function PostCard({ post, onReport, onPress }) {
 
 // ─── Community Screen ────────────────────────────────────────
 export default function CommunityScreen() {
-  const { darkMode, blockedUsers, handleBlockUser, handleReportContent, deviceUserId } = useApp();
+  const { blockedUsers, handleBlockUser, handleReportContent, deviceUserId } = useApp();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("전체");
   const [posts, setPosts] = useState([]);
@@ -206,7 +207,11 @@ export default function CommunityScreen() {
       </View>
 
       {/* Tab Filter */}
-      <View style={styles.tabRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabRow}
+      >
         {TABS.map((tab) => (
           <Pill
             key={tab}
@@ -217,7 +222,7 @@ export default function CommunityScreen() {
             {tab}
           </Pill>
         ))}
-      </View>
+      </ScrollView>
 
       {/* Post List */}
       {loading ? (
@@ -280,6 +285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     backgroundColor: CLight.topBarBg,
+    flexGrow: 0,
   },
   list: {
     paddingHorizontal: 16,

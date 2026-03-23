@@ -56,6 +56,7 @@ export const USER_TYPES = [
   { key: "aspiring", label: "지망생", desc: "아티스트를 꿈꾸는 학생/준비생" },
   { key: "hobby", label: "취미", desc: "취미로 예술 활동을 즐기는 분" },
   { key: "industry", label: "업계 관계자", desc: "기획사, 프로덕션, 교육 등 업계 종사자" },
+  { key: "fan", label: "팬", desc: "좋아하는 아티스트를 응원하고 소통해요" },
 ];
 
 export const ROLE_MODELS_BY_FIELD = {
@@ -68,7 +69,7 @@ export const ROLE_MODELS_BY_FIELD = {
 };
 
 export const INTERESTS_BY_FIELD = {
-  acting: ["방법연기", "즉흥연기", "뮤지컬", "보이스", "모션캡처", "오디션", "자기테이프", "장면분석"],
+  acting: ["방법연기", "즉흥연기", "뮤지컬", "보이스", "모션캡처", "오디션", "셀프테이프", "장면분석"],
   music: ["작곡", "편곡", "보컬", "악기연주", "프로듀싱", "라이브", "음악이론", "사운드디자인"],
   art: ["유화", "수채화", "디지털아트", "조각", "설치미술", "사진", "일러스트", "판화"],
   dance: ["현대무용", "발레", "한국무용", "스트릿댄스", "안무", "즉흥", "컨택", "라반분석"],

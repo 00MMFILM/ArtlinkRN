@@ -26,13 +26,15 @@ import TopBar from "../components/TopBar";
 const GENDER_EMOJIS = { male: "\uD83D\uDC68", female: "\uD83D\uDC69", other: "\uD83E\uDDD1" };
 
 export default function ProfileEditScreen({ navigation }) {
-  const { userProfile, handleUpdateProfile } = useApp();
+  const { userProfile, handleUpdateProfile, dataConsent, handleSetDataConsent } = useApp();
 
   const [name, setName] = useState(userProfile.name || "");
   const [gender, setGender] = useState(userProfile.gender || "");
   const [birthDate, setBirthDate] = useState(userProfile.birthDate || "");
   const [height, setHeight] = useState(userProfile.height ? String(userProfile.height) : "");
   const [weight, setWeight] = useState(userProfile.weight ? String(userProfile.weight) : "");
+  const [heightPrivate, setHeightPrivate] = useState(userProfile.heightPrivate || false);
+  const [weightPrivate, setWeightPrivate] = useState(userProfile.weightPrivate || false);
   const [specialties, setSpecialties] = useState(userProfile.specialties || []);
   const [customSpecialty, setCustomSpecialty] = useState("");
   const [school, setSchool] = useState(userProfile.school || "");
@@ -90,6 +92,8 @@ export default function ProfileEditScreen({ navigation }) {
       birthDate: birthDate.trim(),
       height: height ? Number(height) : null,
       weight: weight ? Number(weight) : null,
+      heightPrivate,
+      weightPrivate,
       specialties,
       school: school.trim(),
       location: location.trim(),
@@ -103,7 +107,7 @@ export default function ProfileEditScreen({ navigation }) {
       pendingPhotoUris: localPhotos.length > 0 ? localPhotos : undefined,
     });
     navigation.goBack();
-  }, [name, gender, birthDate, height, weight, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation]);
+  }, [name, gender, birthDate, height, weight, heightPrivate, weightPrivate, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation]);
 
   const handleAddCareer = () => {
     if (!careerTitle.trim()) return;
@@ -215,14 +219,27 @@ export default function ProfileEditScreen({ navigation }) {
 
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={[styles.inputWrapper, { flex: 1 }]}>
-              <Text style={styles.label}>키 (cm)</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={styles.label}>키 (cm)</Text>
+                <TouchableOpacity onPress={() => setHeightPrivate(!heightPrivate)} style={[styles.privacyToggle, heightPrivate && styles.privacyToggleActive]}>
+                  <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? "비공개" : "공개"}</Text>
+                </TouchableOpacity>
+              </View>
               <TextInput style={styles.input} value={height} onChangeText={setHeight} placeholder="170" placeholderTextColor={CLight.gray400} keyboardType="number-pad" maxLength={3} />
             </View>
             <View style={[styles.inputWrapper, { flex: 1 }]}>
-              <Text style={styles.label}>몸무게 (kg)</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={styles.label}>몸무게 (kg)</Text>
+                <TouchableOpacity onPress={() => setWeightPrivate(!weightPrivate)} style={[styles.privacyToggle, weightPrivate && styles.privacyToggleActive]}>
+                  <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? "비공개" : "공개"}</Text>
+                </TouchableOpacity>
+              </View>
               <TextInput style={styles.input} value={weight} onChangeText={setWeight} placeholder="60" placeholderTextColor={CLight.gray400} keyboardType="number-pad" maxLength={3} />
             </View>
           </View>
+          <Text style={[T.micro, { color: CLight.gray400, marginTop: 4, lineHeight: 18 }]}>
+            비공개 설정 시 관계자가 배우 프로필 열람 시에만 확인할 수 있습니다.
+          </Text>
         </View>
 
         {/* 활동 정보 */}
@@ -315,6 +332,20 @@ export default function ProfileEditScreen({ navigation }) {
               thumbColor={CLight.white}
             />
           </View>
+          <View style={[styles.consentRow, { marginTop: 16 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>AI 학습 데이터 제공</Text>
+              <Text style={[T.micro, { color: CLight.gray500, lineHeight: 18 }]}>
+                연습 노트와 AI 피드백을 익명으로 수집하여 AI 품질 개선에 활용합니다.
+              </Text>
+            </View>
+            <Switch
+              value={dataConsent}
+              onValueChange={handleSetDataConsent}
+              trackColor={{ false: CLight.gray200, true: CLight.pink }}
+              thumbColor={CLight.white}
+            />
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -379,4 +410,9 @@ const styles = StyleSheet.create({
   addCareerBtn: { backgroundColor: CLight.pink, borderRadius: 12, paddingVertical: 10, alignItems: "center", marginTop: 10 },
   disabledBtn: { backgroundColor: CLight.gray300 },
   consentRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+
+  privacyToggle: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200 },
+  privacyToggleActive: { backgroundColor: CLight.pinkSoft, borderColor: CLight.pink },
+  privacyToggleText: { ...T.micro, color: CLight.gray500 },
+  privacyToggleTextActive: { color: CLight.pink, fontWeight: "600" },
 });

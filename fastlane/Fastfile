@@ -5,15 +5,21 @@ platform :ios do
   lane :submit_review do
     deliver(
       app_identifier: "com.00MM.artlink",
-      skip_metadata: true,
-      skip_screenshots: true,
-      skip_binary_upload: true,
+      app_version: "1.7.1",
       submit_for_review: true,
+      automatic_release: true,
       force: true,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: false,
+      release_notes: {
+        "ko" => "- 캐스팅/협업 제안 시스템 추가 (B2B 대시보드에서 아티스트에게 제안 전송)\n- 제안 수락 후 답장 기능 추가\n- 제안함(받은 제안/보낸 제안) 화면 추가\n- AI 피드백 품질 개선 (더 상세하고 전문적인 분석)\n- 키/몸무게 비공개 설정 추가\n- 실시간 매칭 피드 개선\n- 버그 수정 및 안정성 개선",
+        "default" => "- Added casting/collaboration proposal system (send proposals to artists from B2B dashboard)\n- Added reply messaging for accepted proposals\n- Added inbox screen (received/sent proposals)\n- Improved AI feedback quality (more detailed, professional analysis)\n- Added height/weight privacy toggles\n- Improved real-time matching feed\n- Bug fixes and stability improvements"
+      },
       submission_information: {
-        export_compliance_uses_encryption: false,
         add_id_info_uses_idfa: false
-      }
+      },
+      precheck_include_in_app_purchases: false
     )
   end
 end

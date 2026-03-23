@@ -139,6 +139,17 @@ export async function createPost({ userId, authorName, authorField, type, title,
   return data;
 }
 
+export async function deletePost(postId, userId) {
+  const { error } = await supabase
+    .from("community_posts")
+    .delete()
+    .eq("id", postId)
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  invalidatePostsCache();
+}
+
 // ─── Comments ───────────────────────────────────────────────
 export async function fetchComments(postId) {
   const { data, error } = await supabase
