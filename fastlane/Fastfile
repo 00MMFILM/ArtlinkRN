@@ -5,7 +5,7 @@ platform :ios do
   lane :submit_review do
     deliver(
       app_identifier: "com.00MM.artlink",
-      app_version: "1.7.1",
+      app_version: "1.7.2",
       submit_for_review: true,
       automatic_release: true,
       force: true,

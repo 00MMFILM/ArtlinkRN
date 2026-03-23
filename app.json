@@ -2,7 +2,7 @@
   "expo": {
     "name": "Artlink",
     "slug": "ArtlinkRN",
-    "version": "1.7.1",
+    "version": "1.7.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.00MM.artlink",
-      "buildNumber": "9",
+      "buildNumber": "11",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "프로필 사진과 노트에 이미지를 첨부하기 위해 사진 접근 권한이 필요합니다.",
         "NSCameraUsageDescription": "프로필 사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
