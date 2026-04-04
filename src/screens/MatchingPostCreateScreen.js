@@ -41,6 +41,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
   const [deadline, setDeadline] = useState(editPost?.deadline || "");
   const [tags, setTags] = useState(editPost?.tags || []);
   const [tagInput, setTagInput] = useState("");
+  const [contact, setContact] = useState(editPost?.contact || "");
 
   // Casting requirements
   const [showRequirements, setShowRequirements] = useState(!!editPost?.requirements);
@@ -105,6 +106,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
       description: description.trim(),
       deadline: deadline.trim() || undefined,
       tags,
+      contact: contact.trim() || undefined,
       ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     };
 
@@ -115,7 +117,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
     }
     hasChangesRef.current = false;
     navigation.goBack();
-  }, [tab, title, field, description, deadline, tags, editPost, handleAddMatchingPost, handleUpdateMatchingPost, navigation]);
+  }, [tab, title, field, description, deadline, tags, contact, editPost, handleAddMatchingPost, handleUpdateMatchingPost, navigation]);
 
   const handleCancel = useCallback(() => {
     if (hasChangesRef.current) {
@@ -224,6 +226,18 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
             );
           })}
         </ScrollView>
+
+        {/* Contact */}
+        <Text style={styles.sectionLabel}>연락처</Text>
+        <TextInput
+          style={styles.deadlineInput}
+          placeholder="이메일, 전화번호, 또는 SNS 계정"
+          placeholderTextColor={CLight.gray400}
+          value={contact}
+          onChangeText={setContact}
+          maxLength={100}
+          returnKeyType="done"
+        />
 
         {/* Deadline */}
         <Text style={styles.sectionLabel}>마감일 (선택)</Text>

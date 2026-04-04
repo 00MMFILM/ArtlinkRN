@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, STORAGE_KEYS } from "../utils/storage";
+import { supabase } from "../services/supabaseClient";
 import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
@@ -70,7 +71,17 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.DATA_CONSENT_ASKED),
       ]);
       if (notes) setSavedNotes(notes);
-      if (profile) { setUserProfile(profile); setAuthState("app"); }
+      if (profile) {
+        setUserProfile(profile);
+        if (profile.authUserId) {
+          // Auth 유저 → 세션 유효할 때만 진입
+          const { data: { session } } = await supabase.auth.getSession();
+          setAuthState(session ? "app" : "auth");
+        } else {
+          // 기존 유저 (Auth 미연동) → 바로 앱 진입 허용
+          setAuthState("app");
+        }
+      }
 
       if (g) setGoals(g);
       // subscription removed
@@ -86,6 +97,16 @@ export function AppProvider({ children }) {
       if (consentAsked) setDataConsentAsked(consentAsked);
       setStorageReady(true);
     })();
+  }, []);
+
+  // Listen for Supabase auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        setAuthState("auth");
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   // Register device user with Supabase
@@ -104,7 +125,7 @@ export function AppProvider({ children }) {
           setDeviceUserId(cachedUserId);
           return;
         }
-        const userId = await ensureDeviceUser(deviceId, userProfile.name, userProfile.fields?.[0]);
+        const userId = await ensureDeviceUser(deviceId, userProfile.name, userProfile.fields?.[0], userProfile.authUserId);
         setDeviceUserId(userId);
         await safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, userId);
       } catch (_) {
@@ -193,8 +214,9 @@ export function AppProvider({ children }) {
     const updated = [feedback, ...feedbacks];
     setFeedbacks(updated);
     safeStorageSet(STORAGE_KEYS.FEEDBACKS, updated);
+    notifyServer({ type: "feedback", content: feedback, userName: userProfile.name, email: userProfile.email, sentAt: new Date().toISOString() });
     showToast("피드백이 전송되었습니다!", "success");
-  }, [feedbacks, showToast]);
+  }, [feedbacks, showToast, notifyServer, userProfile]);
 
   const handleDismissGuide = useCallback(() => {
     setShowBetaGuide(false);
@@ -249,10 +271,21 @@ export function AppProvider({ children }) {
     showToast("프로필이 업데이트되었습니다!", "success");
   }, [showToast]);
 
-  const handleAuth = useCallback((profileData) => {
+  const handleAuth = useCallback(async (profileData) => {
     if (profileData && profileData.name) {
-      setUserProfile(profileData);
-      safeStorageSet(STORAGE_KEYS.PROFILE, profileData);
+      const { data: { user } } = await supabase.auth.getUser();
+      let finalProfile;
+      if (profileData._mergeExisting) {
+        // 로그인 시: 기존 프로필 유지, 이메일/authUserId만 갱신
+        const { _mergeExisting, ...loginData } = profileData;
+        const existing = await safeStorageGet(STORAGE_KEYS.PROFILE);
+        finalProfile = { ...(existing || {}), ...loginData, authUserId: user?.id };
+      } else {
+        // 회원가입 시: 전체 프로필 저장
+        finalProfile = { ...profileData, authUserId: user?.id };
+      }
+      setUserProfile(finalProfile);
+      safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile);
     }
     setAuthState("app");
   }, []);
@@ -323,6 +356,7 @@ export function AppProvider({ children }) {
   }, [showToast, notifyServer]);
 
   const handleDeleteAccount = useCallback(async () => {
+    await supabase.auth.signOut();
     await AsyncStorage.clear();
     setSavedNotes([]);
     setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, heightPrivate: false, weightPrivate: false, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });

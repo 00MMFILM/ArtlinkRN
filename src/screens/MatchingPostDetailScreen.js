@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
@@ -87,9 +88,30 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
     ]);
   }, [post, handleBlockUser, handleReportContent, navigation]);
 
-  const handleApply = useCallback(() => {
-    Alert.alert("지원 완료", "지원이 접수되었습니다. 작성자가 확인 후 연락드립니다.");
-  }, []);
+  const isCrawled = post.source === "ai";
+
+  const handleBottomAction = useCallback(() => {
+    if (isCrawled && post.sourceUrl) {
+      Linking.openURL(post.sourceUrl).catch(() =>
+        Alert.alert("오류", "원본 사이트를 열 수 없습니다.")
+      );
+    } else if (post.contact) {
+      const c = post.contact.trim();
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c);
+      const isPhone = /^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(c.replace(/\s/g, ""));
+
+      const buttons = [{ text: "닫기", style: "cancel" }];
+      if (isEmail) {
+        buttons.unshift({ text: "메일 보내기", onPress: () => Linking.openURL(`mailto:${c}`) });
+      } else if (isPhone) {
+        buttons.unshift({ text: "전화하기", onPress: () => Linking.openURL(`tel:${c.replace(/\s/g, "")}`) });
+      }
+
+      Alert.alert("연락처", c, buttons);
+    } else {
+      Alert.alert("안내", "등록자가 연락처를 입력하지 않았습니다.");
+    }
+  }, [isCrawled, post.sourceUrl, post.contact]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -255,11 +277,18 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         )}
       </ScrollView>
 
-      {/* Apply Button */}
+      {/* Bottom Action */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.applyBtn} onPress={handleApply} activeOpacity={0.85}>
-          <Text style={[T.bodyBold, { color: CLight.white }]}>지원하기</Text>
+        <TouchableOpacity style={styles.applyBtn} onPress={handleBottomAction} activeOpacity={0.85}>
+          <Text style={[T.bodyBold, { color: CLight.white }]}>
+            {isCrawled ? "원본 사이트 보기" : "연락하기"}
+          </Text>
         </TouchableOpacity>
+        {isCrawled && post.sourcePlatform && (
+          <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 6 }]}>
+            {post.sourcePlatform}에서 가져온 공고입니다
+          </Text>
+        )}
       </View>
     </SafeAreaView>
   );

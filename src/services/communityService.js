@@ -77,18 +77,43 @@ const DEMO_COMMENTS = {
 };
 
 // ─── User ───────────────────────────────────────────────────
-export async function ensureDeviceUser(deviceId, displayName, field) {
+export async function ensureDeviceUser(deviceId, displayName, field, authUserId) {
+  // If auth user ID provided, try to find existing user by it (cross-device reconnect)
+  if (authUserId) {
+    const { data: byAuth } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_user_id", authUserId)
+      .single();
+
+    if (byAuth) return byAuth.id;
+  }
+
   const { data: existing } = await supabase
     .from("users")
     .select("id")
     .eq("device_id", deviceId)
     .single();
 
-  if (existing) return existing.id;
+  if (existing) {
+    // Link auth_user_id if not yet set
+    if (authUserId) {
+      await supabase
+        .from("users")
+        .update({ auth_user_id: authUserId })
+        .eq("id", existing.id);
+    }
+    return existing.id;
+  }
 
   const { data: created, error } = await supabase
     .from("users")
-    .insert({ device_id: deviceId, display_name: displayName || "익명", field: field || null })
+    .insert({
+      device_id: deviceId,
+      display_name: displayName || "익명",
+      field: field || null,
+      auth_user_id: authUserId || null,
+    })
     .select("id")
     .single();
 

@@ -1,4 +1,4 @@
-const SERVER_URL = "https://artlink-server.vercel.app";
+const SERVER_URL = "https://server-00mmfilms-projects.vercel.app";
 
 // In-memory cache (10 min TTL)
 let _cache = { data: null, ts: 0 };
@@ -20,18 +20,27 @@ export async function fetchMatchingFeed(userFields = []) {
   }
 
   try {
-    const res = await fetch(`${SERVER_URL}/api/matching-feed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userFields }),
-    });
+    // Fetch all pages to get full dataset
+    let allItems = [];
+    let page = 1;
+    const limit = 50;
+    while (true) {
+      const res = await fetch(`${SERVER_URL}/api/matching-feed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userFields, page, limit }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) break;
+      allItems.push(...data);
+      if (data.length < limit) break;
+      page++;
+      if (page > 10) break; // Safety cap: max 500 posts
+    }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
-      // Ensure all items have source: "ai" and required fields
-      const items = data.map((item) => ({
+    if (allItems.length > 0) {
+      const items = allItems.map((item) => ({
         source: "ai",
         tab: "프로젝트",
         requirements: {},

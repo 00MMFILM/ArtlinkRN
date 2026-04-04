@@ -207,22 +207,24 @@ export default function CommunityScreen() {
       </View>
 
       {/* Tab Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabRow}
-      >
-        {TABS.map((tab) => (
-          <Pill
-            key={tab}
-            active={activeTab === tab}
-            color={CLight.pink}
-            onPress={() => setActiveTab(tab)}
-          >
-            {tab}
-          </Pill>
-        ))}
-      </ScrollView>
+      <View style={styles.tabContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabRow}
+        >
+          {TABS.map((tab) => (
+            <Pill
+              key={tab}
+              active={activeTab === tab}
+              color={CLight.pink}
+              onPress={() => setActiveTab(tab)}
+            >
+              {tab}
+            </Pill>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Post List */}
       {loading ? (

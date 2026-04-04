@@ -23,6 +23,6 @@ export default function Pill({ children, active, color = CLight.pink, onPress })
 }
 
 const styles = StyleSheet.create({
-  pill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, flexShrink: 0, flexGrow: 0, alignSelf: "flex-start" },
-  text: { fontSize: 13, flexShrink: 0 },
+  pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
+  text: { fontSize: 14, lineHeight: 20 },
 });

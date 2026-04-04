@@ -13,7 +13,9 @@ import {
   Alert,
   Switch,
   Image,
+  ActivityIndicator,
 } from "react-native";
+import { supabase } from "../services/supabaseClient";
 import * as ImagePicker from "expo-image-picker";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
@@ -98,6 +100,8 @@ export default function AuthScreen({ navigation }) {
   const toggleInArray = (arr, item) =>
     arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
 
+  const [loading, setLoading] = useState(false);
+
   // Validation
   const isStep0Valid = () =>
     name.trim().length >= 1 &&
@@ -162,51 +166,101 @@ export default function AuthScreen({ navigation }) {
     setPhotoUris((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleComplete = () => {
-    const profileData = {
-      name: name.trim(),
-      email: email.trim(),
-      userType: selectedUserType,
-      fields: selectedFields,
-      gender,
-      birthDate: birthDate.trim(),
-      height: height ? Number(height) : null,
-      weight: weight ? Number(weight) : null,
-      heightPrivate,
-      weightPrivate,
-      specialties,
-      school: school.trim(),
-      location: location.trim(),
-      agency: agency.trim(),
-      career,
-      bio: "",
-      roleModels: selectedRoleModels,
-      interests: selectedInterests,
-      profilePublic,
-      photos: photoUris,
-      pendingPhotoUris: photoUris,
-    };
-    handleAuth(profileData);
+  const handleComplete = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        const msg = error.message.includes("already registered")
+          ? "이미 가입된 이메일입니다."
+          : error.message;
+        Alert.alert("회원가입 실패", msg);
+        return;
+      }
+      const profileData = {
+        name: name.trim(),
+        email: email.trim(),
+        userType: selectedUserType,
+        fields: selectedFields,
+        gender,
+        birthDate: birthDate.trim(),
+        height: height ? Number(height) : null,
+        weight: weight ? Number(weight) : null,
+        heightPrivate,
+        weightPrivate,
+        specialties,
+        school: school.trim(),
+        location: location.trim(),
+        agency: agency.trim(),
+        career,
+        bio: "",
+        roleModels: selectedRoleModels,
+        interests: selectedInterests,
+        profilePublic,
+        photos: photoUris,
+        pendingPhotoUris: photoUris,
+      };
+      handleAuth(profileData);
+    } catch (e) {
+      Alert.alert("오류", "회원가입 중 문제가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) {
       Alert.alert("오류", "이메일과 비밀번호를 입력해주세요.");
       return;
     }
-    handleAuth({ name: loginEmail.split("@")[0], email: loginEmail.trim() });
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail.trim(),
+        password: loginPassword,
+      });
+      if (error) {
+        Alert.alert("로그인 실패", "이메일 또는 비밀번호가 올바르지 않습니다.");
+        return;
+      }
+      if (data.user) {
+        // 기존 프로필이 있으면 이메일만 갱신, 없으면 최소 프로필 생성
+        handleAuth({ name: data.user.user_metadata?.name || loginEmail.split("@")[0], email: loginEmail.trim(), _mergeExisting: true });
+      }
+    } catch (e) {
+      Alert.alert("오류", "로그인 중 문제가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSkip = () => { handleAuth(null); };
 
-  const handleForgotPassword = () => {
+  const handleForgotPassword = async () => {
     if (!forgotEmail.trim().includes("@")) {
       Alert.alert("오류", "유효한 이메일을 입력해주세요.");
       return;
     }
-    Alert.alert("안내", "비밀번호 재설정 링크가 전송되었습니다.", [
-      { text: "확인", onPress: () => setMode("login") },
-    ]);
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo: "artlink://reset-password",
+      });
+      if (error) {
+        Alert.alert("오류", error.message);
+        return;
+      }
+      Alert.alert("안내", "비밀번호 재설정 링크가 전송되었습니다.", [
+        { text: "확인", onPress: () => setMode("login") },
+      ]);
+    } catch (e) {
+      Alert.alert("오류", "요청 중 문제가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddCareer = () => {
@@ -243,7 +297,7 @@ export default function AuthScreen({ navigation }) {
   const renderLogin = () => (
     <View style={styles.loginContainer}>
       <View style={styles.brandContainer}>
-        <Text style={styles.brandInfinity}>{"\u221E"}</Text>
+        <Image source={require("../../assets/icon.png")} style={styles.brandLogo} />
         <Text style={styles.brandName}>ArtLink</Text>
         <Text style={styles.brandTagline}>{"당신의 예술 여정을 기록하세요"}</Text>
       </View>
@@ -254,8 +308,8 @@ export default function AuthScreen({ navigation }) {
       <TouchableOpacity style={styles.forgotButton} onPress={() => animateTransition(() => setMode("forgot"))}>
         <Text style={styles.forgotText}>비밀번호를 잊으셨나요?</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.primaryButton, (!loginEmail.trim() || !loginPassword.trim()) && styles.disabledButton]} onPress={handleLogin} disabled={!loginEmail.trim() || !loginPassword.trim()}>
-        <Text style={styles.primaryButtonText}>로그인</Text>
+      <TouchableOpacity style={[styles.primaryButton, (!loginEmail.trim() || !loginPassword.trim() || loading) && styles.disabledButton]} onPress={handleLogin} disabled={!loginEmail.trim() || !loginPassword.trim() || loading}>
+        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>로그인</Text>}
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondaryButton} onPress={() => animateTransition(() => setMode("signup"))}>
         <Text style={styles.secondaryButtonText}>회원가입</Text>
@@ -269,15 +323,15 @@ export default function AuthScreen({ navigation }) {
   const renderForgot = () => (
     <View style={styles.loginContainer}>
       <View style={styles.brandContainer}>
-        <Text style={styles.brandInfinity}>{"\u221E"}</Text>
+        <Image source={require("../../assets/icon.png")} style={styles.brandLogo} />
         <Text style={[T.h2, { color: CLight.gray900, marginTop: 8 }]}>비밀번호 찾기</Text>
         <Text style={[T.caption, { color: CLight.gray500, marginTop: 4, textAlign: "center" }]}>{"가입한 이메일을 입력하면\n비밀번호 재설정 링크를 보내드립니다."}</Text>
       </View>
       <View style={styles.inputGroup}>
         <TextInput style={styles.input} placeholder="이메일" placeholderTextColor={CLight.gray400} value={forgotEmail} onChangeText={setForgotEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
       </View>
-      <TouchableOpacity style={[styles.primaryButton, !forgotEmail.trim().includes("@") && styles.disabledButton]} onPress={handleForgotPassword} disabled={!forgotEmail.trim().includes("@")}>
-        <Text style={styles.primaryButtonText}>재설정 링크 받기</Text>
+      <TouchableOpacity style={[styles.primaryButton, (!forgotEmail.trim().includes("@") || loading) && styles.disabledButton]} onPress={handleForgotPassword} disabled={!forgotEmail.trim().includes("@") || loading}>
+        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>재설정 링크 받기</Text>}
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondaryButton} onPress={() => animateTransition(() => setMode("login"))}>
         <Text style={styles.secondaryButtonText}>로그인으로 돌아가기</Text>
@@ -593,8 +647,8 @@ export default function AuthScreen({ navigation }) {
         </ScrollView>
       </Animated.View>
       <View style={styles.signupActions}>
-        <TouchableOpacity style={[styles.primaryButton, !canProceed() && styles.disabledButton]} onPress={handleNext} disabled={!canProceed()}>
-          <Text style={styles.primaryButtonText}>{signupStep === TOTAL_STEPS - 1 ? "시작하기" : "다음"}</Text>
+        <TouchableOpacity style={[styles.primaryButton, (!canProceed() || loading) && styles.disabledButton]} onPress={handleNext} disabled={!canProceed() || loading}>
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{signupStep === TOTAL_STEPS - 1 ? "시작하기" : "다음"}</Text>}
         </TouchableOpacity>
         {signupStep >= 3 && (
           <TouchableOpacity style={styles.skipStepButton} onPress={handleNext}>
@@ -631,7 +685,7 @@ const styles = StyleSheet.create({
 
   loginContainer: { alignItems: "center" },
   brandContainer: { alignItems: "center", marginBottom: 40 },
-  brandInfinity: { fontSize: 56, fontWeight: "800", color: CLight.pink, marginBottom: 4 },
+  brandLogo: { width: 80, height: 80, marginBottom: 8, borderRadius: 20 },
   brandName: { fontSize: 32, fontWeight: "800", color: CLight.gray900, letterSpacing: -0.5 },
   brandTagline: { ...T.caption, color: CLight.gray500, marginTop: 8 },
 

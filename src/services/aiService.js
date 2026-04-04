@@ -1,6 +1,7 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { FIELD_LABELS } from "../constants/theme";
 import { extractVideoFrames } from "../utils/videoFrames";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabaseClient";
 
 const SERVER_URL = "https://artlink-server.vercel.app";
 
@@ -190,6 +191,108 @@ function heuristicFallback(field, content) {
 🔜 오늘 연습한 내용을 기반으로, 같은 주제를 다른 접근법으로 한 번 더 시도해보세요.`;
 }
 
+/**
+ * Transcribe an audio file (voice recording or attached audio) via server.
+ * Uploads to Supabase Storage, calls /api/transcribe, cleans up.
+ * @param {string} audioUri - local file URI
+ * @param {string} [label] - display label for logging
+ * @returns {Promise<string|null>} transcript text or null
+ */
+async function transcribeAudioFile(audioUri, label = "audio") {
+  try {
+    let localUri = audioUri;
+    if (!localUri.startsWith("file://")) {
+      localUri = "file://" + localUri;
+    }
+
+    // Determine content type from URI
+    const ext = (localUri.split(".").pop() || "").toLowerCase();
+    const contentTypeMap = {
+      wav: "audio/wav",
+      m4a: "audio/mp4",
+      mp3: "audio/mpeg",
+      aac: "audio/aac",
+      ogg: "audio/ogg",
+      mp4: "video/mp4",
+    };
+    const contentType = contentTypeMap[ext] || "audio/mpeg";
+
+    // Upload to Supabase Storage
+    const fileName = `transcribe_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext || "m4a"}`;
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/temp-media/${fileName}`;
+
+    const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": contentType,
+        "x-upsert": "true",
+      },
+    });
+
+    if (uploadResult.status < 200 || uploadResult.status >= 300) {
+      console.log(`[transcribeAudio] Upload failed (${label}):`, uploadResult.status);
+      return null;
+    }
+
+    // Call transcribe API
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/temp-media/${fileName}`;
+    const res = await fetch(`${SERVER_URL}/api/transcribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoUrl: publicUrl }),
+    });
+
+    // Clean up
+    fetch(`${SUPABASE_URL}/storage/v1/object/temp-media/${fileName}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    }).catch(() => {});
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.transcript || null;
+    }
+    console.log(`[transcribeAudio] Transcribe failed (${label}):`, res.status);
+    return null;
+  } catch (e) {
+    console.log(`[transcribeAudio] Error (${label}):`, e.message);
+    return null;
+  }
+}
+
+/**
+ * Transcribe all audio attachments (voice recordings + audio files).
+ * @returns {Promise<string>} combined transcript text
+ */
+async function transcribeAllAudio(voiceRecordings = [], audioFiles = []) {
+  const tasks = [];
+
+  voiceRecordings.forEach((rec, i) => {
+    tasks.push(
+      Promise.race([
+        transcribeAudioFile(rec.uri, `녹음 ${i + 1}`),
+        new Promise((resolve) => setTimeout(() => resolve(null), 120000)),
+      ]).then((t) => (t ? `[음성 녹음 ${i + 1}]\n${t}` : null))
+    );
+  });
+
+  audioFiles.forEach((file, i) => {
+    tasks.push(
+      Promise.race([
+        transcribeAudioFile(file.uri, file.name || `오디오 ${i + 1}`),
+        new Promise((resolve) => setTimeout(() => resolve(null), 120000)),
+      ]).then((t) => (t ? `[${file.name || `오디오 파일 ${i + 1}`}]\n${t}` : null))
+    );
+  });
+
+  if (tasks.length === 0) return "";
+
+  const results = await Promise.all(tasks);
+  return results.filter(Boolean).join("\n\n");
+}
+
 export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}) {
   // Extract PDF text if PDF files are attached
   let pdfText = "";
@@ -203,29 +306,92 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     pdfText = await extractAllPdfTexts(pdfFiles);
   }
 
-  const combinedContent = pdfText
-    ? `${content}\n\n[첨부 문서 내용]\n${pdfText}`
-    : content;
+  // Transcribe audio attachments (voice recordings + audio files)
+  let audioTranscript = "";
+  const voiceRecordings = currentNote?.voiceRecordings || [];
+  const audioFilesList = currentNote?.audioFiles || [];
+  if (voiceRecordings.length > 0 || audioFilesList.length > 0) {
+    audioTranscript = await transcribeAllAudio(voiceRecordings, audioFilesList);
+  }
+
+  let combinedContent = content;
+  if (pdfText) {
+    combinedContent += `\n\n[첨부 문서 내용]\n${pdfText}`;
+  }
+  if (audioTranscript) {
+    // Filter out garbage Whisper output (too short, repeated text, or irrelevant)
+    const trimmed = audioTranscript.replace(/\[.*?\]\n?/g, "").trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    const uniqueWords = new Set(words);
+    const isGarbage = trimmed.length < 10 || (words.length > 3 && uniqueWords.size <= 2);
+    if (!isGarbage) {
+      combinedContent += `\n\n[첨부 오디오 전사 내용]\n${audioTranscript}`;
+    }
+  }
+
+  // Convert attached images (non-video) to base64 for Vision analysis
+  let imageFrames = [];
+  const noteImages = (currentNote?.images || []).filter((i) => i.type !== "video");
+  if (noteImages.length > 0) {
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB per image
+    const frameResults = await Promise.all(
+      noteImages.slice(0, 5).map(async (img) => {
+        try {
+          // Check file size before reading
+          const info = await FileSystem.getInfoAsync(img.uri);
+          if (info.size && info.size > MAX_IMAGE_SIZE) {
+            console.log(`[analyzeNote] Image too large (${(info.size / 1024 / 1024).toFixed(1)}MB), skipping`);
+            return null;
+          }
+          const base64 = await FileSystem.readAsStringAsync(img.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          return base64;
+        } catch (e) {
+          console.log("[analyzeNote] Image read failed:", e.message);
+          return null;
+        }
+      })
+    );
+    imageFrames = frameResults.filter(Boolean);
+  }
 
   const prompt = buildAIPrompt(field, combinedContent, savedNotes, currentNote, userProfile);
 
   try {
+    const requestBody = {
+      prompt,
+      field,
+      noteTitle: currentNote?.title || "",
+    };
+    if (imageFrames.length > 0) {
+      requestBody.frames = imageFrames;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000); // 90s client timeout
+
     const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        field,
-        noteTitle: currentNote?.title || "",
-      }),
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
-    if (!response.ok) throw new Error("Server error");
+    if (!response.ok) {
+      console.log("[analyzeNote] Server error:", response.status);
+      throw new Error("AI_SERVER_ERROR");
+    }
     const data = await response.json();
-    return data.analysis || data.content || heuristicFallback(field, combinedContent);
+    if (!data.analysis && !data.content) {
+      throw new Error("AI_EMPTY_RESPONSE");
+    }
+    return { analysis: data.analysis || data.content, scores: data.scores || null };
   } catch (e) {
-    console.log("AI server unavailable, using heuristic:", e.message);
-    return heuristicFallback(field, combinedContent);
+    console.log("[analyzeNote] AI failed:", e.message);
+    // Throw so caller can show error instead of silent heuristic
+    throw e;
   }
 }
 
@@ -378,28 +544,62 @@ function heuristicVideoFallback(field, videoCount) {
  * @returns {Promise<string|null>} transcript text or null on failure
  */
 async function transcribeVideo(videoUri) {
+  let step = "init";
   try {
-    const uploadResult = await FileSystem.uploadAsync(
-      `${SERVER_URL}/api/transcribe`,
-      videoUri,
-      {
-        fieldName: "file",
-        httpMethod: "POST",
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      }
-    );
+    let localUri = videoUri;
+    if (!localUri.startsWith("file://")) {
+      localUri = "file://" + localUri;
+    }
 
-    if (uploadResult.status >= 200 && uploadResult.status < 300) {
-      const data = JSON.parse(uploadResult.body);
+    // Step 1: Upload to Supabase Storage using FileSystem.uploadAsync
+    step = "upload";
+    const fileName = `transcribe_${Date.now()}.mp4`;
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/temp-media/${fileName}`;
+
+    const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "video/mp4",
+        "x-upsert": "true",
+      },
+    });
+
+    if (uploadResult.status < 200 || uploadResult.status >= 300) {
+      transcribeVideo._lastError = `upload ${uploadResult.status}: ${(uploadResult.body || "").slice(0, 100)}`;
+      return null;
+    }
+
+    // Step 2: Call transcribe API
+    step = "transcribe";
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/temp-media/${fileName}`;
+
+    const res = await fetch(`${SERVER_URL}/api/transcribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoUrl: publicUrl }),
+    });
+
+    // Clean up after getting response
+    fetch(`${SUPABASE_URL}/storage/v1/object/temp-media/${fileName}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    }).catch(() => {});
+
+    if (res.ok) {
+      const data = await res.json();
       return data.transcript || null;
     }
-    console.log("[transcribeVideo] Server error:", uploadResult.status);
+    const errBody = await res.text().catch(() => "");
+    transcribeVideo._lastError = `transcribe ${res.status}: ${errBody.slice(0, 100)}`;
     return null;
   } catch (e) {
-    console.log("[transcribeVideo] Failed:", e.message);
+    transcribeVideo._lastError = `${step}: ${e.message}`;
     return null;
   }
 }
+transcribeVideo._lastError = "";
 
 /**
  * Analyze video frames + optional audio transcript via Claude Vision.
@@ -426,11 +626,21 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     const framePromise = extractVideoFrames(video.uri, durationSec);
     onProgress?.({ phase: "extracting", percent: 15, message: "영상 프레임 추출 중..." });
 
-    const transcribePromise = transcribeVideo(video.uri);
-    onProgress?.({ phase: "extracting", percent: 20, message: "음성 전사 중..." });
+    // Transcription with 90s timeout (5min video: upload ~30s + Whisper ~30s)
+    const transcribePromise = Promise.race([
+      transcribeVideo(video.uri),
+      new Promise((resolve) => setTimeout(() => resolve(null), 120000)),
+    ]);
+    onProgress?.({ phase: "extracting", percent: 20, message: "음성 추출 및 전사 중..." });
 
     const [frames, transcript] = await Promise.all([framePromise, transcribePromise]);
-    onProgress?.({ phase: "extracting", percent: 40, message: "전처리 완료" });
+
+    // Transcript is optional — dance/art videos may have no speech
+    if (transcript) {
+      onProgress?.({ phase: "extracting", percent: 40, message: "전처리 완료" });
+    } else {
+      onProgress?.({ phase: "extracting", percent: 40, message: "프레임 추출 완료 (음성 없음)" });
+    }
 
     if (frames.length === 0) {
       console.log("[analyzeVideoFrames] No frames extracted");
@@ -443,7 +653,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     const prompt = buildVideoPrompt(field, content, title);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 100000);
+    const timeout = setTimeout(() => controller.abort(), 200000);
 
     try {
       onProgress?.({ phase: "analyzing", percent: 55, message: "AI가 영상을 분석하고 있습니다..." });
@@ -456,7 +666,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
           field,
           noteTitle: title || "",
           frames,
-          transcript: transcript || undefined,
+          ...(transcript ? { transcript } : {}),
         }),
         signal: controller.signal,
       });
@@ -473,11 +683,71 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
   } catch (e) {
     if (e.name === "AbortError") {
       console.log("[analyzeVideoFrames] Timeout after 100s");
-      return heuristicVideoFallback(field, videos.length);
+    } else {
+      console.log("[analyzeVideoFrames] Error:", e.message);
     }
-    console.log("[analyzeVideoFrames] Error:", e.message);
     return heuristicVideoFallback(field, videos.length);
   }
+}
+
+/**
+ * 성장 궤적 분석 요청
+ * 로컬 노트에서 aiScores가 있는 것들을 모아서 서버에 전송
+ * @param {string} userId - auth user ID
+ * @param {string} field - 분야
+ * @param {Array} notes - savedNotes 배열
+ * @returns {Promise<object>} { trajectory, pattern, potentialScore, vector, dataPoints, periodDays }
+ */
+export async function analyzeGrowth(userId, field, notes) {
+  // aiScores가 있는 노트만 필터 + 해당 분야만
+  const scored = notes
+    .filter((n) => n.aiScores && n.field === field)
+    .map((n) => ({
+      ...n.aiScores,
+      createdAt: n.createdAt || n.id,
+    }))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  if (scored.length < 2) {
+    return { error: "최소 2개 이상의 AI 분석 기록이 필요합니다", minRequired: 2, current: scored.length };
+  }
+
+  const response = await fetch(`${SERVER_URL}/api/growth-analysis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, field, scores: scored }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || "성장 분석 실패");
+  }
+
+  return response.json();
+}
+
+/**
+ * 유사 성장 궤적 매칭 요청
+ * @param {string} userId - auth user ID
+ * @param {string} [field] - 특정 분야로 필터 (선택)
+ * @returns {Promise<object>} { matches, myVector, myPattern, myPotentialScore }
+ */
+export async function matchGrowth(userId, field) {
+  const body = { userId };
+  if (field) body.field = field;
+
+  const response = await fetch(`${SERVER_URL}/api/growth-matching`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || "매칭 실패");
+  }
+
+  return response.json();
 }
 
 export { FIELD_AI_PROMPTS };

@@ -13,6 +13,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Audio, Video, ResizeMode } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { getRelatedNotes } from "../services/analyticsService";
@@ -182,7 +183,9 @@ export default function NoteDetailScreen({ route, navigation }) {
         note,
         userProfile
       );
-      handleUpdateNote({ ...note, aiComment: result });
+      const analysis = result.analysis || result;
+      const scores = result.scores || null;
+      handleUpdateNote({ ...note, aiComment: analysis, aiScores: scores });
       showToast("AI \uBD84\uC11D\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!", "success");
 
       // Submit training data if consented
@@ -190,7 +193,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         submitTrainingData({
           field: note.field,
           noteContent: note.content,
-          aiFeedback: result,
+          aiFeedback: analysis,
           noteTitle: note.title,
         }).catch(() => {});
       }
@@ -232,8 +235,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     }
   }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked]);
 
-  const handleRequestVideoAI = useCallback(async () => {
-    if (!note || noteVideos.length === 0) return;
+  const startVideoAI = useCallback(async () => {
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: "준비 중..." });
     try {
@@ -254,6 +256,25 @@ export default function NoteDetailScreen({ route, navigation }) {
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
   }, [note, noteVideos, userProfile, handleUpdateNote, showToast]);
+
+  const handleRequestVideoAI = useCallback(async () => {
+    if (!note || noteVideos.length === 0) return;
+    const video = noteVideos[0];
+    const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
+    if (durationSec > 300) {
+      Alert.alert("영상 길이 초과", "5분 이내 영상만 분석 가능합니다. 더 짧은 영상을 첨부해주세요.");
+      return;
+    }
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
+      const sizeMB = (fileInfo.size || 0) / (1024 * 1024);
+      if (sizeMB > 100) {
+        Alert.alert("영상 용량 초과", `현재 영상 크기: ${Math.round(sizeMB)}MB\n\n100MB 이하 영상만 분석 가능합니다.\n4K 영상은 1080p로 변환하거나, 더 짧은 영상을 사용해주세요.`);
+        return;
+      }
+    } catch {}
+    startVideoAI();
+  }, [note, noteVideos, startVideoAI]);
 
   const handleRelatedNotePress = useCallback(
     (relatedNoteId) => {
@@ -551,6 +572,32 @@ export default function NoteDetailScreen({ route, navigation }) {
             <TouchableOpacity style={styles.reAnalyzeBtn} onPress={handleRequestAI}>
               <Text style={[T.smallBold, { color: CLight.pink }]}>{"\uD83D\uDD04 재분석 요청"}</Text>
             </TouchableOpacity>
+            <View style={styles.aiFeedbackRow}>
+              <Text style={[T.small, { color: CLight.gray500 }]}>이 분석이 도움이 됐나요?</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
+                  fetch("https://artlink-server.vercel.app/api/report", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ type: "ai_feedback", rating: "good", noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
+                  }).catch(() => {});
+                  showToast("감사합니다!", "success");
+                }}>
+                  <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4D"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
+                  Alert.prompt("AI 분석 피드백", "어떤 점이 아쉬웠나요?", (text) => {
+                    if (!text?.trim()) return;
+                    fetch("https://artlink-server.vercel.app/api/report", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: "ai_feedback", rating: "bad", comment: text.trim(), noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
+                    }).catch(() => {});
+                    showToast("의견이 전달되었습니다!", "success");
+                  }, "plain-text", "", "보내기");
+                }}>
+                  <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4E"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         ) : (
           <View style={styles.aiEmptyContainer}>
@@ -597,9 +644,14 @@ export default function NoteDetailScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.videoAiBtn} onPress={handleRequestVideoAI}>
-                <Text style={[T.bodyBold, { color: CLight.white }]}>{"🎥 영상 AI 분석 요청하기"}</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity style={styles.videoAiBtn} onPress={handleRequestVideoAI}>
+                  <Text style={[T.bodyBold, { color: CLight.white }]}>{"🎥 영상 AI 분석 요청하기"}</Text>
+                </TouchableOpacity>
+                <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 8 }]}>
+                  {"5분 이내, 1080p 이하 영상을 권장합니다"}
+                </Text>
+              </>
             )}
           </View>
         )}
@@ -856,6 +908,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
     backgroundColor: CLight.pinkSoft,
+  },
+  aiFeedbackRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: CLight.gray200,
+  },
+  aiFeedbackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: CLight.gray100,
+    justifyContent: "center",
+    alignItems: "center",
   },
   aiEmptyContainer: {
     alignItems: "center",

@@ -91,9 +91,9 @@ export default function PortfolioScreen({ navigation }) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
-      allowsMultipleSelection: true,
-      selectionLimit: 10,
+      allowsMultipleSelection: false,
       quality: 0.8,
+      videoExportPreset: ImagePicker.VideoExportPreset.Passthrough,
     });
     if (!result.canceled && result.assets?.length > 0) {
       result.assets.forEach((asset) => {

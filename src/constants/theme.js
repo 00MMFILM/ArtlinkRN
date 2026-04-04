@@ -46,16 +46,19 @@ export const T = {
 export const FIELD_COLORS = {
   acting: "#FF2D78", music: "#AF52DE", art: "#FF9500",
   dance: "#5AC8FA", literature: "#34C759", film: "#007AFF",
+  etc: "#8E8E93",
 };
 
 export const FIELD_LABELS = {
   acting: "연기", music: "음악", art: "미술",
   dance: "무용", literature: "문학", film: "영화",
+  etc: "기타",
 };
 
 export const FIELD_EMOJIS = {
   acting: "🎭", music: "🎵", art: "🎨",
   dance: "💃", literature: "📖", film: "🎬",
+  etc: "💼",
 };
 
 export const APP_VERSION = "1.3.0";

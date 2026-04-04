@@ -16,6 +16,8 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
+import * as VideoThumbnails from "expo-video-thumbnails";
+import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
@@ -32,6 +34,7 @@ export default function NoteCreateScreen({ navigation }) {
   const [tagInput, setTagInput] = useState("");
   const [seriesName, setSeriesName] = useState("");
   const [aiComment, setAiComment] = useState("");
+  const [aiScores, setAiScores] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [videoAnalysis, setVideoAnalysis] = useState("");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
@@ -165,14 +168,15 @@ export default function NoteCreateScreen({ navigation }) {
     }
     setAiLoading(true);
     try {
-      const result = await analyzeNote(field, content, savedNotes, { title, field, pdfFiles }, userProfile);
-      setAiComment(result);
+      const result = await analyzeNote(field, content, savedNotes, { title, field, images, voiceRecordings, audioFiles, pdfFiles }, userProfile);
+      setAiComment(result.analysis || result);
+      if (result.scores) setAiScores(result.scores);
     } catch (e) {
       Alert.alert("분석 실패", "AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
     } finally {
       setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, userProfile]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile]);
 
   // Video AI Analysis
   const noteVideos = images.filter((i) => i.type === "video");
@@ -182,6 +186,24 @@ export default function NoteCreateScreen({ navigation }) {
       Alert.alert("영상 필요", "영상 AI 분석을 받으려면 영상을 먼저 첨부해주세요.");
       return;
     }
+    const video = noteVideos[0];
+    const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
+    if (durationSec > 300) {
+      Alert.alert("영상 길이 초과", "5분 이내 영상만 분석 가능합니다. 더 짧은 영상을 첨부해주세요.");
+      return;
+    }
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
+      const sizeMB = (fileInfo.size || 0) / (1024 * 1024);
+      if (sizeMB > 100) {
+        Alert.alert("영상 용량 초과", `현재 영상 크기: ${Math.round(sizeMB)}MB\n\n100MB 이하 영상만 분석 가능합니다.\n4K 영상은 1080p로 변환하거나, 더 짧은 영상을 사용해주세요.`);
+        return;
+      }
+    } catch {}
+    startVideoAnalysis();
+  }, [noteVideos, field, content, title, userProfile]);
+
+  const startVideoAnalysis = useCallback(async () => {
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: "준비 중..." });
     try {
@@ -216,7 +238,18 @@ export default function NoteCreateScreen({ navigation }) {
     });
     if (!result.canceled && result.assets?.length > 0) {
       const asset = result.assets[0];
-      setImages((prev) => [...prev, { uri: asset.uri, type: "image", width: asset.width, height: asset.height }]);
+      const mediaDir = FileSystem.documentDirectory + "media/";
+      const dirInfo = await FileSystem.getInfoAsync(mediaDir);
+      if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
+      const ext = asset.uri.split(".").pop()?.split("?")[0] || "jpg";
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const destUri = mediaDir + fileName;
+      try {
+        await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+        setImages((prev) => [...prev, { uri: destUri, type: "image", width: asset.width, height: asset.height }]);
+      } catch {
+        setImages((prev) => [...prev, { uri: asset.uri, type: "image", width: asset.width, height: asset.height }]);
+      }
     }
   }, []);
 
@@ -226,20 +259,44 @@ export default function NoteCreateScreen({ navigation }) {
       Alert.alert("권한 필요", "갤러리 접근을 위해 권한을 허용해주세요.");
       return;
     }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
-      allowsMultipleSelection: true,
-      selectionLimit: 10,
+      allowsMultipleSelection: false,
       quality: 0.8,
+      videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
     });
+
     if (!result.canceled && result.assets?.length > 0) {
-      const newItems = result.assets.map((asset) => ({
-        uri: asset.uri,
-        type: asset.type === "video" ? "video" : "image",
-        width: asset.width,
-        height: asset.height,
-        duration: asset.duration,
-      }));
+      const mediaDir = FileSystem.documentDirectory + "media/";
+      const dirInfo = await FileSystem.getInfoAsync(mediaDir);
+      if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
+
+      const newItems = [];
+      for (const asset of result.assets) {
+        const isVideo = asset.type === "video";
+        const ext = asset.uri.split(".").pop()?.split("?")[0] || (isVideo ? "mov" : "jpg");
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const destUri = mediaDir + fileName;
+        let finalUri = asset.uri;
+        try {
+          await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+          finalUri = destUri;
+        } catch (e) {
+          console.warn("[handlePickMedia] copyAsync failed:", e.message, "using original URI");
+        }
+        // Generate thumbnail for videos
+        let thumbnail = null;
+        if (isVideo) {
+          try {
+            const thumb = await VideoThumbnails.getThumbnailAsync(finalUri, { time: 1000 });
+            thumbnail = thumb.uri;
+          } catch (e) {
+            console.warn("[handlePickMedia] thumbnail failed:", e.message);
+          }
+        }
+        newItems.push({ uri: finalUri, type: isVideo ? "video" : "image", width: asset.width, height: asset.height, duration: asset.duration, thumbnail });
+      }
       setImages((prev) => [...prev, ...newItems]);
     }
   }, []);
@@ -329,10 +386,24 @@ export default function NoteCreateScreen({ navigation }) {
         multiple: true,
       });
       if (!result.canceled && result.assets?.length > 0) {
-        const newFiles = result.assets.map((asset) => ({
-          uri: asset.uri,
-          name: asset.name || "오디오 파일",
-        }));
+        const mediaDir = FileSystem.documentDirectory + "media/";
+        const dirInfo = await FileSystem.getInfoAsync(mediaDir);
+        if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
+
+        const newFiles = [];
+        for (const asset of result.assets) {
+          const ext = asset.uri.split(".").pop()?.split("?")[0] || "mp3";
+          const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const destUri = mediaDir + fileName;
+          let finalUri = asset.uri;
+          try {
+            await FileSystem.copyAsync({ from: asset.uri, to: destUri });
+            finalUri = destUri;
+          } catch (e) {
+            console.warn("[handlePickAudio] copyAsync failed:", e.message, "using original URI");
+          }
+          newFiles.push({ uri: finalUri, name: asset.name || "오디오 파일" });
+        }
         setAudioFiles((prev) => [...prev, ...newFiles]);
       }
     } catch (e) {
@@ -432,6 +503,7 @@ export default function NoteCreateScreen({ navigation }) {
       tags,
       seriesName: seriesName.trim() || undefined,
       aiComment: aiComment || undefined,
+      aiScores: aiScores || undefined,
       videoAnalysis: videoAnalysis || undefined,
       images: images.length > 0 ? images : undefined,
       voiceRecordings: voiceRecordings.length > 0 ? voiceRecordings : undefined,
@@ -441,7 +513,7 @@ export default function NoteCreateScreen({ navigation }) {
     hasUnsavedChangesRef.current = false;
     handleSaveNote(noteData);
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation]);
+  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -535,7 +607,7 @@ export default function NoteCreateScreen({ navigation }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewScroll}>
             {images.map((item, idx) => (
               <View key={idx} style={styles.mediaThumbnailWrap}>
-                <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} />
+                <Image source={{ uri: item.thumbnail || item.uri }} style={styles.mediaThumbnail} />
                 {item.type === "video" && (
                   <View style={styles.videoOverlay}>
                     <Text style={styles.videoOverlayText}>▶</Text>
@@ -547,6 +619,44 @@ export default function NoteCreateScreen({ navigation }) {
               </View>
             ))}
           </ScrollView>
+        )}
+
+        {/* Video AI Analysis — right after media preview */}
+        {noteVideos.length > 0 && (
+          <>
+            {videoAiLoading ? (
+              <View style={[styles.aiLoadingContainer, { marginBottom: 14 }]}>
+                <View style={{ width: "100%", height: 6, backgroundColor: "#007AFF15", borderRadius: 3, marginBottom: 10 }}>
+                  <View style={{ width: `${videoAiProgress.percent || 0}%`, height: 6, backgroundColor: "#007AFF", borderRadius: 3 }} />
+                </View>
+                <Text style={styles.aiLoadingText}>
+                  {videoAiProgress.message || "준비 중..."} ({videoAiProgress.percent || 0}%)
+                </Text>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.videoAiButton, { marginTop: 0, marginBottom: 6 }]}
+                  onPress={handleVideoAnalyze}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.videoAiButtonText}>🎥 영상 AI 분석 받기</Text>
+                </TouchableOpacity>
+                <Text style={{ ...T.micro, color: CLight.gray400, textAlign: "center", marginBottom: 14 }}>
+                  5분 이내, 1080p 이하 영상을 권장합니다
+                </Text>
+              </>
+            )}
+
+            {videoAnalysis ? (
+              <View style={[styles.videoAiResultCard, { marginBottom: 14 }]}>
+                <View style={styles.videoAiResultHeader}>
+                  <Text style={styles.videoAiResultHeaderText}>🎥 영상 AI 분석 결과</Text>
+                </View>
+                <Text style={styles.aiResultContent}>{videoAnalysis}</Text>
+              </View>
+            ) : null}
+          </>
         )}
 
         {/* Voice Recordings List */}
@@ -732,39 +842,6 @@ export default function NoteCreateScreen({ navigation }) {
             <Text style={styles.aiResultContent}>{aiComment}</Text>
           </View>
         ) : null}
-
-        {/* Video AI Analysis */}
-        {noteVideos.length > 0 && (
-          <>
-            {videoAiLoading ? (
-              <View style={[styles.aiLoadingContainer, { marginTop: 12 }]}>
-                <View style={{ width: "100%", height: 6, backgroundColor: "#007AFF15", borderRadius: 3, marginBottom: 10 }}>
-                  <View style={{ width: `${videoAiProgress.percent || 0}%`, height: 6, backgroundColor: "#007AFF", borderRadius: 3 }} />
-                </View>
-                <Text style={styles.aiLoadingText}>
-                  {videoAiProgress.message || "준비 중..."} ({videoAiProgress.percent || 0}%)
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.videoAiButton}
-                onPress={handleVideoAnalyze}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.videoAiButtonText}>🎥 영상 AI 분석 받기</Text>
-              </TouchableOpacity>
-            )}
-
-            {videoAnalysis ? (
-              <View style={styles.videoAiResultCard}>
-                <View style={styles.videoAiResultHeader}>
-                  <Text style={styles.videoAiResultHeaderText}>🎥 영상 AI 분석 결과</Text>
-                </View>
-                <Text style={styles.aiResultContent}>{videoAnalysis}</Text>
-              </View>
-            ) : null}
-          </>
-        )}
 
         {/* Bottom spacing */}
         <View style={{ height: 40 }} />

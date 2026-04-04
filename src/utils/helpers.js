@@ -4,7 +4,7 @@ export const getFieldLabel = (field) => FIELD_LABELS[field] || field;
 export const getFieldEmoji = (field) => FIELD_EMOJIS[field] || "📝";
 export const getFieldColor = (field) => FIELD_COLORS[field] || "#8E8E93";
 
-export const FIELDS = ["acting", "music", "art", "dance", "literature", "film"];
+export const FIELDS = ["acting", "music", "art", "dance", "literature", "film", "etc"];
 
 // ─── Profile Constants ───
 

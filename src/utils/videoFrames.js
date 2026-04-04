@@ -1,6 +1,6 @@
 import * as VideoThumbnails from "expo-video-thumbnails";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 /**
  * Extract evenly-spaced frames from a video, resize to maxWidth, return as base64 JPEG.
