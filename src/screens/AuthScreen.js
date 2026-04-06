@@ -172,6 +172,7 @@ export default function AuthScreen({ navigation }) {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: { data: { name: name.trim() } },
       });
       if (error) {
         const msg = error.message.includes("already registered")
@@ -228,7 +229,7 @@ export default function AuthScreen({ navigation }) {
       }
       if (data.user) {
         // 기존 프로필이 있으면 이메일만 갱신, 없으면 최소 프로필 생성
-        handleAuth({ name: data.user.user_metadata?.name || loginEmail.split("@")[0], email: loginEmail.trim(), _mergeExisting: true });
+        handleAuth({ email: loginEmail.trim(), _mergeExisting: true });
       }
     } catch (e) {
       Alert.alert("오류", "로그인 중 문제가 발생했습니다.");
@@ -247,7 +248,7 @@ export default function AuthScreen({ navigation }) {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
-        redirectTo: "artlink://reset-password",
+        redirectTo: "https://artlink-server.vercel.app/api/auth-callback",
       });
       if (error) {
         Alert.alert("오류", error.message);

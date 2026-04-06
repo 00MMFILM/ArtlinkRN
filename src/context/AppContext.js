@@ -13,7 +13,7 @@ const DEFAULT_FIELD_ORDER = ["acting", "music", "art", "dance", "literature", "f
 export function AppProvider({ children }) {
   const [savedNotes, setSavedNotes] = useState([]);
   const [userProfile, setUserProfile] = useState({
-    name: "무아", userType: "", fields: [], roleModels: [], interests: [],
+    name: "", userType: "", fields: [], roleModels: [], interests: [],
     gender: "", birthDate: "", height: null, weight: null,
     heightPrivate: false, weightPrivate: false,
     specialties: [], school: "", career: [], bio: "",
@@ -103,6 +103,14 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
+        // 로그아웃 시 로컬 프로필 초기화
+        setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, heightPrivate: false, weightPrivate: false, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
+        safeStorageSet(STORAGE_KEYS.PROFILE, null);
+        safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
+        setDeviceUserId(null);
+        setAuthState("auth");
+      } else if (event === "PASSWORD_RECOVERY") {
+        // 비밀번호 재설정 링크로 앱 진입 시 → 로그인 화면으로
         setAuthState("auth");
       }
     });
@@ -272,20 +280,37 @@ export function AppProvider({ children }) {
   }, [showToast]);
 
   const handleAuth = useCallback(async (profileData) => {
-    if (profileData && profileData.name) {
+    if (profileData) {
       const { data: { user } } = await supabase.auth.getUser();
       let finalProfile;
       if (profileData._mergeExisting) {
         // 로그인 시: 기존 프로필 유지, 이메일/authUserId만 갱신
         const { _mergeExisting, ...loginData } = profileData;
         const existing = await safeStorageGet(STORAGE_KEYS.PROFILE);
-        finalProfile = { ...(existing || {}), ...loginData, authUserId: user?.id };
+        if (existing && existing.authUserId && user?.id && existing.authUserId !== user.id) {
+          // 다른 유저의 프로필이 남아있음 → 서버에서 프로필 복원 시도
+          const name = user.user_metadata?.name || loginData.email?.split("@")[0] || "";
+          finalProfile = { name, ...loginData, authUserId: user.id };
+        } else {
+          // 기존 로컬 프로필 유지, loginData로 이메일만 갱신 (이름 덮어쓰기 방지)
+          finalProfile = { ...(existing || {}), ...loginData, authUserId: user?.id };
+          // 이름이 없으면 user_metadata에서 복원
+          if (!finalProfile.name && user?.user_metadata?.name) {
+            finalProfile.name = user.user_metadata.name;
+          }
+          if (!finalProfile.name) {
+            finalProfile.name = loginData.email?.split("@")[0] || "";
+          }
+        }
       } else {
         // 회원가입 시: 전체 프로필 저장
         finalProfile = { ...profileData, authUserId: user?.id };
       }
       setUserProfile(finalProfile);
       safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile);
+      // 기존 deviceUserId 캐시 초기화 (새 auth user에 맞게 재등록)
+      safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
+      setDeviceUserId(null);
     }
     setAuthState("app");
   }, []);
