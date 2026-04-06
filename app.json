@@ -3,7 +3,7 @@
     "name": "Artlink",
     "slug": "ArtlinkRN",
     "scheme": "artlink",
-    "version": "1.10.0",
+    "version": "1.10.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.00MM.artlink",
-      "buildNumber": "35",
+      "buildNumber": "36",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "프로필 사진과 노트에 이미지를 첨부하기 위해 사진 접근 권한이 필요합니다.",
         "NSCameraUsageDescription": "프로필 사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
