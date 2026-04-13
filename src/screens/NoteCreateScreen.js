@@ -21,13 +21,14 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
+import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 import { useTranslation } from "react-i18next";
 
 export default function NoteCreateScreen({ navigation }) {
   const { t } = useTranslation();
-  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure } = useApp();
+  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale } = useApp();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -166,6 +167,13 @@ export default function NoteCreateScreen({ navigation }) {
   const runAnalyze = useCallback(async () => {
     setAiLoading(true);
     try {
+      // Foreign users: show interstitial ad from 2nd AI use per day
+      if (!isKoreanLocale) {
+        const count = await incrementDailyAICount();
+        if (shouldShowInterstitial(isKoreanLocale, count)) {
+          await showInterstitialAd();
+        }
+      }
       const result = await analyzeNote(field, content, savedNotes, { title, field, images, voiceRecordings, audioFiles, pdfFiles }, userProfile);
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
@@ -174,7 +182,7 @@ export default function NoteCreateScreen({ navigation }) {
     } finally {
       setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, t]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t]);
 
   const handleAnalyze = useCallback(async () => {
     if (!content.trim()) {
@@ -217,8 +225,16 @@ export default function NoteCreateScreen({ navigation }) {
         return;
       }
     } catch {}
+    // Foreign users: must watch rewarded ad before video AI
+    if (!isKoreanLocale) {
+      const rewarded = await showRewardedAd();
+      if (!rewarded) {
+        Alert.alert(t("common.error"), t("ads.rewarded_required"));
+        return;
+      }
+    }
     startVideoAnalysis();
-  }, [noteVideos, field, content, title, userProfile, t]);
+  }, [noteVideos, field, content, title, userProfile, isKoreanLocale, t]);
 
   const handleVideoAnalyze = useCallback(async () => {
     if (!aiDisclosureAccepted) {
