@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "Akses foto diperlukan untuk melampirkan gambar ke catatan dan profil.",
+  "NSCameraUsageDescription": "Akses kamera diperlukan untuk mengambil foto profil.",
+  "NSMicrophoneUsageDescription": "Akses mikrofon diperlukan untuk merekam memo suara."
+}

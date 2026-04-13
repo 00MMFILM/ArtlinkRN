@@ -18,6 +18,9 @@
       "ios": {
         "autoIncrement": "buildNumber"
       },
+      "android": {
+        "autoIncrement": "versionCode"
+      },
       "distribution": "store"
     }
   },
@@ -26,6 +29,9 @@
       "ios": {
         "ascAppId": "6752890224",
         "appleTeamId": "53D8SBYZ7V"
+      },
+      "android": {
+        "track": "internal"
       }
     }
   }

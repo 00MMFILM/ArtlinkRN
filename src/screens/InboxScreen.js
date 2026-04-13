@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
 import TopBar from "../components/TopBar";
@@ -23,29 +24,31 @@ import {
 } from "../services/proposalService";
 
 const STATUS_CONFIG = {
-  pending: { label: "대기중", color: CLight.orange, bg: CLight.orange + "18" },
-  accepted: { label: "수락", color: CLight.green, bg: CLight.green + "18" },
-  declined: { label: "거절", color: CLight.gray400, bg: CLight.gray100 },
+  pending: { labelKey: "inbox.status_pending", color: CLight.orange, bg: CLight.orange + "18" },
+  accepted: { labelKey: "inbox.status_accepted", color: CLight.green, bg: CLight.green + "18" },
+  declined: { labelKey: "inbox.status_declined", color: CLight.gray400, bg: CLight.gray100 },
 };
 
 const TYPE_CONFIG = {
-  casting: { label: "캐스팅", color: CLight.pink },
-  collaboration: { label: "콜라보", color: CLight.purple },
+  casting: { labelKey: "inbox.type_casting", color: CLight.pink },
+  collaboration: { labelKey: "inbox.type_collab", color: CLight.purple },
 };
 
-function formatTime(dateStr) {
+function formatTime(dateStr, t) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "방금";
-  if (mins < 60) return `${mins}분 전`;
+  if (mins < 1) return t("common.just_now");
+  if (mins < 60) return t("common.mins_ago", { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}시간 전`;
+  if (hours < 24) return t("common.hours_ago", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}일 전`;
+  if (days === 1) return t("common.yesterday");
+  if (days < 30) return t("common.days_ago", { count: days });
   return new Date(dateStr).toLocaleDateString("ko-KR");
 }
 
 function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDelete, deviceUserId }) {
+  const { t } = useTranslation();
   const typeInfo = TYPE_CONFIG[proposal.type] || TYPE_CONFIG.casting;
   const statusInfo = STATUS_CONFIG[proposal.status] || STATUS_CONFIG.pending;
   const [expanded, setExpanded] = useState(false);
@@ -86,13 +89,13 @@ function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDe
       <TouchableOpacity onPress={handleToggle} activeOpacity={0.8}>
         <View style={styles.cardHeader}>
           <View style={[styles.typeBadge, { backgroundColor: typeInfo.color + "18" }]}>
-            <Text style={[T.microBold, { color: typeInfo.color }]}>{typeInfo.label}</Text>
+            <Text style={[T.microBold, { color: typeInfo.color }]}>{t(typeInfo.labelKey)}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
-            <Text style={[T.micro, { color: statusInfo.color, fontWeight: "600" }]}>{statusInfo.label}</Text>
+            <Text style={[T.micro, { color: statusInfo.color, fontWeight: "600" }]}>{t(statusInfo.labelKey)}</Text>
           </View>
           <Text style={[T.tiny, { color: CLight.gray400, marginLeft: "auto" }]}>
-            {formatTime(proposal.created_at)}
+            {formatTime(proposal.created_at, t)}
           </Text>
         </View>
 
@@ -103,7 +106,7 @@ function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDe
 
         <View style={styles.senderRow}>
           <Text style={[T.micro, { color: CLight.gray500 }]}>
-            {isReceived ? "보낸 사람" : "받는 사람"}: {isReceived ? proposal.sender_name : (proposal.recipient_name || "아티스트")}
+            {isReceived ? t("inbox.from") : t("inbox.to")}: {isReceived ? proposal.sender_name : (proposal.recipient_name || t("common.artist"))}
           </Text>
           {proposal.sender_field && isReceived && (
             <Text style={[T.micro, { color: CLight.gray400 }]}> | {proposal.sender_field}</Text>
@@ -114,10 +117,10 @@ function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDe
       {isReceived && proposal.status === "pending" && (
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.acceptBtn} onPress={() => onAccept(proposal.id)} activeOpacity={0.7}>
-            <Text style={[T.captionBold, { color: CLight.white }]}>수락</Text>
+            <Text style={[T.captionBold, { color: CLight.white }]}>{t("inbox.accept")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.declineBtn} onPress={() => onDecline(proposal.id)} activeOpacity={0.7}>
-            <Text style={[T.captionBold, { color: CLight.gray500 }]}>거절</Text>
+            <Text style={[T.captionBold, { color: CLight.gray500 }]}>{t("inbox.decline")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -133,16 +136,16 @@ function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDe
                 <View key={r.id} style={[styles.replyBubble, r.sender_id === deviceUserId ? styles.replyMine : styles.replyTheirs]}>
                   <Text style={[T.micro, { color: CLight.gray500, marginBottom: 2 }]}>{r.sender_name}</Text>
                   <Text style={[T.small, { color: CLight.gray900 }]}>{r.content}</Text>
-                  <Text style={[T.tiny, { color: CLight.gray400, marginTop: 2, alignSelf: "flex-end" }]}>{formatTime(r.created_at)}</Text>
+                  <Text style={[T.tiny, { color: CLight.gray400, marginTop: 2, alignSelf: "flex-end" }]}>{formatTime(r.created_at, t)}</Text>
                 </View>
               ))}
               {replies.length === 0 && (
-                <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 8 }]}>아직 답장이 없습니다.</Text>
+                <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 8 }]}>{t("inbox.no_replies")}</Text>
               )}
               <View style={styles.replyInputRow}>
                 <TextInput
                   style={styles.replyInput}
-                  placeholder="답장 입력..."
+                  placeholder={t("inbox.reply_placeholder")}
                   placeholderTextColor={CLight.gray400}
                   value={replyText}
                   onChangeText={setReplyText}
@@ -153,7 +156,7 @@ function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDe
                   onPress={handleSendReply}
                   disabled={!replyText.trim() || sending}
                 >
-                  <Text style={[T.captionBold, { color: CLight.white }]}>{sending ? "..." : "전송"}</Text>
+                  <Text style={[T.captionBold, { color: CLight.white }]}>{sending ? "..." : t("common.send")}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -163,19 +166,20 @@ function ProposalCard({ proposal, isReceived, onAccept, onDecline, onReply, onDe
 
       {isAccepted && !expanded && (
         <TouchableOpacity onPress={handleToggle} style={styles.replyHint}>
-          <Text style={[T.micro, { color: CLight.pink }]}>💬 답장하기</Text>
+          <Text style={[T.micro, { color: CLight.pink }]}>{t("inbox.reply_hint")}</Text>
         </TouchableOpacity>
       )}
 
       {/* Delete button */}
       <TouchableOpacity style={styles.deleteBtn} onPress={() => onDelete(proposal.id)} activeOpacity={0.7}>
-        <Text style={[T.micro, { color: CLight.gray400 }]}>삭제</Text>
+        <Text style={[T.micro, { color: CLight.gray400 }]}>{t("common.delete")}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 export default function InboxScreen({ navigation }) {
+  const { t } = useTranslation();
   const { deviceUserId, userProfile, showToast } = useApp();
   const [activeTab, setActiveTab] = useState("received");
   const [received, setReceived] = useState([]);
@@ -204,35 +208,35 @@ export default function InboxScreen({ navigation }) {
     try {
       await updateProposalStatus(proposalId, "accepted");
       setReceived((prev) => prev.map((p) => p.id === proposalId ? { ...p, status: "accepted" } : p));
-      showToast("제안을 수락했습니다!", "success");
+      showToast(t("inbox.accepted_toast"), "success");
     } catch (_) {
-      Alert.alert("오류", "상태 변경에 실패했습니다.");
+      Alert.alert(t("common.error"), t("inbox.status_error"));
     }
   }, [showToast]);
 
   const handleReply = useCallback(async (proposalId, content) => {
     try {
-      const reply = await replyToProposal(proposalId, deviceUserId, userProfile.name || "익명", content);
+      const reply = await replyToProposal(proposalId, deviceUserId, userProfile.name || t("common.anonymous"), content);
       return reply;
     } catch (_) {
-      Alert.alert("오류", "답장 전송에 실패했습니다.");
+      Alert.alert(t("common.error"), t("inbox.reply_error"));
       return null;
     }
   }, [deviceUserId, userProfile.name]);
 
   const handleDecline = useCallback(async (proposalId) => {
-    Alert.alert("거절하기", "이 제안을 거절하시겠습니까?", [
-      { text: "취소", style: "cancel" },
+    Alert.alert(t("inbox.decline_title"), t("inbox.decline_msg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "거절",
+        text: t("inbox.decline"),
         style: "destructive",
         onPress: async () => {
           try {
             await updateProposalStatus(proposalId, "declined");
             setReceived((prev) => prev.map((p) => p.id === proposalId ? { ...p, status: "declined" } : p));
-            showToast("제안을 거절했습니다.", "success");
+            showToast(t("inbox.declined_toast"), "success");
           } catch (_) {
-            Alert.alert("오류", "상태 변경에 실패했습니다.");
+            Alert.alert(t("common.error"), t("inbox.status_error"));
           }
         },
       },
@@ -240,19 +244,19 @@ export default function InboxScreen({ navigation }) {
   }, [showToast]);
 
   const handleDelete = useCallback(async (proposalId) => {
-    Alert.alert("삭제하기", "이 제안을 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
+    Alert.alert(t("inbox.delete_title"), t("inbox.delete_msg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "삭제",
+        text: t("common.delete"),
         style: "destructive",
         onPress: async () => {
           try {
             await deleteProposal(proposalId);
             setReceived((prev) => prev.filter((p) => p.id !== proposalId));
             setSent((prev) => prev.filter((p) => p.id !== proposalId));
-            showToast("제안이 삭제되었습니다.", "success");
+            showToast(t("inbox.deleted_toast"), "success");
           } catch (_) {
-            Alert.alert("오류", "삭제에 실패했습니다.");
+            Alert.alert(t("common.error"), t("inbox.delete_error"));
           }
         },
       },
@@ -264,10 +268,10 @@ export default function InboxScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="제안함"
+        title={t("inbox.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
       />
@@ -279,7 +283,7 @@ export default function InboxScreen({ navigation }) {
           onPress={() => setActiveTab("received")}
         >
           <Text style={[T.captionBold, { color: activeTab === "received" ? CLight.pink : CLight.gray400 }]}>
-            받은 제안 ({received.length})
+            {t("inbox.received_tab")} ({received.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -287,7 +291,7 @@ export default function InboxScreen({ navigation }) {
           onPress={() => setActiveTab("sent")}
         >
           <Text style={[T.captionBold, { color: activeTab === "sent" ? CLight.pink : CLight.gray400 }]}>
-            보낸 제안 ({sent.length})
+            {t("inbox.sent_tab")} ({sent.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -315,7 +319,7 @@ export default function InboxScreen({ navigation }) {
             <View style={styles.empty}>
               <Text style={{ fontSize: 48, marginBottom: 16 }}>{"📬"}</Text>
               <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-                {activeTab === "received" ? "받은 제안이 없습니다." : "보낸 제안이 없습니다."}
+                {activeTab === "received" ? t("inbox.empty_received") : t("inbox.empty_sent")}
               </Text>
             </View>
           )}

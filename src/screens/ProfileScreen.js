@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -10,42 +10,69 @@ import {
   Linking,
   Image,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, APP_VERSION } from "../constants/theme";
-import { calculateAge, GENDER_OPTIONS } from "../utils/helpers";
+import { calculateAge } from "../utils/helpers";
 
-// ─── Menu items ───
+// ─── Language options ───
+
+const LANGUAGE_OPTIONS = [
+  { code: "ko", flag: "🇰🇷", name: "한국어" },
+  { code: "en", flag: "🇺🇸", name: "English" },
+  { code: "ja", flag: "🇯🇵", name: "日本語" },
+  { code: "zh-CN", flag: "🇨🇳", name: "简体中文" },
+  { code: "zh-TW", flag: "🇹🇼", name: "繁體中文" },
+  { code: "vi", flag: "🇻🇳", name: "Tiếng Việt" },
+  { code: "th", flag: "🇹🇭", name: "ภาษาไทย" },
+  { code: "id", flag: "🇮🇩", name: "Bahasa" },
+  { code: "ar", flag: "🇸🇦", name: "العربية" },
+  { code: "es", flag: "🇪🇸", name: "Español" },
+];
+
+// ─── Menu items (Korean-only items marked) ───
 
 const MENU_ITEMS = [
-  { icon: "\u270F\uFE0F", label: "\uD504\uB85C\uD544 \uD3B8\uC9D1", route: "ProfileEdit" },
-  { icon: "\uD83C\uDFAF", label: "\uBAA9\uD45C \uAD00\uB9AC", route: "Goals" },
-  { icon: "\uD83D\uDCC8", label: "\uC131\uC7A5 \uB9AC\uD3EC\uD2B8", route: "Growth" },
-  { icon: "\uD83E\uDD1D", label: "\uB9E4\uCE6D", route: "Matching" },
-  { icon: "\uD83C\uDFA8", label: "\uACF5\uC720 \uCE74\uB4DC", route: "ShareCard" },
-  { icon: "\uD83D\uDCC1", label: "\uD3EC\uD2B8\uD3F4\uB9AC\uC624", route: "Portfolio" },
-  { icon: "\uD83C\uDFE2", label: "B2B \uB300\uC2DC\uBCF4\uB4DC", route: "B2B" },
-  { icon: "\uD83D\uDCEC", label: "\uC81C\uC548\uD568", route: "Inbox" },
-  { icon: "\uD83D\uDDFA\uFE0F", label: "\uAC1C\uBC1C \uB85C\uB4DC\uB9F5", route: "DevRoadmap" },
-  { icon: "\uD83D\uDCAC", label: "\uD53C\uB4DC\uBC31 \uBCF4\uB0B4\uAE30", route: "__feedback__" },
-  { icon: "\uD83D\uDCE7", label: "\uACE0\uAC1D \uC9C0\uC6D0", route: "__support__" },
-  { icon: "\uD83D\uDCDC", label: "\uC774\uC6A9\uC57D\uAD00", route: "__terms__" },
-  { icon: "\uD83D\uDD12", label: "\uAC1C\uC778\uC815\uBCF4 \uCC98\uB9AC\uBC29\uCE68", route: "__privacy__" },
+  { icon: "\u270F\uFE0F", labelKey: "profile.edit_profile", route: "ProfileEdit" },
+  { icon: "\uD83C\uDFAF", labelKey: "profile.goals", route: "Goals" },
+  { icon: "\uD83D\uDCC8", labelKey: "profile.growth", route: "Growth" },
+  { icon: "\uD83E\uDD1D", labelKey: "profile.matching", route: "Matching", koOnly: true },
+  { icon: "\uD83C\uDFA8", labelKey: "profile.share_card", route: "ShareCard" },
+  { icon: "\uD83D\uDCC1", labelKey: "profile.portfolio", route: "Portfolio" },
+  { icon: "\uD83C\uDFE2", labelKey: "profile.b2b", route: "B2B", koOnly: true },
+  { icon: "\uD83D\uDCEC", labelKey: "profile.inbox", route: "Inbox", koOnly: true },
+  { icon: "\uD83D\uDCAC", labelKey: "profile.feedback", route: "__feedback__" },
+  { icon: "\uD83D\uDCE7", labelKey: "profile.support", route: "__support__" },
+  { icon: "\uD83D\uDCDC", labelKey: "profile.terms", route: "__terms__" },
+  { icon: "\uD83D\uDD12", labelKey: "profile.privacy", route: "__privacy__" },
 ];
 
 // ─── Skill bar config ───
 
-const SKILL_LABELS = ["\uAE30\uB85D\uB7C9", "AI\uD65C\uC6A9", "\uB2E4\uC591\uC131", "\uAE4A\uC774", "\uAFB8\uC900\uD568"];
+const SKILL_LABEL_KEYS = [
+  "profile.skill_volume",
+  "profile.skill_ai",
+  "profile.skill_diversity",
+  "profile.skill_depth",
+  "profile.skill_consistency",
+];
 const SKILL_COLORS = [CLight.pink, CLight.purple, CLight.orange, CLight.blue, CLight.green];
 
 export default function ProfileScreen({ navigation }) {
+  const { t } = useTranslation();
   const {
     userProfile,
     savedNotes,
     artistProfile,
     handleSubmitFeedback,
     handleDeleteAccount,
+    handleLogout,
     showToast,
+    isKoreanLocale,
+    language,
+    handleChangeLanguage,
   } = useApp();
+  const [showLangPicker, setShowLangPicker] = useState(false);
 
   const {
     primaryField,
@@ -63,6 +90,9 @@ export default function ProfileScreen({ navigation }) {
 
   const avatarEmoji = FIELD_EMOJIS[primaryField] || "\uD83C\uDFA8";
   const skillValues = [noteScore, aiScore, diversityScore, depthScore, consistencyScore];
+  const skillLabels = SKILL_LABEL_KEYS.map((key) => t(key));
+  const filteredMenuItems = MENU_ITEMS.filter((item) => !item.koOnly || isKoreanLocale);
+  const currentLang = LANGUAGE_OPTIONS.find((l) => l.code === language) || LANGUAGE_OPTIONS[0];
 
   // ─── Handlers ───
 
@@ -71,12 +101,12 @@ export default function ProfileScreen({ navigation }) {
       if (item.route === "__feedback__") {
         Alert.prompt
           ? Alert.prompt(
-              "\uD53C\uB4DC\uBC31 \uBCF4\uB0B4\uAE30",
-              "ArtLink\uC5D0 \uB300\uD55C \uC758\uACAC\uC774\uB098 \uAC1C\uC120 \uC0AC\uD56D\uC744 \uC54C\uB824\uC8FC\uC138\uC694.",
+              t("profile.feedback_prompt_title"),
+              t("profile.feedback_prompt_msg"),
               [
-                { text: "\uCDE8\uC18C", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                  text: "\uBCF4\uB0B4\uAE30",
+                  text: t("profile.feedback_submit"),
                   onPress: (text) => {
                     if (text && text.trim()) {
                       handleSubmitFeedback({
@@ -91,58 +121,69 @@ export default function ProfileScreen({ navigation }) {
               "plain-text"
             )
           : Alert.alert(
-              "\uD53C\uB4DC\uBC31",
-              "\uD53C\uB4DC\uBC31 \uAE30\uB2A5\uC740 iOS\uC5D0\uC11C \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
-              [{ text: "\uD655\uC778" }]
+              t("profile.feedback"),
+              t("profile.feedback_ios_only"),
+              [{ text: t("common.confirm") }]
             );
         return;
       }
       if (item.route === "__support__") {
         Alert.alert(
-          "고객 지원",
-          "문의사항이나 도움이 필요하시면 아래 이메일로 연락해 주세요.\n\nlcy1152@naver.com",
+          t("profile.support_title"),
+          t("profile.support_msg"),
           [
-            { text: "닫기", style: "cancel" },
-            { text: "이메일 보내기", onPress: () => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20%EB%AC%B8%EC%9D%98") },
+            { text: t("common.close"), style: "cancel" },
+            { text: t("profile.send_email"), onPress: () => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20%EB%AC%B8%EC%9D%98") },
           ]
         );
         return;
       }
       if (item.route === "__terms__") {
         Alert.alert(
-          "이용약관",
-          "ArtLink 이용약관\n\n1. 본 앱은 부적절한 콘텐츠 및 악용 행위에 대해 무관용 정책을 적용합니다.\n2. 이용자는 부적절한 콘텐츠를 신고할 수 있으며, 신고된 콘텐츠는 24시간 이내에 검토됩니다.\n3. 약관을 위반한 이용자는 서비스에서 퇴출될 수 있습니다.\n4. 자세한 약관은 앱 최초 실행 시 동의한 전문을 참고해 주세요.\n\n문의: lcy1152@naver.com",
-          [{ text: "확인" }]
+          t("profile.terms"),
+          t("profile.terms_detail"),
+          [{ text: t("common.confirm") }]
         );
         return;
       }
       if (item.route === "__privacy__") {
         Alert.alert(
-          "개인정보 처리방침",
-          "ArtLink 개인정보 처리방침\n\n1. 수집하는 개인정보: 이름, 이메일, 프로필 정보\n2. 수집 목적: 서비스 제공 및 개선\n3. 보관 기간: 계정 삭제 시까지\n4. 제3자 제공: 하지 않음\n5. 이용자는 언제든지 계정 삭제를 통해 개인정보를 삭제할 수 있습니다.\n\n문의: lcy1152@naver.com",
-          [{ text: "확인" }]
+          t("profile.privacy"),
+          t("profile.privacy_detail"),
+          [{ text: t("common.confirm") }]
         );
         return;
       }
       navigation.navigate(item.route);
     },
-    [navigation, handleSubmitFeedback]
+    [navigation, handleSubmitFeedback, t]
   );
+
+  const handleLogoutPress = useCallback(() => {
+    Alert.alert(
+      t("profile.logout"),
+      t("profile.logout_confirm"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("profile.logout"), onPress: () => handleLogout() },
+      ]
+    );
+  }, [handleLogout, t]);
 
   const handleDeleteAccountPress = useCallback(() => {
     Alert.alert(
-      "\uACC4\uC815 \uC0AD\uC81C",
-      "\uBAA8\uB4E0 \uB370\uC774\uD130(\uB178\uD2B8, \uD504\uB85C\uD544, \uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uB4F1)\uAC00 \uC601\uAD6C\uC801\uC73C\uB85C \uC0AD\uC81C\uB429\uB2C8\uB2E4. \uC774 \uC791\uC5C5\uC740 \uB418\uB3CC\uB9B4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.\n\n\uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
+      t("profile.delete_account"),
+      t("profile.delete_confirm"),
       [
-        { text: "\uCDE8\uC18C", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "\uC0AD\uC81C",
+          text: t("common.delete"),
           style: "destructive",
           onPress: () => handleDeleteAccount(),
         },
       ]
     );
-  }, [handleDeleteAccount]);
+  }, [handleDeleteAccount, t]);
 
   // ─── Render ───
 
@@ -172,13 +213,13 @@ export default function ProfileScreen({ navigation }) {
               {userProfile.gender ? (
                 <View style={styles.bodyBadge}>
                   <Text style={styles.bodyBadgeText}>
-                    {GENDER_OPTIONS.find((g) => g.key === userProfile.gender)?.label || userProfile.gender}
+                    {t(`gender.${userProfile.gender}`)}
                   </Text>
                 </View>
               ) : null}
               {userProfile.birthDate ? (
                 <View style={styles.bodyBadge}>
-                  <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}세</Text>
+                  <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}{t("common.years_old")}</Text>
                 </View>
               ) : null}
               {userProfile.height ? (
@@ -192,23 +233,23 @@ export default function ProfileScreen({ navigation }) {
 
         {/* ─── Stats Row ─── */}
         <View style={styles.statsRow}>
-          <StatItem value={savedNotes.length} label={"\uC804\uCCB4 \uB178\uD2B8"} />
+          <StatItem value={savedNotes.length} label={t("profile.total_notes")} />
           <View style={styles.statsDivider} />
-          <StatItem value={aiAnalyzedCount} label={"AI \uBD84\uC11D"} />
+          <StatItem value={aiAnalyzedCount} label={t("profile.ai_analysis")} />
           <View style={styles.statsDivider} />
-          <StatItem value={`${streak}\uC77C`} label={"\uC2A4\uD2B8\uB9AD"} />
+          <StatItem value={`${streak}${t("common.days")}`} label={t("profile.streak")} />
           <View style={styles.statsDivider} />
-          <StatItem value={overallScore} label={"\uC885\uD569 \uC810\uC218"} accent />
+          <StatItem value={overallScore} label={t("profile.overall_score")} accent />
         </View>
 
         {/* ─── Skill Bars ─── */}
         <View style={styles.sectionCard}>
           <Text style={[T.title, { color: CLight.gray900, marginBottom: 16 }]}>
-            {"\uC2E4\uB825 \uBD84\uC11D"}
+            {t("profile.skill_analysis")}
           </Text>
-          {SKILL_LABELS.map((label, idx) => (
+          {skillLabels.map((label, idx) => (
             <SkillBar
-              key={label}
+              key={SKILL_LABEL_KEYS[idx]}
               label={label}
               value={skillValues[idx]}
               color={SKILL_COLORS[idx]}
@@ -216,9 +257,45 @@ export default function ProfileScreen({ navigation }) {
           ))}
         </View>
 
+        {/* ─── Language Selector ─── */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => setShowLangPicker(!showLangPicker)}
+            activeOpacity={0.6}
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>🌐</Text>
+              <Text style={[T.body, { color: CLight.gray900 }]}>{t("settings.language")}</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={[T.caption, { color: CLight.gray500 }]}>{currentLang.flag} {currentLang.name}</Text>
+              <Text style={[T.caption, { color: CLight.gray300 }]}>{showLangPicker ? "▲" : "▼"}</Text>
+            </View>
+          </TouchableOpacity>
+          {showLangPicker && (
+            <View style={styles.langGrid}>
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={[styles.langChip, language === lang.code && styles.langChipActive]}
+                  onPress={() => {
+                    handleChangeLanguage(lang.code);
+                    setShowLangPicker(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.langFlag}>{lang.flag}</Text>
+                  <Text style={[T.small, { color: language === lang.code ? "#fff" : CLight.gray700 }]}>{lang.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* ─── Menu List ─── */}
         <View style={styles.sectionCard}>
-          {MENU_ITEMS.map((item, idx) => (
+          {filteredMenuItems.map((item, idx) => (
             <React.Fragment key={item.route}>
               <TouchableOpacity
                 style={styles.menuRow}
@@ -227,31 +304,37 @@ export default function ProfileScreen({ navigation }) {
               >
                 <View style={styles.menuLeft}>
                   <Text style={styles.menuIcon}>{item.icon}</Text>
-                  <Text style={[T.body, { color: CLight.gray900 }]}>{item.label}</Text>
+                  <Text style={[T.body, { color: CLight.gray900 }]}>{t(item.labelKey)}</Text>
                 </View>
                 <Text style={[T.caption, { color: CLight.gray300 }]}>{"\u203A"}</Text>
               </TouchableOpacity>
-              {idx < MENU_ITEMS.length - 1 && <View style={styles.menuDivider} />}
+              {idx < filteredMenuItems.length - 1 && <View style={styles.menuDivider} />}
             </React.Fragment>
           ))}
 
-          {/* Account deletion */}
+          {/* Logout */}
           <View style={styles.menuDivider} />
           <TouchableOpacity
             style={styles.menuRow}
-            onPress={handleDeleteAccountPress}
+            onPress={handleLogoutPress}
             activeOpacity={0.6}
           >
             <View style={styles.menuLeft}>
-              <Text style={styles.menuIcon}>{"\u26A0\uFE0F"}</Text>
-              <Text style={[T.body, { color: CLight.red || "#FF3B30" }]}>{"\uACC4\uC815 \uC0AD\uC81C"}</Text>
+              <Text style={styles.menuIcon}>{"\uD83D\uDEAA"}</Text>
+              <Text style={[T.body, { color: CLight.gray900 }]}>{t("profile.logout")}</Text>
             </View>
             <Text style={[T.caption, { color: CLight.gray300 }]}>{"\u203A"}</Text>
           </TouchableOpacity>
+
         </View>
 
         {/* ─── App Version ─── */}
         <Text style={styles.versionText}>ArtLink v{APP_VERSION}</Text>
+
+        {/* Account deletion — small, bottom */}
+        <TouchableOpacity onPress={handleDeleteAccountPress} activeOpacity={0.6} style={{ alignSelf: "center", marginTop: 8, marginBottom: 32 }}>
+          <Text style={[T.caption, { color: CLight.gray400 || "#999", textDecorationLine: "underline" }]}>{t("profile.delete_account")}</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -399,6 +482,30 @@ const styles = StyleSheet.create({
   menuDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: CLight.gray200,
+  },
+
+  // Language selector
+  langGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  langChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: CLight.gray100,
+  },
+  langChipActive: {
+    backgroundColor: CLight.pink,
+  },
+  langFlag: {
+    fontSize: 16,
   },
 
   // Version

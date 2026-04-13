@@ -1,5 +1,7 @@
 import { supabase } from "./supabaseClient";
 
+const SERVER_URL = "https://artlink-server.vercel.app";
+
 // ─── Cache ──────────────────────────────────────────────────
 let postsCache = { data: null, ts: 0 };
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -233,6 +235,30 @@ export async function toggleLike(postId, userId) {
       .insert({ post_id: postId, user_id: userId });
     if (error) throw error;
     return true; // liked
+  }
+}
+
+// ─── AI Moderation ──────────────────────────────────────────
+export async function moderateContent(content, type = "post") {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${SERVER_URL}/api/moderate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, type }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return { safe: true };
+    const json = await res.json();
+    // Validate response shape — missing safe field → fail-open
+    if (typeof json.safe !== "boolean") return { safe: true };
+    return json;
+  } catch (_) {
+    // Fail-open: network/timeout error → allow content (profanity filter is Layer 1)
+    return { safe: true };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

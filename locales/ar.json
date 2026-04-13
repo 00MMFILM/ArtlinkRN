@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "يلزم الوصول إلى الصور لإرفاق الصور بالملاحظات والملف الشخصي.",
+  "NSCameraUsageDescription": "يلزم الوصول إلى الكاميرا لالتقاط صور الملف الشخصي.",
+  "NSMicrophoneUsageDescription": "يلزم الوصول إلى الميكروفون لتسجيل المذكرات الصوتية."
+}

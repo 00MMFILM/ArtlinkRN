@@ -11,26 +11,34 @@ import {
   Alert,
   Linking,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import { FIELDS } from "../utils/helpers";
 import { computeMatchPercent } from "../services/analyticsService";
 import { fetchMatchingFeed } from "../services/matchingService";
 import TopBar from "../components/TopBar";
 import EmptyState from "../components/EmptyState";
 
-const CATEGORY_TABS = ["프로젝트", "오디션", "콜라보"];
-const SOURCE_TABS = [
-  { key: "ai", label: "공고", emoji: "🤖" },
-  { key: "user", label: "직접 등록", emoji: "👤" },
+// Data values used for filtering (must match item.tab from server/store)
+const CATEGORY_TABS_DATA = ["프로젝트", "오디션", "콜라보"];
+// i18n key suffixes mapped to each data value
+const CATEGORY_TAB_I18N = ["tab_project", "tab_audition", "tab_collab"];
+const SOURCE_TAB_KEYS = [
+  { key: "ai", labelKey: "source_crawled", emoji: "🤖" },
+  { key: "user", labelKey: "source_user", emoji: "👤" },
 ];
 
-const FIELD_TABS = [
-  { key: "all", label: "전체", emoji: "📋" },
-  ...FIELDS.map((f) => ({ key: f, label: FIELD_LABELS[f] || f, emoji: FIELD_EMOJIS[f] || "📝" })),
-];
+// FIELD_TABS labels are resolved at render time via t() for the "all" entry;
+// field-specific labels use labelKey and are resolved inside the component.
+const FIELD_TAB_FIELD_KEYS = FIELDS.map((f) => ({
+  key: f,
+  labelKey: "fields." + f,
+  emoji: FIELD_EMOJIS[f] || "📝",
+}));
 
 export default function MatchingScreen({ navigation }) {
+  const { t } = useTranslation();
   const {
     artistProfile, userProfile, savedNotes, portfolioItems,
     matchingPosts, handleDeleteMatchingPost,
@@ -93,80 +101,85 @@ export default function MatchingScreen({ navigation }) {
     return CLight.gray400;
   };
 
+  const FIELD_TABS = [
+    { key: "all", label: t("common.all"), emoji: "📋" },
+    ...FIELD_TAB_FIELD_KEYS.map((ft) => ({ ...ft, label: t(ft.labelKey) })),
+  ];
+
   const getDaysLeft = (deadline) => {
     if (!deadline) return null;
     const diff = Math.ceil((new Date(deadline) - new Date()) / 86400000);
-    if (diff <= 0) return "마감";
+    if (diff <= 0) return t("matching.deadline_expired");
     return `D-${diff}`;
   };
 
   const handleDetailPress = useCallback((item) => {
     if (item.source === "ai" && item.externalUrl) {
       Linking.openURL(item.externalUrl).catch(() => {
-        Alert.alert("링크 열기 실패", "외부 브라우저에서 열 수 없습니다.");
+        Alert.alert(t("matching.link_error"), t("matching.link_error_msg"));
       });
     } else {
       navigation.navigate("MatchingPostDetail", { post: item });
     }
-  }, [navigation]);
+  }, [navigation, t]);
 
   const handleReportPost = useCallback((item) => {
-    Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
-      { text: "취소", style: "cancel" },
+    Alert.alert(t("common.report_title"), t("common.report_confirm"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "부적절한 콘텐츠",
+        text: t("common.inappropriate_content"),
         onPress: () => handleReportContent({ contentId: item.id, type: "matching_post", reason: "inappropriate_content", title: item.title }),
       },
       {
-        text: "스팸/사기",
+        text: t("common.spam_scam"),
         onPress: () => handleReportContent({ contentId: item.id, type: "matching_post", reason: "spam", title: item.title }),
       },
       {
-        text: "괴롭힘/혐오",
+        text: t("common.harassment"),
         onPress: () => handleReportContent({ contentId: item.id, type: "matching_post", reason: "harassment", title: item.title }),
       },
     ]);
-  }, [handleReportContent]);
+  }, [handleReportContent, t]);
 
   const handleBlockPost = useCallback((item) => {
     const authorName = item.authorName || `user_${item.id}`;
-    Alert.alert("차단하기", `이 작성자를 차단하시겠습니까?\n차단하면 이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`, [
-      { text: "취소", style: "cancel" },
+    Alert.alert(t("common.block_title"), t("common.block_confirm", { name: authorName }), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "차단",
+        text: t("common.block"),
         style: "destructive",
         onPress: () => handleBlockUser(authorName),
       },
     ]);
-  }, [handleBlockUser]);
+  }, [handleBlockUser, t]);
 
   const handlePostAction = useCallback((item) => {
-    Alert.alert("게시물 관리", null, [
-      { text: "신고하기", onPress: () => handleReportPost(item) },
-      { text: "작성자 차단", style: "destructive", onPress: () => handleBlockPost(item) },
-      { text: "취소", style: "cancel" },
+    Alert.alert(t("common.post_management"), null, [
+      { text: t("common.report_title"), onPress: () => handleReportPost(item) },
+      { text: t("common.block_author"), style: "destructive", onPress: () => handleBlockPost(item) },
+      { text: t("common.cancel"), style: "cancel" },
     ]);
-  }, [handleReportPost, handleBlockPost]);
+  }, [handleReportPost, handleBlockPost, t]);
 
   const handleLongPressUserPost = useCallback((item) => {
-    Alert.alert("매칭 글 관리", item.title, [
+    Alert.alert(t("matching.manage_post"), item.title, [
       {
-        text: "수정",
+        text: t("common.edit"),
         onPress: () => navigation.navigate("MatchingPostCreate", { post: item }),
       },
       {
-        text: "삭제",
+        text: t("common.delete"),
         style: "destructive",
         onPress: () => {
-          Alert.alert("삭제 확인", "이 글을 삭제할까요?", [
-            { text: "취소", style: "cancel" },
-            { text: "삭제", style: "destructive", onPress: () => handleDeleteMatchingPost(item.id) },
+          Alert.alert(t("matching.delete_confirm"), t("matching.delete_confirm_msg"), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("common.delete"), style: "destructive", onPress: () => handleDeleteMatchingPost(item.id) },
           ]);
         },
       },
-      { text: "취소", style: "cancel" },
+      { text: t("common.cancel"), style: "cancel" },
     ]);
-  }, [navigation, handleDeleteMatchingPost]);
+  }, [navigation, handleDeleteMatchingPost, t]);
 
   const renderCard = (item) => {
     const isAi = item.source === "ai";
@@ -184,7 +197,7 @@ export default function MatchingScreen({ navigation }) {
         <View style={styles.sourceBadgeRow}>
           <View style={[styles.sourceBadge, isAi ? styles.sourceBadgeAi : styles.sourceBadgeUser]}>
             <Text style={[T.tiny, { color: isAi ? CLight.blue : CLight.purple, fontWeight: "600" }]}>
-              {isAi ? "🤖 AI수집" : "👤 직접 등록"}
+              {isAi ? t("matching.badge_ai") : t("matching.badge_user")}
             </Text>
           </View>
           <TouchableOpacity
@@ -193,7 +206,7 @@ export default function MatchingScreen({ navigation }) {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.reportBtnIcon}>⚠</Text>
-            <Text style={styles.reportBtnText}>신고</Text>
+            <Text style={styles.reportBtnText}>{t("common.report")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -201,12 +214,12 @@ export default function MatchingScreen({ navigation }) {
         <View style={styles.cardHeader}>
           <View style={[styles.fieldBadge, { backgroundColor: (FIELD_COLORS[item.field] || CLight.pink) + "18" }]}>
             <Text style={[T.micro, { color: FIELD_COLORS[item.field] || CLight.pink, fontWeight: "600" }]}>
-              {FIELD_EMOJIS[item.field] || ""} {FIELD_LABELS[item.field] || item.field}
+              {FIELD_EMOJIS[item.field] || ""} {t("fields." + item.field)}
             </Text>
           </View>
           <View style={[styles.matchBadge, { backgroundColor: getMatchColor(item.matchPercent) + "18" }]}>
             <Text style={[T.microBold, { color: getMatchColor(item.matchPercent) }]}>
-              {item.matchPercent}% 매칭
+              {t("matching.match_percent", { percent: item.matchPercent })}
             </Text>
           </View>
         </View>
@@ -239,11 +252,11 @@ export default function MatchingScreen({ navigation }) {
         {/* Footer */}
         <View style={styles.cardFooter}>
           <Text style={[T.micro, { color: CLight.gray400 }]}>
-            {item.deadline ? `마감: ${item.deadline}` : "마감일 미정"}
+            {item.deadline ? t("matching.deadline_prefix", { date: item.deadline }) : t("matching.deadline_none")}
           </Text>
           {daysLeft && (
-            <View style={[styles.dDayBadge, daysLeft === "마감" ? { backgroundColor: CLight.red + "18" } : {}]}>
-              <Text style={[T.microBold, { color: daysLeft === "마감" ? CLight.red : CLight.pink }]}>
+            <View style={[styles.dDayBadge, daysLeft === t("matching.deadline_expired") ? { backgroundColor: CLight.red + "18" } : {}]}>
+              <Text style={[T.microBold, { color: daysLeft === t("matching.deadline_expired") ? CLight.red : CLight.pink }]}>
                 {daysLeft}
               </Text>
             </View>
@@ -252,7 +265,7 @@ export default function MatchingScreen({ navigation }) {
 
         <TouchableOpacity style={styles.applyBtn} onPress={() => handleDetailPress(item)}>
           <Text style={[T.captionBold, { color: CLight.white }]}>
-            {isAi && item.externalUrl ? "원본 보기" : "상세 보기"}
+            {isAi && item.externalUrl ? t("matching.view_original") : t("matching.view_detail")}
           </Text>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -262,17 +275,17 @@ export default function MatchingScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="매칭"
+        title={t("matching.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{t("matching.back")}</Text>
           </TouchableOpacity>
         }
       />
 
       {/* Source Tabs */}
       <View style={styles.sourceTabRow}>
-        {SOURCE_TABS.map((st) => {
+        {SOURCE_TAB_KEYS.map((st) => {
           const isActive = sourceTab === st.key;
           return (
             <TouchableOpacity
@@ -281,7 +294,7 @@ export default function MatchingScreen({ navigation }) {
               onPress={() => setSourceTab(st.key)}
             >
               <Text style={[styles.sourceTabText, isActive && styles.sourceTabTextActive]}>
-                {st.emoji} {st.label}
+                {st.emoji} {t(`matching.${st.labelKey}`)}
               </Text>
             </TouchableOpacity>
           );
@@ -290,15 +303,18 @@ export default function MatchingScreen({ navigation }) {
 
       {/* Category Tabs */}
       <View style={styles.tabRow}>
-        {CATEGORY_TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-          </TouchableOpacity>
-        ))}
+        {CATEGORY_TABS_DATA.map((dataValue, idx) => {
+          const tabLabel = t(`matching.${CATEGORY_TAB_I18N[idx]}`);
+          return (
+            <TouchableOpacity
+              key={dataValue}
+              style={[styles.tab, activeTab === dataValue && styles.tabActive]}
+              onPress={() => setActiveTab(dataValue)}
+            >
+              <Text style={[styles.tabText, activeTab === dataValue && styles.tabTextActive]}>{tabLabel}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Search Bar */}
@@ -307,7 +323,7 @@ export default function MatchingScreen({ navigation }) {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="매칭 항목 검색..."
+            placeholder={t("matching.search_placeholder")}
             placeholderTextColor={CLight.gray400}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -363,26 +379,26 @@ export default function MatchingScreen({ navigation }) {
       >
         {/* Profile Summary */}
         <View style={styles.summaryCard}>
-          <Text style={[T.captionBold, { color: CLight.gray700 }]}>내 매칭 프로필</Text>
+          <Text style={[T.captionBold, { color: CLight.gray700 }]}>{t("matching.my_profile")}</Text>
           <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
-            {artistProfile.displayName} | {artistProfile.displayFields || "미설정"} | 종합 점수{" "}
+            {artistProfile.displayName} | {artistProfile.displayFields || t("matching.not_set")} | {t("matching.overall_score")}{" "}
             {artistProfile.overallScore}점
           </Text>
           <View style={styles.profileBadges}>
             <View style={styles.profileBadge}>
               <Text style={[T.microBold, { color: CLight.pink }]}>📸 {portfolioItems.length}</Text>
-              <Text style={[T.tiny, { color: CLight.gray400 }]}>포트폴리오</Text>
+              <Text style={[T.tiny, { color: CLight.gray400 }]}>{t("matching.portfolio_label")}</Text>
             </View>
             <View style={styles.profileBadge}>
               <Text style={[T.microBold, { color: CLight.purple }]}>📝 {savedNotes.length}</Text>
-              <Text style={[T.tiny, { color: CLight.gray400 }]}>노트</Text>
+              <Text style={[T.tiny, { color: CLight.gray400 }]}>{t("matching.notes_label")}</Text>
             </View>
           </View>
         </View>
 
         {/* Result Count */}
         <Text style={[T.micro, { color: CLight.gray400, marginBottom: 8 }]}>
-          {filtered.length}개 매칭
+          {t("matching.result_count", { count: filtered.length })}
         </Text>
 
         {/* Loading state for AI tab */}
@@ -390,21 +406,21 @@ export default function MatchingScreen({ navigation }) {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={CLight.pink} />
             <Text style={[T.caption, { color: CLight.gray400, marginTop: 12 }]}>
-              공고를 불러오는 중...
+              {t("matching.loading")}
             </Text>
           </View>
         ) : filtered.length === 0 ? (
           sourceTab === "user" ? (
             <EmptyState
               icon="📋"
-              title="아직 등록한 글이 없습니다"
-              message="+ 버튼을 눌러 등록해보세요."
+              title={t("matching.empty_user_title")}
+              message={t("matching.empty_user_msg")}
             />
           ) : (
             <EmptyState
               icon="🔍"
-              title="매칭 항목이 없습니다"
-              message="검색어나 필터를 변경해보세요."
+              title={t("matching.empty_title")}
+              message={t("matching.empty_msg")}
             />
           )
         ) : (

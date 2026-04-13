@@ -1,25 +1,33 @@
-import React, { useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
   Platform,
   Dimensions,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
-import { timeAgo, truncate } from "../utils/helpers";
+import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { timeAgo, truncate, FIELDS } from "../utils/helpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function HomeScreen({ navigation }) {
+  const { t } = useTranslation();
   const {
     savedNotes,
+    handleSaveNote,
     userProfile,
     artistProfile,
+    fieldOrder,
   } = useApp();
+
+  const [expandedField, setExpandedField] = useState(null);
+  const [checkinMemo, setCheckinMemo] = useState("");
 
   // ---- Computed data ----
   const recentNotes = useMemo(() => savedNotes.slice(0, 5), [savedNotes]);
@@ -67,34 +75,60 @@ export default function HomeScreen({ navigation }) {
   // ---- Greeting based on time ----
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
-    if (hour < 6) return "\uC88B\uC740 \uC0C8\uBCBD\uC774\uC5D0\uC694";
-    if (hour < 12) return "\uC88B\uC740 \uC544\uCE68\uC774\uC5D0\uC694";
-    if (hour < 18) return "\uC88B\uC740 \uC624\uD6C4\uC608\uC694";
-    return "\uC88B\uC740 \uC800\uB141\uC774\uC5D0\uC694";
+    if (hour < 6) return t("home.greeting_dawn");
+    if (hour < 12) return t("home.greeting_morning");
+    if (hour < 18) return t("home.greeting_afternoon");
+    return t("home.greeting_evening");
+  }, [t]);
+
+  const userName = userProfile?.name || t("common.artist");
+
+  // ---- Quick check-in ----
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const orderedFields = fieldOrder && fieldOrder.length > 0 ? fieldOrder : FIELDS;
+
+  const todayCheckins = useMemo(() => {
+    const set = new Set();
+    savedNotes.forEach((n) => {
+      if (n.type === "checkin" && n.createdAt && n.createdAt.slice(0, 10) === todayKey) {
+        set.add(n.field);
+      }
+    });
+    return set;
+  }, [savedNotes, todayKey]);
+
+  const handleCheckinTap = useCallback((field) => {
+    setExpandedField((prev) => (prev === field ? null : field));
+    setCheckinMemo("");
   }, []);
 
-  const userName = userProfile?.name || "\uC544\uD2F0\uC2A4\uD2B8";
+  const handleCheckinSave = useCallback((field) => {
+    const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
+    handleSaveNote({ title, field, type: "checkin" });
+    setExpandedField(null);
+    setCheckinMemo("");
+  }, [checkinMemo, handleSaveNote, t]);
 
   // ---- Quick actions ----
   const quickActions = [
     {
       key: "note",
       emoji: "\u270F\uFE0F",
-      label: "\uC0C8 \uB178\uD2B8 \uC791\uC131",
+      label: t("home.new_note"),
       color: CLight.pink,
       route: "NoteCreate",
     },
     {
       key: "growth",
       emoji: "\uD83D\uDCC8",
-      label: "\uC131\uC7A5 \uB9AC\uD3EC\uD2B8",
+      label: t("home.growth_report"),
       color: CLight.purple,
       route: "Growth",
     },
     {
       key: "matching",
       emoji: "\uD83E\uDD1D",
-      label: "\uB9E4\uCE6D",
+      label: t("home.matching"),
       color: CLight.teal,
       route: "Matching",
     },
@@ -114,10 +148,10 @@ export default function HomeScreen({ navigation }) {
             <Text style={[T.h3, { color: CLight.gray900 }]}>
               {greeting},{" "}
               <Text style={{ color: CLight.pink }}>{userName}</Text>
-              {"\uB2D8"}
+              {t("home.suffix_nim")}
             </Text>
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 2 }]}>
-              {"\uC624\uB298\uB3C4 \uC608\uC220\uC744 \uAE30\uB85D\uD574\uBCFC\uAE4C\uC694?"}
+              {t("home.daily_prompt")}
             </Text>
           </View>
           <TouchableOpacity
@@ -132,7 +166,7 @@ export default function HomeScreen({ navigation }) {
         {/* ---- Weekly summary card ---- */}
         <View style={[styles.summaryCard, { backgroundColor: CLight.surface }]}>
           <Text style={[T.captionBold, { color: CLight.gray500, marginBottom: 12 }]}>
-            {"\uC774\uBC88 \uC8FC \uC694\uC57D"}
+            {t("home.weekly_summary")}
           </Text>
           <View style={styles.summaryRow}>
             {/* Practice count */}
@@ -140,7 +174,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={[styles.summaryValue, { color: CLight.pink }]}>
                 {weeklySummary.count}
               </Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>{"\uC774\uBC88 \uC8FC \uC5F0\uC2B5"}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("home.weekly_practice")}</Text>
             </View>
 
             <View style={[styles.summaryDivider, { backgroundColor: CLight.gray200 }]} />
@@ -149,9 +183,9 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryValue, { color: CLight.orange }]}>
                 {weeklySummary.streak}
-                <Text style={[T.small, { color: CLight.gray500 }]}>{"\uC77C"}</Text>
+                <Text style={[T.small, { color: CLight.gray500 }]}>{t("common.days")}</Text>
               </Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>{"\uC5F0\uC18D \uAE30\uB85D"}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("home.streak")}</Text>
             </View>
 
             <View style={[styles.summaryDivider, { backgroundColor: CLight.gray200 }]} />
@@ -167,7 +201,7 @@ export default function HomeScreen({ navigation }) {
                 {weeklySummary.weekGrowth >= 0 ? "+" : ""}
                 {weeklySummary.weekGrowth}%
               </Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>{"\uC8FC\uAC04 \uC131\uC7A5"}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("home.weekly_growth")}</Text>
             </View>
           </View>
         </View>
@@ -191,12 +225,75 @@ export default function HomeScreen({ navigation }) {
           ))}
         </View>
 
+        {/* ---- Quick Check-in ---- */}
+        <View style={[styles.checkinSection, { backgroundColor: CLight.surface }]}>
+          <Text style={[T.captionBold, { color: CLight.gray500, marginBottom: 10 }]}>
+            {t("notes.today_practice")}
+          </Text>
+          <View style={styles.checkinRow}>
+            {orderedFields.map((field) => {
+              const checked = todayCheckins.has(field);
+              const color = FIELD_COLORS[field] || CLight.gray500;
+              return (
+                <TouchableOpacity
+                  key={field}
+                  style={[
+                    styles.checkinCircle,
+                    {
+                      backgroundColor: checked ? color : expandedField === field ? `${color}20` : CLight.white,
+                      borderColor: checked ? color : expandedField === field ? color : CLight.gray200,
+                    },
+                  ]}
+                  onPress={() => handleCheckinTap(field)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.checkinEmoji, { opacity: checked || expandedField === field ? 1 : 0.5 }]}>
+                    {checked ? "\u2713" : FIELD_EMOJIS[field] || "\uD83D\uDCDD"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.checkinLabel,
+                      { color: checked ? CLight.white : CLight.gray500 },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {t("fields." + field)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {expandedField && (
+            <View style={styles.checkinInputRow}>
+              <Text style={styles.checkinFieldTag}>
+                {FIELD_EMOJIS[expandedField]} {t("fields." + expandedField)}
+              </Text>
+              <TextInput
+                style={[styles.checkinInput, { backgroundColor: CLight.inputBg, borderColor: CLight.inputBorder, color: CLight.gray900 }]}
+                placeholder={t("notes.checkin_placeholder")}
+                placeholderTextColor={CLight.gray400}
+                value={checkinMemo}
+                onChangeText={setCheckinMemo}
+                returnKeyType="done"
+                onSubmitEditing={() => handleCheckinSave(expandedField)}
+              />
+              <TouchableOpacity
+                style={[styles.checkinSaveBtn, { backgroundColor: FIELD_COLORS[expandedField] || CLight.pink }]}
+                onPress={() => handleCheckinSave(expandedField)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.checkinSaveBtnText}>{t("common.save")}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
         {/* ---- Recent notes ---- */}
         <View style={styles.sectionHeader}>
-          <Text style={[T.title, { color: CLight.gray900 }]}>{"\uCD5C\uADFC \uB178\uD2B8"}</Text>
+          <Text style={[T.title, { color: CLight.gray900 }]}>{t("home.recent_notes")}</Text>
           {savedNotes.length > 5 && (
             <TouchableOpacity onPress={() => navigation.navigate("Notes")}>
-              <Text style={[T.small, { color: CLight.pink }]}>{"\uBAA8\uB450 \uBCF4\uAE30"}</Text>
+              <Text style={[T.small, { color: CLight.pink }]}>{t("home.view_all")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -205,7 +302,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.notesContainer}>
             {recentNotes.map((note) => {
               const fieldColor = note.field ? FIELD_COLORS[note.field] || CLight.gray500 : CLight.gray500;
-              const fieldLabel = note.field ? FIELD_LABELS[note.field] : null;
+              const fieldLabel = note.field ? t("fields." + note.field) : null;
               const fieldEmoji = note.field ? FIELD_EMOJIS[note.field] : null;
 
               return (
@@ -231,7 +328,7 @@ export default function HomeScreen({ navigation }) {
                   </View>
 
                   <Text style={[T.bodyBold, { color: CLight.gray900, marginTop: 8 }]} numberOfLines={1}>
-                    {note.title || "\uC81C\uBAA9 \uC5C6\uC74C"}
+                    {note.title || t("common.untitled")}
                   </Text>
 
                   {note.content && (
@@ -258,17 +355,17 @@ export default function HomeScreen({ navigation }) {
           <View style={[styles.emptyCard, { backgroundColor: CLight.surface }]}>
             <Text style={styles.emptyEmoji}>{"\uD83C\uDFB5"}</Text>
             <Text style={[T.title, { color: CLight.gray900, marginTop: 12 }]}>
-              {"\uCCAB \uBC88\uC9F8 \uB178\uD2B8\uB97C \uC791\uC131\uD574\uBCF4\uC138\uC694!"}
+              {t("home.empty_title")}
             </Text>
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 6, textAlign: "center" }]}>
-              {"\uC5F0\uC2B5, \uACF5\uC5F0, \uC601\uAC10 \uB4F1\n\uC608\uC220 \uD65C\uB3D9\uC744 \uAE30\uB85D\uD558\uBA74 AI\uAC00 \uBD84\uC11D\uD574\uB4DC\uB824\uC694."}
+              {t("home.empty_desc")}
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
               onPress={() => navigation.navigate("NoteCreate")}
               activeOpacity={0.7}
             >
-              <Text style={styles.emptyButtonText}>{"\uB178\uD2B8 \uC791\uC131\uD558\uAE30"}</Text>
+              <Text style={styles.emptyButtonText}>{t("home.write_note")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -374,6 +471,66 @@ const styles = StyleSheet.create({
   },
   quickActionEmoji: {
     fontSize: 20,
+  },
+
+  // ---- Quick Check-in ----
+  checkinSection: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  checkinRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  checkinCircle: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+  },
+  checkinEmoji: {
+    fontSize: 16,
+  },
+  checkinLabel: {
+    fontSize: 9,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  checkinInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 8,
+  },
+  checkinFieldTag: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: CLight.gray700,
+  },
+  checkinInput: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    ...T.caption,
+  },
+  checkinSaveBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  checkinSaveBtnText: {
+    ...T.microBold,
+    color: CLight.white,
   },
 
   // ---- Section header ----

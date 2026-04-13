@@ -13,8 +13,9 @@ import {
   Image,
   Alert,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import { GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES, calculateAge, FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 import { fetchArtistProfiles } from "../services/profileService";
@@ -70,6 +71,7 @@ function transformProfile(p) {
 }
 
 export default function B2BDashboardScreen({ navigation }) {
+  const { t } = useTranslation();
   const { showToast, userProfile, deviceUserId } = useApp();
   const [artists, setArtists] = useState(DEMO_ACTORS);
   const [loading, setLoading] = useState(true);
@@ -120,7 +122,7 @@ export default function B2BDashboardScreen({ navigation }) {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = a.name.toLowerCase().includes(q);
-        const matchField = (a.fields || []).some((f) => (FIELD_LABELS[f] || "").includes(q));
+        const matchField = (a.fields || []).some((f) => t("fields." + f).includes(q));
         const matchSpec = (a.specialties || []).some((s) => s.includes(q));
         if (!matchName && !matchField && !matchSpec) return false;
       }
@@ -135,7 +137,7 @@ export default function B2BDashboardScreen({ navigation }) {
       if (filterLocation && a.location && !a.location.includes(filterLocation)) return false;
       return true;
     });
-  }, [artists, searchQuery, filterGender, filterAgeMin, filterAgeMax, filterHeightMin, filterHeightMax, filterField, filterSpecialties, filterLocation]);
+  }, [artists, searchQuery, filterGender, filterAgeMin, filterAgeMax, filterHeightMin, filterHeightMax, filterField, filterSpecialties, filterLocation, t]);
 
   const clearFilters = () => {
     setFilterGender("");
@@ -150,7 +152,7 @@ export default function B2BDashboardScreen({ navigation }) {
 
   const renderActorCard = useCallback((actor) => {
     const age = calculateAge(actor.birthDate);
-    const genderLabel = GENDER_OPTIONS.find((g) => g.key === actor.gender)?.label || "";
+    const genderLabel = t("gender." + actor.gender);
     const primaryField = actor.fields?.[0];
     const fieldColor = FIELD_COLORS[primaryField] || CLight.pink;
 
@@ -170,10 +172,10 @@ export default function B2BDashboardScreen({ navigation }) {
               {actor.agency ? <Text style={[T.tiny, { color: CLight.gray400 }]}>{actor.agency}</Text> : null}
             </View>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>
-              {genderLabel}{age ? ` | ${age}세` : ""}{actor.height ? ` | ${actor.height}cm` : ""}
+              {genderLabel}{age ? ` | ${age}${t("common.years_old")}` : ""}{actor.height ? ` | ${actor.height}cm` : ""}
             </Text>
             <Text style={[T.micro, { color: fieldColor, marginTop: 2 }]}>
-              {(actor.fields || []).map((f) => FIELD_LABELS[f] || f).join(", ")}
+              {(actor.fields || []).map((f) => t("fields." + f)).join(", ")}
             </Text>
           </View>
           <View style={styles.scoreCircle}>
@@ -195,7 +197,7 @@ export default function B2BDashboardScreen({ navigation }) {
         )}
       </TouchableOpacity>
     );
-  }, []);
+  }, [t]);
 
   const handleCloseDetailModal = useCallback(() => {
     setSelectedActor(null);
@@ -206,8 +208,8 @@ export default function B2BDashboardScreen({ navigation }) {
 
   const handleSendProposal = useCallback(async () => {
     if (!proposalTitle.trim() || !proposalContent.trim() || sendingProposal) return;
-    if (!deviceUserId) { Alert.alert("오류", "로그인이 필요합니다."); return; }
-    if (!selectedActor?.userId) { Alert.alert("오류", "이 아티스트에게는 제안을 보낼 수 없습니다."); return; }
+    if (!deviceUserId) { Alert.alert(t("common.error"), t("b2b.login_required")); return; }
+    if (!selectedActor?.userId) { Alert.alert(t("common.error"), t("b2b.cannot_propose")); return; }
     setSendingProposal(true);
     try {
       await sendProposal({
@@ -216,13 +218,13 @@ export default function B2BDashboardScreen({ navigation }) {
         type: proposalType,
         title: proposalTitle.trim(),
         content: proposalContent.trim(),
-        senderName: userProfile.name || "익명",
+        senderName: userProfile.name || t("common.anonymous"),
         senderField: userProfile.fields?.[0] || null,
       });
-      showToast(proposalType === "casting" ? "캐스팅 제안이 전송되었습니다!" : "협업 제안이 전송되었습니다!", "success");
+      showToast(proposalType === "casting" ? t("b2b.casting_sent") : t("b2b.collab_sent"), "success");
       handleCloseDetailModal();
     } catch (e) {
-      Alert.alert("오류", "제안 전송에 실패했습니다. 다시 시도해주세요.");
+      Alert.alert(t("common.error"), t("b2b.proposal_failed"));
     } finally {
       setSendingProposal(false);
     }
@@ -232,7 +234,7 @@ export default function B2BDashboardScreen({ navigation }) {
     if (!selectedActor) return null;
     const actor = selectedActor;
     const age = calculateAge(actor.birthDate);
-    const genderLabel = GENDER_OPTIONS.find((g) => g.key === actor.gender)?.label || "";
+    const genderLabel = t("gender." + actor.gender);
     const primaryField = actor.fields?.[0];
     const fieldColor = FIELD_COLORS[primaryField] || CLight.pink;
 
@@ -244,30 +246,30 @@ export default function B2BDashboardScreen({ navigation }) {
               {/* Proposal form inside the same modal */}
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={() => { setShowProposalModal(false); setProposalTitle(""); setProposalContent(""); }}>
-                  <Text style={[T.body, { color: CLight.gray500 }]}>뒤로</Text>
+                  <Text style={[T.body, { color: CLight.gray500 }]}>{t("common.back")}</Text>
                 </TouchableOpacity>
                 <Text style={[T.title, { color: CLight.gray900 }]}>
-                  {proposalType === "casting" ? "캐스팅 제안" : "협업 제안"}
+                  {proposalType === "casting" ? t("b2b.casting_proposal") : t("b2b.collab_proposal")}
                 </Text>
                 <View style={{ width: 40 }} />
               </View>
               <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
                 <Text style={[T.caption, { color: CLight.gray500, marginBottom: 16 }]}>
-                  받는 사람: {actor.name}
+                  {t("b2b.to_recipient", { name: actor.name })}
                 </Text>
-                <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6 }]}>제목</Text>
+                <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6 }]}>{t("b2b.subject")}</Text>
                 <TextInput
                   style={styles.proposalInput}
-                  placeholder="제안 제목을 입력하세요"
+                  placeholder={t("b2b.subject_placeholder")}
                   placeholderTextColor={CLight.gray400}
                   value={proposalTitle}
                   onChangeText={setProposalTitle}
                   maxLength={100}
                 />
-                <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6, marginTop: 16 }]}>내용</Text>
+                <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6, marginTop: 16 }]}>{t("b2b.content")}</Text>
                 <TextInput
                   style={[styles.proposalInput, { height: 160, textAlignVertical: "top" }]}
-                  placeholder="제안 내용을 상세히 작성해주세요"
+                  placeholder={t("b2b.content_placeholder")}
                   placeholderTextColor={CLight.gray400}
                   value={proposalContent}
                   onChangeText={setProposalContent}
@@ -285,7 +287,7 @@ export default function B2BDashboardScreen({ navigation }) {
                   activeOpacity={0.7}
                   disabled={!proposalTitle.trim() || !proposalContent.trim() || sendingProposal}
                 >
-                  <Text style={[T.bodyBold, { color: CLight.white }]}>{sendingProposal ? "전송 중..." : "제안 보내기"}</Text>
+                  <Text style={[T.bodyBold, { color: CLight.white }]}>{sendingProposal ? t("b2b.sending") : t("b2b.send_proposal")}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </>
@@ -294,9 +296,9 @@ export default function B2BDashboardScreen({ navigation }) {
               {/* Actor detail view */}
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={handleCloseDetailModal}>
-                  <Text style={[T.body, { color: CLight.gray500 }]}>닫기</Text>
+                  <Text style={[T.body, { color: CLight.gray500 }]}>{t("common.close")}</Text>
                 </TouchableOpacity>
-                <Text style={[T.title, { color: CLight.gray900 }]}>배우 상세</Text>
+                <Text style={[T.title, { color: CLight.gray900 }]}>{t("b2b.actor_detail")}</Text>
                 <View style={{ width: 40 }} />
               </View>
               <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
@@ -322,19 +324,19 @@ export default function B2BDashboardScreen({ navigation }) {
                   {actor.agency ? <Text style={[T.caption, { color: CLight.gray500, marginTop: 2 }]}>{actor.agency}</Text> : null}
                   <View style={styles.modalBadgeRow}>
                     {genderLabel ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{genderLabel}</Text></View> : null}
-                    {age ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{age}세</Text></View> : null}
+                    {age ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{age}{t("common.years_old")}</Text></View> : null}
                     {actor.height ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{actor.height}cm</Text></View> : null}
                     {actor.weight ? <View style={styles.modalBadge}><Text style={styles.modalBadgeText}>{actor.weight}kg</Text></View> : null}
                   </View>
                 </View>
 
                 {/* Fields */}
-                <Text style={styles.modalSectionTitle}>분야</Text>
+                <Text style={styles.modalSectionTitle}>{t("b2b.field")}</Text>
                 <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                   {(actor.fields || []).map((f) => (
                     <View key={f} style={[styles.fieldTag, { backgroundColor: (FIELD_COLORS[f] || CLight.pink) + "18" }]}>
                       <Text style={{ fontSize: 14 }}>{FIELD_EMOJIS[f]}</Text>
-                      <Text style={[T.caption, { color: FIELD_COLORS[f] || CLight.pink, fontWeight: "600" }]}>{FIELD_LABELS[f]}</Text>
+                      <Text style={[T.caption, { color: FIELD_COLORS[f] || CLight.pink, fontWeight: "600" }]}>{t("fields." + f)}</Text>
                     </View>
                   ))}
                 </View>
@@ -342,7 +344,7 @@ export default function B2BDashboardScreen({ navigation }) {
                 {/* Specialties */}
                 {actor.specialties && actor.specialties.length > 0 && (
                   <>
-                    <Text style={styles.modalSectionTitle}>특기</Text>
+                    <Text style={styles.modalSectionTitle}>{t("b2b.specialty")}</Text>
                     <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                       {actor.specialties.map((s) => (
                         <View key={s} style={styles.specPill}>
@@ -356,14 +358,14 @@ export default function B2BDashboardScreen({ navigation }) {
                 {/* Career */}
                 {actor.career && actor.career.length > 0 && (
                   <>
-                    <Text style={styles.modalSectionTitle}>경력</Text>
+                    <Text style={styles.modalSectionTitle}>{t("auth.career")}</Text>
                     {actor.career.map((c, i) => (
                       <View key={i} style={styles.careerRow}>
                         <View style={styles.careerDot} />
                         <View style={{ flex: 1 }}>
                           <Text style={[T.captionBold, { color: CLight.gray900 }]}>{c.title}</Text>
                           <Text style={[T.micro, { color: CLight.gray500 }]}>
-                            {c.role} | {c.year} | {CAREER_TYPES.find((ct) => ct.key === c.type)?.label || c.type}
+                            {c.role} | {c.year} | {t("careerTypes." + c.type)}
                           </Text>
                         </View>
                       </View>
@@ -372,7 +374,7 @@ export default function B2BDashboardScreen({ navigation }) {
                 )}
 
                 {/* Skill bar */}
-                <Text style={styles.modalSectionTitle}>종합 점수</Text>
+                <Text style={styles.modalSectionTitle}>{t("b2b.overall_score")}</Text>
                 <View style={styles.modalScoreSection}>
                   <View style={styles.modalScoreBarBg}>
                     <View style={[styles.modalScoreBarFill, { width: `${actor.score}%`, backgroundColor: fieldColor }]} />
@@ -380,8 +382,8 @@ export default function B2BDashboardScreen({ navigation }) {
                   <Text style={[T.bodyBold, { color: fieldColor }]}>{actor.score}점</Text>
                 </View>
                 <View style={{ flexDirection: "row", gap: 20, marginTop: 8 }}>
-                  <Text style={[T.micro, { color: CLight.gray500 }]}>노트 {actor.notes}개</Text>
-                  <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.streak}일 연속</Text>
+                  <Text style={[T.micro, { color: CLight.gray500 }]}>{t("b2b.note_count", { count: actor.notes })}</Text>
+                  <Text style={[T.micro, { color: CLight.gray500 }]}>{t("b2b.streak_days", { count: actor.streak })}</Text>
                   {actor.location ? <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.location}</Text> : null}
                 </View>
 
@@ -390,11 +392,11 @@ export default function B2BDashboardScreen({ navigation }) {
                   <View style={{ gap: 10, marginTop: 24 }}>
                     {userProfile.userType === "industry" ? (
                       <TouchableOpacity style={styles.castingBtn} onPress={() => { setProposalType("casting"); setShowProposalModal(true); }} activeOpacity={0.7}>
-                        <Text style={[T.bodyBold, { color: CLight.white }]}>캐스팅 제안</Text>
+                        <Text style={[T.bodyBold, { color: CLight.white }]}>{t("b2b.casting_proposal")}</Text>
                       </TouchableOpacity>
                     ) : (
                       <TouchableOpacity style={[styles.castingBtn, { backgroundColor: CLight.purple }]} onPress={() => { setProposalType("collaboration"); setShowProposalModal(true); }} activeOpacity={0.7}>
-                        <Text style={[T.bodyBold, { color: CLight.white }]}>협업 제안</Text>
+                        <Text style={[T.bodyBold, { color: CLight.white }]}>{t("b2b.collab_proposal")}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -402,13 +404,13 @@ export default function B2BDashboardScreen({ navigation }) {
                 {actor.userId && actor.userId === deviceUserId && (
                   <View style={[styles.demoNoticeBanner, { marginTop: 24 }]}>
                     <Text style={styles.demoNoticeIcon}>{"💡"}</Text>
-                    <Text style={styles.demoNoticeText}>본인 프로필입니다.</Text>
+                    <Text style={styles.demoNoticeText}>{t("b2b.own_profile")}</Text>
                   </View>
                 )}
                 {!actor.userId && (
                   <View style={[styles.demoNoticeBanner, { marginTop: 24 }]}>
                     <Text style={styles.demoNoticeIcon}>{"💡"}</Text>
-                    <Text style={styles.demoNoticeText}>예시 데이터에는 제안을 보낼 수 없습니다.</Text>
+                    <Text style={styles.demoNoticeText}>{t("b2b.demo_no_proposal")}</Text>
                   </View>
                 )}
               </ScrollView>
@@ -422,10 +424,10 @@ export default function B2BDashboardScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="B2B 대시보드"
+        title={t("b2b.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
       />
@@ -436,7 +438,7 @@ export default function B2BDashboardScreen({ navigation }) {
           <View style={styles.demoNoticeBanner}>
             <Text style={styles.demoNoticeIcon}>💡</Text>
             <Text style={styles.demoNoticeText}>
-              현재 예시 데이터로 표시됩니다. 실제 아티스트 데이터는 프로필 공개 동의 후 연동됩니다.
+              {t("b2b.demo_notice")}
             </Text>
           </View>
         )}
@@ -449,19 +451,19 @@ export default function B2BDashboardScreen({ navigation }) {
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderLeftColor: CLight.pink }]}>
             <Text style={[T.h2, { color: CLight.pink }]}>{usingDemo ? DEMO_STATS.registeredArtists.toLocaleString() : artists.length}</Text>
-            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>등록 아티스트</Text>
+            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.registered_artists")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.blue }]}>
             <Text style={[T.h2, { color: CLight.blue }]}>{DEMO_STATS.activeProjects}</Text>
-            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>활성 프로젝트</Text>
+            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.active_projects")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.purple }]}>
             <Text style={[T.h2, { color: CLight.purple }]}>{DEMO_STATS.castingProposals}</Text>
-            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>캐스팅 제안</Text>
+            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.casting_proposals")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.green }]}>
             <Text style={[T.h2, { color: CLight.green }]}>{DEMO_STATS.matchRate}%</Text>
-            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>매칭 성공률</Text>
+            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.match_rate")}</Text>
           </View>
         </View>
 
@@ -469,14 +471,14 @@ export default function B2BDashboardScreen({ navigation }) {
         <View style={styles.searchFilterRow}>
           <TextInput
             style={styles.searchInput}
-            placeholder="이름, 분야, 특기로 검색..."
+            placeholder={t("b2b.search_placeholder")}
             placeholderTextColor={CLight.gray400}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           <TouchableOpacity style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]} onPress={() => setShowFilters(!showFilters)}>
             <Text style={[T.captionBold, { color: activeFilterCount > 0 ? CLight.white : CLight.gray700 }]}>
-              {activeFilterCount > 0 ? `필터 (${activeFilterCount})` : "필터"}
+              {activeFilterCount > 0 ? t("b2b.filter_with_count", { count: activeFilterCount }) : t("b2b.filter")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -484,47 +486,47 @@ export default function B2BDashboardScreen({ navigation }) {
         {/* Collapsible Filters */}
         {showFilters && (
           <View style={styles.filterPanel}>
-            <Text style={styles.filterLabel}>성별</Text>
+            <Text style={styles.filterLabel}>{t("b2b.gender")}</Text>
             <View style={styles.filterRow}>
               <TouchableOpacity style={[styles.fPill, !filterGender && styles.fPillActive]} onPress={() => setFilterGender("")}>
-                <Text style={[styles.fPillText, !filterGender && styles.fPillTextActive]}>전체</Text>
+                <Text style={[styles.fPillText, !filterGender && styles.fPillTextActive]}>{t("common.all")}</Text>
               </TouchableOpacity>
               {GENDER_OPTIONS.map((g) => (
                 <TouchableOpacity key={g.key} style={[styles.fPill, filterGender === g.key && styles.fPillActive]} onPress={() => setFilterGender(filterGender === g.key ? "" : g.key)}>
-                  <Text style={[styles.fPillText, filterGender === g.key && styles.fPillTextActive]}>{g.label}</Text>
+                  <Text style={[styles.fPillText, filterGender === g.key && styles.fPillTextActive]}>{t(g.labelKey)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.filterLabel}>나이</Text>
+            <Text style={styles.filterLabel}>{t("b2b.age")}</Text>
             <View style={styles.filterRow}>
-              <TextInput style={styles.filterSmallInput} placeholder="최소" placeholderTextColor={CLight.gray400} value={filterAgeMin} onChangeText={setFilterAgeMin} keyboardType="number-pad" maxLength={2} />
+              <TextInput style={styles.filterSmallInput} placeholder={t("b2b.min")} placeholderTextColor={CLight.gray400} value={filterAgeMin} onChangeText={setFilterAgeMin} keyboardType="number-pad" maxLength={2} />
               <Text style={[T.micro, { color: CLight.gray400 }]}>~</Text>
-              <TextInput style={styles.filterSmallInput} placeholder="최대" placeholderTextColor={CLight.gray400} value={filterAgeMax} onChangeText={setFilterAgeMax} keyboardType="number-pad" maxLength={2} />
-              <Text style={[T.micro, { color: CLight.gray400 }]}>세</Text>
+              <TextInput style={styles.filterSmallInput} placeholder={t("b2b.max")} placeholderTextColor={CLight.gray400} value={filterAgeMax} onChangeText={setFilterAgeMax} keyboardType="number-pad" maxLength={2} />
+              <Text style={[T.micro, { color: CLight.gray400 }]}>{t("common.years_old")}</Text>
             </View>
 
-            <Text style={styles.filterLabel}>키</Text>
+            <Text style={styles.filterLabel}>{t("b2b.height")}</Text>
             <View style={styles.filterRow}>
-              <TextInput style={styles.filterSmallInput} placeholder="최소" placeholderTextColor={CLight.gray400} value={filterHeightMin} onChangeText={setFilterHeightMin} keyboardType="number-pad" maxLength={3} />
+              <TextInput style={styles.filterSmallInput} placeholder={t("b2b.min")} placeholderTextColor={CLight.gray400} value={filterHeightMin} onChangeText={setFilterHeightMin} keyboardType="number-pad" maxLength={3} />
               <Text style={[T.micro, { color: CLight.gray400 }]}>~</Text>
-              <TextInput style={styles.filterSmallInput} placeholder="최대" placeholderTextColor={CLight.gray400} value={filterHeightMax} onChangeText={setFilterHeightMax} keyboardType="number-pad" maxLength={3} />
+              <TextInput style={styles.filterSmallInput} placeholder={t("b2b.max")} placeholderTextColor={CLight.gray400} value={filterHeightMax} onChangeText={setFilterHeightMax} keyboardType="number-pad" maxLength={3} />
               <Text style={[T.micro, { color: CLight.gray400 }]}>cm</Text>
             </View>
 
-            <Text style={styles.filterLabel}>분야</Text>
+            <Text style={styles.filterLabel}>{t("b2b.field")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               <TouchableOpacity style={[styles.fPill, !filterField && styles.fPillActive]} onPress={() => setFilterField("")}>
-                <Text style={[styles.fPillText, !filterField && styles.fPillTextActive]}>전체</Text>
+                <Text style={[styles.fPillText, !filterField && styles.fPillTextActive]}>{t("common.all")}</Text>
               </TouchableOpacity>
               {FIELDS.map((f) => (
                 <TouchableOpacity key={f} style={[styles.fPill, filterField === f && styles.fPillActive]} onPress={() => setFilterField(filterField === f ? "" : f)}>
-                  <Text style={[styles.fPillText, filterField === f && styles.fPillTextActive]}>{FIELD_EMOJIS[f]} {FIELD_LABELS[f]}</Text>
+                  <Text style={[styles.fPillText, filterField === f && styles.fPillTextActive]}>{FIELD_EMOJIS[f]} {t("fields." + f)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={styles.filterLabel}>특기</Text>
+            <Text style={styles.filterLabel}>{t("b2b.specialty")}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               {SPECIALTY_SUGGESTIONS.slice(0, 10).map((s) => {
                 const isSelected = filterSpecialties.includes(s);
@@ -536,12 +538,12 @@ export default function B2BDashboardScreen({ navigation }) {
               })}
             </View>
 
-            <Text style={styles.filterLabel}>지역</Text>
-            <TextInput style={styles.filterLocationInput} placeholder="서울" placeholderTextColor={CLight.gray400} value={filterLocation} onChangeText={setFilterLocation} />
+            <Text style={styles.filterLabel}>{t("b2b.region")}</Text>
+            <TextInput style={styles.filterLocationInput} placeholder={t("auth.location_placeholder")} placeholderTextColor={CLight.gray400} value={filterLocation} onChangeText={setFilterLocation} />
 
             {activeFilterCount > 0 && (
               <TouchableOpacity style={styles.clearFilterBtn} onPress={clearFilters}>
-                <Text style={[T.caption, { color: CLight.pink }]}>필터 초기화</Text>
+                <Text style={[T.caption, { color: CLight.pink }]}>{t("b2b.reset_filter")}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -549,33 +551,14 @@ export default function B2BDashboardScreen({ navigation }) {
 
         {/* Actor list */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 16, marginBottom: 12 }]}>
-          아티스트 ({filteredArtists.length})
+          {t("b2b.artist_count", { count: filteredArtists.length })}
         </Text>
         {filteredArtists.map(renderActorCard)}
         {filteredArtists.length === 0 && (
           <View style={styles.emptyCard}>
-            <Text style={[T.small, { color: CLight.gray400, textAlign: "center" }]}>검색 결과가 없습니다.</Text>
+            <Text style={[T.small, { color: CLight.gray400, textAlign: "center" }]}>{t("b2b.no_results")}</Text>
           </View>
         )}
-
-        {/* Recent activity */}
-        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>최근 활동</Text>
-        <View style={styles.activityCard}>
-          {DEMO_ACTIVITIES.map((activity, idx) => {
-            const iconInfo = ACTIVITY_ICONS[activity.type] || ACTIVITY_ICONS.project;
-            return (
-              <View key={activity.id} style={[styles.activityRow, idx < DEMO_ACTIVITIES.length - 1 && styles.activityBorder]}>
-                <View style={[styles.activityIcon, { backgroundColor: iconInfo.color + "18" }]}>
-                  <Text style={[T.microBold, { color: iconInfo.color }]}>{iconInfo.icon}</Text>
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[T.small, { color: CLight.gray700 }]}>{activity.text}</Text>
-                  <Text style={[T.tiny, { color: CLight.gray400, marginTop: 3 }]}>{activity.time}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>

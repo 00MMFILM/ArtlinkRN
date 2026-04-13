@@ -15,19 +15,16 @@ import {
 import { Audio, Video, ResizeMode } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { getRelatedNotes } from "../services/analyticsService";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
-import { submitTrainingData } from "../services/dataCollectionService";
+import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCollectionService";
+import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { formatDate, timeAgo } from "../utils/helpers";
-
-const TABS = [
-  { key: "content", label: "\uB0B4\uC6A9" },
-  { key: "ai", label: "AI \uBD84\uC11D" },
-  { key: "related", label: "\uAD00\uB828 \uB178\uD2B8" },
-];
+import { useTranslation } from "react-i18next";
 
 export default function NoteDetailScreen({ route, navigation }) {
+  const { t } = useTranslation();
   const { noteId } = route.params;
   const {
     savedNotes,
@@ -40,12 +37,21 @@ export default function NoteDetailScreen({ route, navigation }) {
     dataConsentAsked,
     handleSetDataConsent,
     handleDataConsentAsked,
+    aiDisclosureAccepted,
+    handleAcceptAIDisclosure,
+    isKoreanLocale,
   } = useApp();
 
   const note = useMemo(
     () => savedNotes.find((n) => n.id === noteId),
     [savedNotes, noteId]
   );
+
+  const TABS = [
+    { key: "content", label: t("noteDetail.tab_content") },
+    { key: "ai", label: t("noteDetail.tab_ai") },
+    { key: "related", label: t("noteDetail.tab_related") },
+  ];
 
   const [activeTab, setActiveTab] = useState("content");
   const [isEditing, setIsEditing] = useState(false);
@@ -108,17 +114,17 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [note, savedNotes]);
 
   const fieldEmoji = FIELD_EMOJIS[note?.field] || "\uD83D\uDCDD";
-  const fieldLabel = FIELD_LABELS[note?.field] || "\uAE30\uD0C0";
+  const fieldLabel = t("fields." + (note?.field || "etc"));
   const fieldColor = FIELD_COLORS[note?.field] || CLight.gray500;
 
   // ─── Handlers ───
 
   const handleBack = useCallback(() => {
     if (isEditing) {
-      Alert.alert("\uD3B8\uC9D1 \uCDE8\uC18C", "\uD3B8\uC9D1 \uC911\uC778 \uB0B4\uC6A9\uC744 \uBC84\uB9AC\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?", [
-        { text: "\uACC4\uC18D \uD3B8\uC9D1", style: "cancel" },
+      Alert.alert(t("noteDetail.edit_cancel_title"), t("noteDetail.edit_cancel_msg"), [
+        { text: t("noteDetail.keep_editing"), style: "cancel" },
         {
-          text: "\uBC84\uB9AC\uAE30",
+          text: t("noteDetail.discard"),
           style: "destructive",
           onPress: () => {
             setIsEditing(false);
@@ -131,16 +137,16 @@ export default function NoteDetailScreen({ route, navigation }) {
     } else {
       navigation.goBack();
     }
-  }, [isEditing, note, navigation]);
+  }, [isEditing, note, navigation, t]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
-      "\uB178\uD2B8 \uC0AD\uC81C",
-      "\uC774 \uB178\uD2B8\uB97C \uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?\n\uC0AD\uC81C\uB41C \uB178\uD2B8\uB294 \uBCF5\uAD6C\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",
+      t("noteDetail.delete_title"),
+      t("noteDetail.delete_msg"),
       [
-        { text: "\uCDE8\uC18C", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "\uC0AD\uC81C",
+          text: t("common.delete"),
           style: "destructive",
           onPress: () => {
             handleDeleteNote(noteId);
@@ -149,16 +155,16 @@ export default function NoteDetailScreen({ route, navigation }) {
         },
       ]
     );
-  }, [noteId, handleDeleteNote, navigation]);
+  }, [noteId, handleDeleteNote, navigation, t]);
 
   const handleSaveEdit = useCallback(() => {
     if (!editTitle.trim()) {
-      showToast("\uC81C\uBAA9\uC744 \uC785\uB825\uD574\uC8FC\uC138\uC694", "error");
+      showToast(t("noteDetail.title_required"), "error");
       return;
     }
     handleUpdateNote({ ...note, title: editTitle.trim(), content: editContent.trim() });
     setIsEditing(false);
-  }, [editTitle, editContent, note, handleUpdateNote, showToast]);
+  }, [editTitle, editContent, note, handleUpdateNote, showToast, t]);
 
   const handleStartEdit = useCallback(() => {
     setEditTitle(note?.title || "");
@@ -172,10 +178,17 @@ export default function NoteDetailScreen({ route, navigation }) {
     setIsEditing(false);
   }, [note]);
 
-  const handleRequestAI = useCallback(async () => {
+  const runRequestAI = useCallback(async () => {
     if (!note) return;
     setAiLoading(true);
     try {
+      // Foreign users: show interstitial ad from 2nd AI use per day
+      if (!isKoreanLocale) {
+        const count = await incrementDailyAICount();
+        if (shouldShowInterstitial(isKoreanLocale, count)) {
+          await showInterstitialAd(); // proceeds even if ad fails
+        }
+      }
       const result = await analyzeNote(
         note.field,
         note.content,
@@ -186,9 +199,18 @@ export default function NoteDetailScreen({ route, navigation }) {
       const analysis = result.analysis || result;
       const scores = result.scores || null;
       handleUpdateNote({ ...note, aiComment: analysis, aiScores: scores });
-      showToast("AI \uBD84\uC11D\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!", "success");
+      showToast(t("noteDetail.ai_complete"), "success");
 
-      // Submit training data if consented
+      // Submit anonymous metadata for ALL users (no personal content)
+      submitAnonymousMetadata({
+        field: note.field,
+        noteTitle: note.title,
+        aiFeedback: analysis,
+        tags: note.tags || [],
+        userType: userProfile.userType,
+      }).catch(() => {});
+
+      // Submit full training data if consented
       if (dataConsent) {
         submitTrainingData({
           field: note.field,
@@ -202,16 +224,16 @@ export default function NoteDetailScreen({ route, navigation }) {
       if (!dataConsentAsked) {
         setTimeout(() => {
           Alert.alert(
-            "AI 품질 개선에 참여하시겠어요?",
-            "연습 노트와 AI 피드백을 익명으로 수집하여 피드백 품질을 개선합니다. 개인정보는 포함되지 않습니다.",
+            t("noteDetail.data_consent_title"),
+            t("noteDetail.data_consent_msg"),
             [
               {
-                text: "나중에",
+                text: t("noteDetail.data_consent_later"),
                 style: "cancel",
                 onPress: () => handleDataConsentAsked(),
               },
               {
-                text: "참여하기",
+                text: t("noteDetail.data_consent_join"),
                 onPress: () => {
                   handleSetDataConsent(true);
                   handleDataConsentAsked();
@@ -229,15 +251,31 @@ export default function NoteDetailScreen({ route, navigation }) {
         }, 500);
       }
     } catch (e) {
-      showToast("AI \uBD84\uC11D \uC694\uCCAD\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4", "error");
+      showToast(t("noteDetail.ai_failed"), "error");
     } finally {
       setAiLoading(false);
     }
-  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked]);
+  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, t]);
+
+  const handleRequestAI = useCallback(async () => {
+    if (!note) return;
+    if (!aiDisclosureAccepted) {
+      Alert.alert(
+        t("aiDisclosure.title"),
+        t("aiDisclosure.message"),
+        [
+          { text: t("aiDisclosure.cancel"), style: "cancel" },
+          { text: t("aiDisclosure.accept"), onPress: () => { handleAcceptAIDisclosure(); runRequestAI(); } },
+        ]
+      );
+      return;
+    }
+    runRequestAI();
+  }, [note, aiDisclosureAccepted, handleAcceptAIDisclosure, runRequestAI, t]);
 
   const startVideoAI = useCallback(async () => {
     setVideoAiLoading(true);
-    setVideoAiProgress({ phase: "extracting", percent: 0, message: "준비 중..." });
+    setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteDetail.video_preparing") });
     try {
       const result = await analyzeVideoFrames(
         note.field,
@@ -248,33 +286,56 @@ export default function NoteDetailScreen({ route, navigation }) {
         (progress) => setVideoAiProgress(progress)
       );
       handleUpdateNote({ ...note, videoAnalysis: result });
-      showToast("영상 AI 분석이 완료되었습니다!", "success");
+      showToast(t("noteDetail.video_ai_complete"), "success");
     } catch (e) {
-      showToast("영상 AI 분석에 실패했습니다", "error");
+      showToast(t("noteDetail.video_ai_failed"), "error");
     } finally {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [note, noteVideos, userProfile, handleUpdateNote, showToast]);
+  }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t]);
 
-  const handleRequestVideoAI = useCallback(async () => {
-    if (!note || noteVideos.length === 0) return;
+  const runVideoAIFlow = useCallback(async () => {
     const video = noteVideos[0];
     const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
     if (durationSec > 300) {
-      Alert.alert("영상 길이 초과", "5분 이내 영상만 분석 가능합니다. 더 짧은 영상을 첨부해주세요.");
+      Alert.alert(t("noteCreate.video_too_long"), t("noteCreate.video_too_long_msg"));
       return;
     }
     try {
       const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
       const sizeMB = (fileInfo.size || 0) / (1024 * 1024);
       if (sizeMB > 100) {
-        Alert.alert("영상 용량 초과", `현재 영상 크기: ${Math.round(sizeMB)}MB\n\n100MB 이하 영상만 분석 가능합니다.\n4K 영상은 1080p로 변환하거나, 더 짧은 영상을 사용해주세요.`);
+        Alert.alert(t("noteCreate.video_too_large"), t("noteCreate.video_too_large_msg", { size: Math.round(sizeMB) }));
         return;
       }
     } catch {}
+    // Foreign users: must watch rewarded ad before video AI
+    if (!isKoreanLocale) {
+      const rewarded = await showRewardedAd();
+      if (!rewarded) {
+        Alert.alert(t("common.error"), t("ads.rewarded_required"));
+        return;
+      }
+    }
     startVideoAI();
-  }, [note, noteVideos, startVideoAI]);
+  }, [noteVideos, startVideoAI, isKoreanLocale, t]);
+
+  const handleRequestVideoAI = useCallback(async () => {
+    if (!note || noteVideos.length === 0) return;
+    if (!aiDisclosureAccepted) {
+      Alert.alert(
+        t("aiDisclosure.title"),
+        t("aiDisclosure.message"),
+        [
+          { text: t("aiDisclosure.cancel"), style: "cancel" },
+          { text: t("aiDisclosure.accept"), onPress: () => { handleAcceptAIDisclosure(); runVideoAIFlow(); } },
+        ]
+      );
+      return;
+    }
+    runVideoAIFlow();
+  }, [note, noteVideos, aiDisclosureAccepted, handleAcceptAIDisclosure, runVideoAIFlow, t]);
 
   const handleRelatedNotePress = useCallback(
     (relatedNoteId) => {
@@ -291,10 +352,10 @@ export default function NoteDetailScreen({ route, navigation }) {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>{"😶"}</Text>
           <Text style={[T.title, { color: CLight.gray900, marginTop: 12 }]}>
-            {"\uB178\uD2B8\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4"}
+            {t("noteDetail.not_found")}
           </Text>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={[T.bodyBold, { color: CLight.pink }]}>{"\uB3CC\uC544\uAC00\uAE30"}</Text>
+            <Text style={[T.bodyBold, { color: CLight.pink }]}>{t("noteDetail.go_back")}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -315,10 +376,10 @@ export default function NoteDetailScreen({ route, navigation }) {
           {isEditing ? (
             <>
               <TouchableOpacity onPress={handleCancelEdit} style={styles.topBarTextBtn}>
-                <Text style={[T.captionBold, { color: CLight.gray500 }]}>{"\uCDE8\uC18C"}</Text>
+                <Text style={[T.captionBold, { color: CLight.gray500 }]}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleSaveEdit} style={styles.saveBtn}>
-                <Text style={[T.captionBold, { color: CLight.white }]}>{"\uC800\uC7A5"}</Text>
+                <Text style={[T.captionBold, { color: CLight.white }]}>{t("common.save")}</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -362,7 +423,7 @@ export default function NoteDetailScreen({ route, navigation }) {
               style={[T.h2, styles.titleInput]}
               value={editTitle}
               onChangeText={setEditTitle}
-              placeholder={"\uC81C\uBAA9\uC744 \uC785\uB825\uD558\uC138\uC694"}
+              placeholder={t("noteDetail.enter_title")}
               placeholderTextColor={CLight.gray300}
               multiline
             />
@@ -432,7 +493,7 @@ export default function NoteDetailScreen({ route, navigation }) {
             style={[T.body, styles.contentInput]}
             value={editContent}
             onChangeText={setEditContent}
-            placeholder={"\uB178\uD2B8 \uB0B4\uC6A9\uC744 \uC785\uB825\uD558\uC138\uC694..."}
+            placeholder={t("noteDetail.enter_content")}
             placeholderTextColor={CLight.gray300}
             multiline
             textAlignVertical="top"
@@ -440,7 +501,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         ) : (
           <View style={styles.contentCard}>
             <Text style={[T.body, { color: CLight.gray900 }]}>
-              {note.content || "\uB0B4\uC6A9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."}
+              {note.content || t("common.no_content")}
             </Text>
           </View>
         )}
@@ -449,7 +510,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         {noteImages.length > 0 && (
           <View style={styles.mediaSection}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-              첨부 미디어 ({noteImages.length})
+              {t("noteDetail.attached_media")} ({noteImages.length})
             </Text>
             {expandedImage !== null ? (
               <TouchableOpacity onPress={() => setExpandedImage(null)} activeOpacity={0.95}>
@@ -490,7 +551,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         {noteVoices.length > 0 && (
           <View style={styles.mediaSection}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-              음성 녹음 ({noteVoices.length})
+              {t("noteDetail.voice_recordings")} ({noteVoices.length})
             </Text>
             {noteVoices.map((rec, idx) => (
               <View key={idx} style={styles.detailVoiceItem}>
@@ -498,7 +559,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                   <Text style={{ fontSize: 16 }}>{playingIdx === `voice-${idx}` ? "⏸" : "▶️"}</Text>
                 </TouchableOpacity>
                 <Text style={[T.small, { color: CLight.gray700, flex: 1 }]}>
-                  음성 {idx + 1} · {formatDuration(rec.duration)}
+                  {t("noteDetail.voice_label", { index: idx + 1 })} · {formatDuration(rec.duration)}
                 </Text>
               </View>
             ))}
@@ -509,7 +570,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         {noteAudioFiles.length > 0 && (
           <View style={styles.mediaSection}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-              오디오 파일 ({noteAudioFiles.length})
+              {t("noteDetail.audio_files")} ({noteAudioFiles.length})
             </Text>
             {noteAudioFiles.map((file, idx) => (
               <View key={idx} style={styles.detailVoiceItem}>
@@ -528,7 +589,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         {notePdfFiles.length > 0 && (
           <View style={styles.mediaSection}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-              첨부 문서 ({notePdfFiles.length})
+              {t("noteDetail.attached_documents")} ({notePdfFiles.length})
             </Text>
             {notePdfFiles.map((file, idx) => (
               <View key={idx} style={styles.detailVoiceItem}>
@@ -548,7 +609,7 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── AI Analysis Tab ───
   function renderAITab() {
-    const videoProgressText = videoAiProgress.message || "영상 분석 준비 중...";
+    const videoProgressText = videoAiProgress.message || t("noteDetail.video_preparing");
     const videoPercent = videoAiProgress.percent || 0;
 
     return (
@@ -558,41 +619,41 @@ export default function NoteDetailScreen({ route, navigation }) {
           <View style={styles.aiLoadingContainer}>
             <ActivityIndicator size="large" color={CLight.pink} />
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 16 }]}>
-              {"AI가 노트를 분석하고 있습니다..."}
+              {t("noteDetail.ai_analyzing")}
             </Text>
           </View>
         ) : note.aiComment ? (
           <View style={styles.aiCard}>
             <View style={styles.aiCardHeader}>
               <Text style={styles.aiIcon}>{"\uD83E\uDD16"}</Text>
-              <Text style={[T.captionBold, { color: CLight.pink }]}>{"AI 분석 결과"}</Text>
+              <Text style={[T.captionBold, { color: CLight.pink }]}>{t("noteDetail.ai_result")}</Text>
             </View>
             <View style={styles.aiDivider} />
             <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text>
             <TouchableOpacity style={styles.reAnalyzeBtn} onPress={handleRequestAI}>
-              <Text style={[T.smallBold, { color: CLight.pink }]}>{"\uD83D\uDD04 재분석 요청"}</Text>
+              <Text style={[T.smallBold, { color: CLight.pink }]}>{t("noteDetail.ai_reanalyze")}</Text>
             </TouchableOpacity>
             <View style={styles.aiFeedbackRow}>
-              <Text style={[T.small, { color: CLight.gray500 }]}>이 분석이 도움이 됐나요?</Text>
+              <Text style={[T.small, { color: CLight.gray500 }]}>{t("noteDetail.ai_feedback_question")}</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
                   fetch("https://artlink-server.vercel.app/api/report", {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ type: "ai_feedback", rating: "good", noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
                   }).catch(() => {});
-                  showToast("감사합니다!", "success");
+                  showToast(t("noteDetail.ai_feedback_thanks"), "success");
                 }}>
                   <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4D"}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
-                  Alert.prompt("AI 분석 피드백", "어떤 점이 아쉬웠나요?", (text) => {
+                  Alert.prompt(t("noteDetail.ai_feedback_prompt"), t("noteDetail.ai_feedback_ask"), (text) => {
                     if (!text?.trim()) return;
                     fetch("https://artlink-server.vercel.app/api/report", {
                       method: "POST", headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ type: "ai_feedback", rating: "bad", comment: text.trim(), noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
                     }).catch(() => {});
-                    showToast("의견이 전달되었습니다!", "success");
-                  }, "plain-text", "", "보내기");
+                    showToast(t("noteDetail.ai_feedback_sent"), "success");
+                  }, "plain-text", "", t("noteDetail.ai_feedback_submit"));
                 }}>
                   <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4E"}</Text>
                 </TouchableOpacity>
@@ -603,7 +664,7 @@ export default function NoteDetailScreen({ route, navigation }) {
           <View style={styles.aiEmptyContainer}>
             <Text style={styles.aiEmptyIcon}>{"\uD83E\uDDE0"}</Text>
             <Text style={[T.title, { color: CLight.gray900, marginTop: 12, textAlign: "center" }]}>
-              {"AI 분석이 아직 없습니다"}
+              {t("noteDetail.ai_empty_title")}
             </Text>
             <Text
               style={[
@@ -611,10 +672,10 @@ export default function NoteDetailScreen({ route, navigation }) {
                 { color: CLight.gray500, marginTop: 6, textAlign: "center", paddingHorizontal: 20 },
               ]}
             >
-              {"AI가 노트를 분석하여 개인화된 피드백을 제공합니다"}
+              {t("noteDetail.ai_empty_desc")}
             </Text>
             <TouchableOpacity style={styles.requestAIBtn} onPress={handleRequestAI}>
-              <Text style={[T.bodyBold, { color: CLight.white }]}>{"\uD83E\uDD16 AI 분석 요청하기"}</Text>
+              <Text style={[T.bodyBold, { color: CLight.white }]}>{t("noteDetail.ai_request")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -635,21 +696,21 @@ export default function NoteDetailScreen({ route, navigation }) {
               <View style={styles.videoAiCard}>
                 <View style={styles.videoAiCardHeader}>
                   <Text style={styles.aiIcon}>{"🎥"}</Text>
-                  <Text style={[T.captionBold, { color: "#007AFF" }]}>{"영상 AI 분석 결과"}</Text>
+                  <Text style={[T.captionBold, { color: "#007AFF" }]}>{t("noteDetail.video_ai_result")}</Text>
                 </View>
                 <View style={styles.aiDivider} />
                 <Text style={[T.body, { color: CLight.gray900 }]}>{note.videoAnalysis}</Text>
                 <TouchableOpacity style={styles.videoReAnalyzeBtn} onPress={handleRequestVideoAI}>
-                  <Text style={[T.smallBold, { color: "#007AFF" }]}>{"🔄 영상 재분석 요청"}</Text>
+                  <Text style={[T.smallBold, { color: "#007AFF" }]}>{t("noteDetail.video_ai_reanalyze")}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <>
                 <TouchableOpacity style={styles.videoAiBtn} onPress={handleRequestVideoAI}>
-                  <Text style={[T.bodyBold, { color: CLight.white }]}>{"🎥 영상 AI 분석 요청하기"}</Text>
+                  <Text style={[T.bodyBold, { color: CLight.white }]}>{t("noteDetail.video_ai_request")}</Text>
                 </TouchableOpacity>
                 <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 8 }]}>
-                  {"5분 이내, 1080p 이하 영상을 권장합니다"}
+                  {t("noteDetail.video_ai_recommend")}
                 </Text>
               </>
             )}
@@ -667,17 +728,17 @@ export default function NoteDetailScreen({ route, navigation }) {
           <View style={styles.relatedEmpty}>
             <Text style={styles.relatedEmptyIcon}>{"\uD83D\uDD17"}</Text>
             <Text style={[T.title, { color: CLight.gray900, marginTop: 12, textAlign: "center" }]}>
-              {"\uAD00\uB828 \uB178\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"}
+              {t("noteDetail.no_related")}
             </Text>
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 6, textAlign: "center" }]}>
-              {"\uBE44\uC2B7\uD55C \uBD84\uC57C\uB098 \uD0DC\uADF8\uC758 \uB178\uD2B8\uAC00 \uC313\uC774\uBA74 \uC5EC\uAE30\uC5D0 \uD45C\uC2DC\uB429\uB2C8\uB2E4"}
+              {t("noteDetail.no_related_desc")}
             </Text>
           </View>
         ) : (
           relatedNotes.map(({ note: rNote, score }) => {
             const rFieldColor = FIELD_COLORS[rNote.field] || CLight.gray500;
             const rFieldEmoji = FIELD_EMOJIS[rNote.field] || "\uD83D\uDCDD";
-            const rFieldLabel = FIELD_LABELS[rNote.field] || "\uAE30\uD0C0";
+            const rFieldLabel = t("fields." + (rNote.field || "etc"));
             return (
               <TouchableOpacity
                 key={rNote.id}
@@ -702,7 +763,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                       ]}
                     />
                     <Text style={[T.tiny, { color: CLight.gray400, marginLeft: 4 }]}>
-                      {score >= 5 ? "\uB192\uC740 \uAD00\uB828" : score >= 3 ? "\uAD00\uB828" : "\uC57D\uD55C \uAD00\uB828"}
+                      {score >= 5 ? t("noteDetail.high_related") : score >= 3 ? t("noteDetail.medium_related") : t("noteDetail.low_related")}
                     </Text>
                   </View>
                 </View>

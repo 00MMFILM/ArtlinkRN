@@ -10,12 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 
-const TABS = ["프로젝트", "오디션", "콜라보"];
+// Data values must stay as-is to match item.tab from the data store
+const TABS_DATA = ["프로젝트", "오디션", "콜라보"];
+const TABS_I18N = ["tab_project", "tab_audition", "tab_collab"];
 
 // Basic objectionable content filter
 const BLOCKED_PATTERNS = [
@@ -31,6 +34,7 @@ function containsObjectionableContent(text) {
 }
 
 export default function MatchingPostCreateScreen({ navigation, route }) {
+  const { t } = useTranslation();
   const { handleAddMatchingPost, handleUpdateMatchingPost } = useApp();
   const editPost = route.params?.post;
 
@@ -63,13 +67,13 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
     const unsub = navigation.addListener("beforeRemove", (e) => {
       if (!hasChangesRef.current) return;
       e.preventDefault();
-      Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
-        { text: "계속 작성", style: "cancel" },
-        { text: "나가기", style: "destructive", onPress: () => navigation.dispatch(e.data.action) },
+      Alert.alert(t("common.discard_title"), t("common.discard_message"), [
+        { text: t("common.keep_editing"), style: "cancel" },
+        { text: t("common.leave"), style: "destructive", onPress: () => navigation.dispatch(e.data.action) },
       ]);
     });
     return unsub;
-  }, [navigation]);
+  }, [navigation, t]);
 
   const handleAddTag = useCallback(() => {
     const trimmed = tagInput.trim().replace(/^#/, "");
@@ -83,10 +87,10 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
   }, []);
 
   const handleSave = useCallback(() => {
-    if (!title.trim()) { Alert.alert("제목 필요", "제목을 입력해주세요."); return; }
-    if (!description.trim()) { Alert.alert("내용 필요", "설명을 입력해주세요."); return; }
+    if (!title.trim()) { Alert.alert(t("matchingCreate.title_required"), t("matchingCreate.title_required_msg")); return; }
+    if (!description.trim()) { Alert.alert(t("matchingCreate.desc_required"), t("matchingCreate.desc_required_msg")); return; }
     if (containsObjectionableContent(title) || containsObjectionableContent(description)) {
-      Alert.alert("게시 불가", "부적절한 내용이 포함되어 있습니다. 이용약관에 따라 부적절한 콘텐츠는 게시할 수 없습니다.");
+      Alert.alert(t("matchingCreate.post_blocked"), t("matchingCreate.inappropriate_msg"));
       return;
     }
 
@@ -117,18 +121,18 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
     }
     hasChangesRef.current = false;
     navigation.goBack();
-  }, [tab, title, field, description, deadline, tags, contact, editPost, handleAddMatchingPost, handleUpdateMatchingPost, navigation]);
+  }, [tab, title, field, description, deadline, tags, contact, editPost, handleAddMatchingPost, handleUpdateMatchingPost, navigation, t]);
 
   const handleCancel = useCallback(() => {
     if (hasChangesRef.current) {
-      Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
-        { text: "계속 작성", style: "cancel" },
-        { text: "나가기", style: "destructive", onPress: () => { hasChangesRef.current = false; navigation.goBack(); } },
+      Alert.alert(t("common.discard_title"), t("common.discard_message"), [
+        { text: t("common.keep_editing"), style: "cancel" },
+        { text: t("common.leave"), style: "destructive", onPress: () => { hasChangesRef.current = false; navigation.goBack(); } },
       ]);
     } else {
       navigation.goBack();
     }
-  }, [navigation]);
+  }, [navigation, t]);
 
   return (
     <KeyboardAvoidingView
@@ -136,15 +140,15 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TopBar
-        title={editPost ? "글 수정" : "매칭 글 등록"}
+        title={editPost ? t("matchingCreate.title_edit") : t("matchingCreate.title_create")}
         left={
           <TouchableOpacity onPress={handleCancel} activeOpacity={0.7}>
-            <Text style={styles.cancelBtn}>취소</Text>
+            <Text style={styles.cancelBtn}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         }
         right={
           <TouchableOpacity onPress={handleSave} activeOpacity={0.7}>
-            <Text style={styles.saveBtn}>저장</Text>
+            <Text style={styles.saveBtn}>{t("common.save")}</Text>
           </TouchableOpacity>
         }
       />
@@ -156,15 +160,17 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Tab Selector */}
-        <Text style={styles.sectionLabel}>카테고리</Text>
+        <Text style={styles.sectionLabel}>{t("matchingCreate.category")}</Text>
         <View style={styles.tabRow}>
-          {TABS.map((t) => (
+          {TABS_DATA.map((dataVal, idx) => (
             <TouchableOpacity
-              key={t}
-              style={[styles.tabBtn, tab === t && styles.tabBtnActive]}
-              onPress={() => setTab(t)}
+              key={dataVal}
+              style={[styles.tabBtn, tab === dataVal && styles.tabBtnActive]}
+              onPress={() => setTab(dataVal)}
             >
-              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+              <Text style={[styles.tabText, tab === dataVal && styles.tabTextActive]}>
+                {t(`matching.${TABS_I18N[idx]}`)}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -172,7 +178,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         {/* Title */}
         <TextInput
           style={styles.titleInput}
-          placeholder="제목을 입력하세요"
+          placeholder={t("matchingCreate.title_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={title}
           onChangeText={setTitle}
@@ -183,7 +189,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         {/* Description */}
         <TextInput
           style={styles.descInput}
-          placeholder="공고 내용을 작성해주세요..."
+          placeholder={t("matchingCreate.desc_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={description}
           onChangeText={setDescription}
@@ -195,7 +201,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         <View style={styles.divider} />
 
         {/* Field Selector */}
-        <Text style={styles.sectionLabel}>분야</Text>
+        <Text style={styles.sectionLabel}>{t("matchingCreate.field")}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -220,7 +226,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
               >
                 <Text style={styles.fieldEmoji}>{FIELD_EMOJIS[f]}</Text>
                 <Text style={[styles.fieldLabel, { color: isActive ? color : CLight.gray500, fontWeight: isActive ? "600" : "400" }]}>
-                  {FIELD_LABELS[f]}
+                  {t("fields." + f)}
                 </Text>
               </TouchableOpacity>
             );
@@ -228,10 +234,10 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         </ScrollView>
 
         {/* Contact */}
-        <Text style={styles.sectionLabel}>연락처</Text>
+        <Text style={styles.sectionLabel}>{t("matchingCreate.contact")}</Text>
         <TextInput
           style={styles.deadlineInput}
-          placeholder="이메일, 전화번호, 또는 SNS 계정"
+          placeholder={t("matchingCreate.contact_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={contact}
           onChangeText={setContact}
@@ -240,7 +246,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         />
 
         {/* Deadline */}
-        <Text style={styles.sectionLabel}>마감일 (선택)</Text>
+        <Text style={styles.sectionLabel}>{t("matchingCreate.deadline")}</Text>
         <TextInput
           style={styles.deadlineInput}
           placeholder="YYYY-MM-DD"
@@ -253,11 +259,11 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         />
 
         {/* Tags */}
-        <Text style={styles.sectionLabel}>태그</Text>
+        <Text style={styles.sectionLabel}>{t("matchingCreate.tags")}</Text>
         <View style={styles.tagInputRow}>
           <TextInput
             style={styles.tagTextInput}
-            placeholder="태그 입력"
+            placeholder={t("matchingCreate.tag_input")}
             placeholderTextColor={CLight.gray400}
             value={tagInput}
             onChangeText={setTagInput}
@@ -270,7 +276,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
             onPress={handleAddTag}
             disabled={!tagInput.trim()}
           >
-            <Text style={[styles.tagAddText, !tagInput.trim() && styles.tagAddTextDisabled]}>추가</Text>
+            <Text style={[styles.tagAddText, !tagInput.trim() && styles.tagAddTextDisabled]}>{t("common.add")}</Text>
           </TouchableOpacity>
         </View>
         {tags.length > 0 && (
@@ -287,41 +293,41 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         {/* Casting Requirements (collapsible) */}
         <View style={styles.divider} />
         <TouchableOpacity style={styles.requirementToggle} onPress={() => setShowRequirements(!showRequirements)} activeOpacity={0.7}>
-          <Text style={styles.sectionLabel}>캐스팅 조건 (선택)</Text>
-          <Text style={[T.caption, { color: CLight.gray400 }]}>{showRequirements ? "접기 ▲" : "펼치기 ▼"}</Text>
+          <Text style={styles.sectionLabel}>{t("matchingCreate.casting_requirements")}</Text>
+          <Text style={[T.caption, { color: CLight.gray400 }]}>{showRequirements ? t("matchingCreate.collapse") : t("matchingCreate.expand")}</Text>
         </TouchableOpacity>
 
         {showRequirements && (
           <View style={styles.requirementSection}>
-            <Text style={styles.reqLabel}>성별</Text>
+            <Text style={styles.reqLabel}>{t("matchingCreate.gender")}</Text>
             <View style={styles.reqRow}>
               <TouchableOpacity style={[styles.reqPill, !reqGender && styles.reqPillActive]} onPress={() => setReqGender("")}>
-                <Text style={[styles.reqPillText, !reqGender && styles.reqPillTextActive]}>무관</Text>
+                <Text style={[styles.reqPillText, !reqGender && styles.reqPillTextActive]}>{t("matchingCreate.no_preference")}</Text>
               </TouchableOpacity>
               {GENDER_OPTIONS.map((g) => (
                 <TouchableOpacity key={g.key} style={[styles.reqPill, reqGender === g.key && styles.reqPillActive]} onPress={() => setReqGender(g.key)}>
-                  <Text style={[styles.reqPillText, reqGender === g.key && styles.reqPillTextActive]}>{g.label}</Text>
+                  <Text style={[styles.reqPillText, reqGender === g.key && styles.reqPillTextActive]}>{t(g.labelKey)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.reqLabel}>나이 범위</Text>
+            <Text style={styles.reqLabel}>{t("matchingCreate.age_range")}</Text>
             <View style={styles.reqRow}>
-              <TextInput style={styles.reqSmallInput} placeholder="최소" placeholderTextColor={CLight.gray400} value={reqAgeMin} onChangeText={setReqAgeMin} keyboardType="number-pad" maxLength={2} />
+              <TextInput style={styles.reqSmallInput} placeholder={t("matchingCreate.min")} placeholderTextColor={CLight.gray400} value={reqAgeMin} onChangeText={setReqAgeMin} keyboardType="number-pad" maxLength={2} />
               <Text style={[T.caption, { color: CLight.gray500 }]}>~</Text>
-              <TextInput style={styles.reqSmallInput} placeholder="최대" placeholderTextColor={CLight.gray400} value={reqAgeMax} onChangeText={setReqAgeMax} keyboardType="number-pad" maxLength={2} />
-              <Text style={[T.micro, { color: CLight.gray400 }]}>세</Text>
+              <TextInput style={styles.reqSmallInput} placeholder={t("matchingCreate.max")} placeholderTextColor={CLight.gray400} value={reqAgeMax} onChangeText={setReqAgeMax} keyboardType="number-pad" maxLength={2} />
+              <Text style={[T.micro, { color: CLight.gray400 }]}>{t("common.years_old")}</Text>
             </View>
 
-            <Text style={styles.reqLabel}>키 범위</Text>
+            <Text style={styles.reqLabel}>{t("matchingCreate.height_range")}</Text>
             <View style={styles.reqRow}>
-              <TextInput style={styles.reqSmallInput} placeholder="최소" placeholderTextColor={CLight.gray400} value={reqHeightMin} onChangeText={setReqHeightMin} keyboardType="number-pad" maxLength={3} />
+              <TextInput style={styles.reqSmallInput} placeholder={t("matchingCreate.min")} placeholderTextColor={CLight.gray400} value={reqHeightMin} onChangeText={setReqHeightMin} keyboardType="number-pad" maxLength={3} />
               <Text style={[T.caption, { color: CLight.gray500 }]}>~</Text>
-              <TextInput style={styles.reqSmallInput} placeholder="최대" placeholderTextColor={CLight.gray400} value={reqHeightMax} onChangeText={setReqHeightMax} keyboardType="number-pad" maxLength={3} />
+              <TextInput style={styles.reqSmallInput} placeholder={t("matchingCreate.max")} placeholderTextColor={CLight.gray400} value={reqHeightMax} onChangeText={setReqHeightMax} keyboardType="number-pad" maxLength={3} />
               <Text style={[T.micro, { color: CLight.gray400 }]}>cm</Text>
             </View>
 
-            <Text style={styles.reqLabel}>필요 특기</Text>
+            <Text style={styles.reqLabel}>{t("matchingCreate.required_skills")}</Text>
             <View style={styles.reqPillGrid}>
               {SPECIALTY_SUGGESTIONS.slice(0, 12).map((s) => {
                 const isSelected = reqSpecialties.includes(s);
@@ -333,7 +339,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
               })}
             </View>
 
-            <Text style={styles.reqLabel}>지역</Text>
+            <Text style={styles.reqLabel}>{t("matchingCreate.region")}</Text>
             <TextInput style={styles.deadlineInput} placeholder="서울" placeholderTextColor={CLight.gray400} value={reqLocation} onChangeText={setReqLocation} />
           </View>
         )}

@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "プロフィール写真やノートに画像を添付するために、写真へのアクセスが必要です。",
+  "NSCameraUsageDescription": "プロフィール写真を撮影するために、カメラへのアクセスが必要です。",
+  "NSMicrophoneUsageDescription": "ボイスメモを録音するために、マイクへのアクセスが必要です。"
+}

@@ -1,17 +1,18 @@
-import { FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import i18n from "i18next";
+import { FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 
-export const getFieldLabel = (field) => FIELD_LABELS[field] || field;
+export const getFieldLabel = (field) => i18n.t(`fields.${field}`, { defaultValue: field });
 export const getFieldEmoji = (field) => FIELD_EMOJIS[field] || "📝";
 export const getFieldColor = (field) => FIELD_COLORS[field] || "#8E8E93";
 
 export const FIELDS = ["acting", "music", "art", "dance", "literature", "film", "etc"];
 
-// ─── Profile Constants ───
+// ─── Profile Constants (use labelKey for i18n) ───
 
 export const GENDER_OPTIONS = [
-  { key: "male", label: "남성" },
-  { key: "female", label: "여성" },
-  { key: "other", label: "기타" },
+  { key: "male", labelKey: "gender.male" },
+  { key: "female", labelKey: "gender.female" },
+  { key: "other", labelKey: "gender.other" },
 ];
 
 export const SPECIALTY_SUGGESTIONS = [
@@ -22,16 +23,16 @@ export const SPECIALTY_SUGGESTIONS = [
 ];
 
 export const CAREER_TYPES = [
-  { key: "drama", label: "드라마" },
-  { key: "film", label: "영화" },
-  { key: "theater", label: "연극" },
-  { key: "musical", label: "뮤지컬" },
-  { key: "commercial", label: "광고" },
-  { key: "music_video", label: "뮤직비디오" },
-  { key: "web_drama", label: "웹드라마" },
-  { key: "short_film", label: "단편영화" },
-  { key: "variety", label: "예능" },
-  { key: "other", label: "기타" },
+  { key: "drama", labelKey: "careerTypes.drama" },
+  { key: "film", labelKey: "careerTypes.film" },
+  { key: "theater", labelKey: "careerTypes.theater" },
+  { key: "musical", labelKey: "careerTypes.musical" },
+  { key: "commercial", labelKey: "careerTypes.commercial" },
+  { key: "music_video", labelKey: "careerTypes.music_video" },
+  { key: "web_drama", labelKey: "careerTypes.web_drama" },
+  { key: "short_film", labelKey: "careerTypes.short_film" },
+  { key: "variety", labelKey: "careerTypes.variety" },
+  { key: "other", labelKey: "careerTypes.other" },
 ];
 
 export function calculateAge(birthDate) {
@@ -52,11 +53,11 @@ export function canUseFeature() {
 }
 
 export const USER_TYPES = [
-  { key: "professional", label: "현직 아티스트", desc: "현재 활동 중인 전문 아티스트" },
-  { key: "aspiring", label: "지망생", desc: "아티스트를 꿈꾸는 학생/준비생" },
-  { key: "hobby", label: "취미", desc: "취미로 예술 활동을 즐기는 분" },
-  { key: "industry", label: "업계 관계자", desc: "기획사, 프로덕션, 교육 등 업계 종사자" },
-  { key: "fan", label: "팬", desc: "좋아하는 아티스트를 응원하고 소통해요" },
+  { key: "professional", labelKey: "userTypes.professional", descKey: "userTypes.professional_desc" },
+  { key: "aspiring", labelKey: "userTypes.aspiring", descKey: "userTypes.aspiring_desc" },
+  { key: "hobby", labelKey: "userTypes.hobby", descKey: "userTypes.hobby_desc" },
+  { key: "industry", labelKey: "userTypes.industry", descKey: "userTypes.industry_desc" },
+  { key: "fan", labelKey: "userTypes.fan", descKey: "userTypes.fan_desc" },
 ];
 
 export const ROLE_MODELS_BY_FIELD = {
@@ -77,15 +78,28 @@ export const INTERESTS_BY_FIELD = {
   film: ["연출", "촬영", "편집", "시나리오", "프로덕션", "다큐멘터리", "실험영화", "VFX"],
 };
 
+// ─── Locale-aware date/time helpers ───
+
+const LOCALE_MAP = {
+  ko: "ko-KR", en: "en-US", ja: "ja-JP",
+  "zh-CN": "zh-CN", "zh-TW": "zh-TW",
+  vi: "vi-VN", th: "th-TH", id: "id-ID",
+  ar: "ar-SA", es: "es-ES",
+};
+
+function getLocale() {
+  return LOCALE_MAP[i18n.language] || "en-US";
+}
+
 export function timeAgo(dateStr) {
   const now = new Date();
   const date = new Date(dateStr);
   const diff = Math.floor((now - date) / 1000);
-  if (diff < 60) return "방금 전";
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
-  return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+  if (diff < 60) return i18n.t("common.just_now");
+  if (diff < 3600) return i18n.t("common.mins_ago", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t("common.hours_ago", { count: Math.floor(diff / 3600) });
+  if (diff < 604800) return i18n.t("common.days_ago", { count: Math.floor(diff / 86400) });
+  return date.toLocaleDateString(getLocale(), { month: "short", day: "numeric" });
 }
 
 export function truncate(str, maxLen = 100) {
@@ -94,7 +108,7 @@ export function truncate(str, maxLen = 100) {
 }
 
 export function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString("ko-KR", {
+  return new Date(dateStr).toLocaleDateString(getLocale(), {
     year: "numeric", month: "long", day: "numeric",
   });
 }

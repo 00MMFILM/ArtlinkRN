@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "Photo access is needed to attach images to notes and profile.",
+  "NSCameraUsageDescription": "Camera access is needed to take profile photos.",
+  "NSMicrophoneUsageDescription": "Microphone access is needed to record voice memos."
+}

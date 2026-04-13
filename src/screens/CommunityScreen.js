@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { useNavigation } from "@react-navigation/native";
 import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
@@ -21,7 +22,14 @@ import {
   invalidatePostsCache,
 } from "../services/communityService";
 
-const TABS = ["전체", "공지", "팁 공유", "작품 공유", "질문", "콜라보"];
+const TAB_KEYS = [
+  { key: "tab_all", value: "전체" },
+  { key: "tab_notice", value: "공지" },
+  { key: "tab_tip", value: "팁 공유" },
+  { key: "tab_work", value: "작품 공유" },
+  { key: "tab_question", value: "질문" },
+  { key: "tab_collab", value: "콜라보" },
+];
 
 const TYPE_COLORS = {
   "공지": CLight.red,
@@ -31,25 +39,26 @@ const TYPE_COLORS = {
   "콜라보": CLight.pink,
 };
 
-function formatTimeAgo(dateStr) {
+function formatTimeAgo(dateStr, t) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "방금";
-  if (mins < 60) return `${mins}분 전`;
+  if (mins < 1) return t("common.just_now");
+  if (mins < 60) return t("common.mins_ago", { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}시간 전`;
+  if (hours < 24) return t("common.hours_ago", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}일 전`;
+  if (days < 7) return t("common.days_ago", { count: days });
   return new Date(dateStr).toLocaleDateString("ko-KR");
 }
 
 // ─── Post Card ───────────────────────────────────────────────
 function PostCard({ post, onReport, onPress }) {
+  const { t } = useTranslation();
   const field = post.author_field || post.field;
   const emoji = FIELD_EMOJIS[field] || "";
   const badgeColor = TYPE_COLORS[post.type] || CLight.gray500;
   const author = post.author_name || post.author;
-  const timeAgo = post.created_at ? formatTimeAgo(post.created_at) : post.timeAgo;
+  const timeAgo = post.created_at ? formatTimeAgo(post.created_at, t) : post.timeAgo;
 
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => onPress(post)}>
@@ -70,7 +79,7 @@ function PostCard({ post, onReport, onPress }) {
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={styles.reportBtnIcon}>⚠</Text>
-          <Text style={styles.reportBtnText}>신고</Text>
+          <Text style={styles.reportBtnText}>{t("common.report")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -113,6 +122,7 @@ function PostCard({ post, onReport, onPress }) {
 
 // ─── Community Screen ────────────────────────────────────────
 export default function CommunityScreen() {
+  const { t } = useTranslation();
   const { blockedUsers, handleBlockUser, handleReportContent, deviceUserId } = useApp();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("전체");
@@ -166,44 +176,44 @@ export default function CommunityScreen() {
 
   const handlePostAction = useCallback((post) => {
     const author = post.author_name || post.author;
-    Alert.alert("게시물 관리", null, [
+    Alert.alert(t("common.post_management"), null, [
       {
-        text: "신고하기",
+        text: t("common.report_title"),
         onPress: () => {
-          Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
-            { text: "취소", style: "cancel" },
-            { text: "부적절한 콘텐츠", onPress: () => handleReportContent({ contentId: post.id, type: "community_post", reason: "inappropriate_content", title: post.title }) },
-            { text: "스팸/사기", onPress: () => handleReportContent({ contentId: post.id, type: "community_post", reason: "spam", title: post.title }) },
+          Alert.alert(t("common.report_title"), t("common.report_confirm"), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("common.inappropriate_content"), onPress: () => handleReportContent({ contentId: post.id, type: "community_post", reason: "inappropriate_content", title: post.title }) },
+            { text: t("common.spam_scam"), onPress: () => handleReportContent({ contentId: post.id, type: "community_post", reason: "spam", title: post.title }) },
           ]);
         },
       },
       {
-        text: "작성자 차단",
+        text: t("common.block_author"),
         style: "destructive",
         onPress: () => {
-          Alert.alert("차단하기", `'${author}'님을 차단하시겠습니까?\n이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`, [
-            { text: "취소", style: "cancel" },
-            { text: "차단", style: "destructive", onPress: () => handleBlockUser(author) },
+          Alert.alert(t("common.block_title"), t("common.block_confirm", { name: author }), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("common.block"), style: "destructive", onPress: () => handleBlockUser(author) },
           ]);
         },
       },
-      { text: "취소", style: "cancel" },
+      { text: t("common.cancel"), style: "cancel" },
     ]);
-  }, [handleBlockUser, handleReportContent]);
+  }, [handleBlockUser, handleReportContent, t]);
 
   const handleCreatePost = useCallback(() => {
     if (!deviceUserId) {
-      Alert.alert("잠시만요", "커뮤니티 연결 중입니다. 잠시 후 다시 시도해주세요.");
+      Alert.alert(t("community.wait_title"), t("community.wait_msg"));
       return;
     }
     navigation.navigate("CommunityPostCreate");
-  }, [navigation, deviceUserId]);
+  }, [navigation, deviceUserId, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <Text style={[T.h2, { color: CLight.gray900 }]}>커뮤니티</Text>
+        <Text style={[T.h2, { color: CLight.gray900 }]}>{t("community.title")}</Text>
       </View>
 
       {/* Tab Filter */}
@@ -213,14 +223,14 @@ export default function CommunityScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabRow}
         >
-          {TABS.map((tab) => (
+          {TAB_KEYS.map(({ key, value }) => (
             <Pill
-              key={tab}
-              active={activeTab === tab}
+              key={key}
+              active={activeTab === value}
               color={CLight.pink}
-              onPress={() => setActiveTab(tab)}
+              onPress={() => setActiveTab(value)}
             >
-              {tab}
+              {t(`community.${key}`)}
             </Pill>
           ))}
         </ScrollView>
@@ -250,7 +260,7 @@ export default function CommunityScreen() {
             <View style={styles.empty}>
               <Text style={{ fontSize: 48, marginBottom: 16 }}>💬</Text>
               <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-                아직 게시물이 없습니다.{"\n"}첫 글을 작성해보세요!
+                {t("community.empty_posts")}
               </Text>
             </View>
           }

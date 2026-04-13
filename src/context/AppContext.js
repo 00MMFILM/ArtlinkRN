@@ -2,9 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, STORAGE_KEYS } from "../utils/storage";
 import { supabase } from "../services/supabaseClient";
+import i18n from "i18next";
 import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
+import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, deleteNoteFromServer } from "../services/notesSyncService";
+import { trackAppOpen } from "../services/mauService";
 
 const AppContext = createContext();
 
@@ -36,6 +39,9 @@ export function AppProvider({ children }) {
   const [deviceUserId, setDeviceUserId] = useState(null);
   const [dataConsent, setDataConsent] = useState(false);
   const [dataConsentAsked, setDataConsentAsked] = useState(false);
+  const [aiDisclosureAccepted, setAiDisclosureAccepted] = useState(false);
+  const [language, setLanguage] = useState(i18n.language || "ko");
+  const isKoreanLocale = language === "ko";
 
   const artistProfile = useMemo(
     () => computeArtistProfile(savedNotes, userProfile),
@@ -53,7 +59,7 @@ export function AppProvider({ children }) {
   // Load all persisted data on mount
   useEffect(() => {
     (async () => {
-      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, eula, blocked, reported, consent, consentAsked] = await Promise.all([
+      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, eula, blocked, reported, consent, consentAsked, aiDisclosure] = await Promise.all([
         safeStorageGet(STORAGE_KEYS.NOTES),
         safeStorageGet(STORAGE_KEYS.PROFILE),
         safeStorageGet(STORAGE_KEYS.DARK_MODE),
@@ -69,6 +75,7 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.REPORTED_CONTENT),
         safeStorageGet(STORAGE_KEYS.DATA_CONSENT),
         safeStorageGet(STORAGE_KEYS.DATA_CONSENT_ASKED),
+        safeStorageGet(STORAGE_KEYS.AI_DISCLOSURE_ACCEPTED),
       ]);
       if (notes) setSavedNotes(notes);
       if (profile) {
@@ -95,6 +102,7 @@ export function AppProvider({ children }) {
       if (reported) setReportedContent(reported);
       if (consent) setDataConsent(consent);
       if (consentAsked) setDataConsentAsked(consentAsked);
+      if (aiDisclosure) setAiDisclosureAccepted(aiDisclosure);
       setStorageReady(true);
     })();
   }, []);
@@ -127,6 +135,7 @@ export function AppProvider({ children }) {
           deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           await safeStorageSet(STORAGE_KEYS.DEVICE_ID, deviceId);
         }
+        trackAppOpen(language, userProfile.userType);
         // Check cached userId first
         const cachedUserId = await safeStorageGet(STORAGE_KEYS.DEVICE_USER_ID);
         if (cachedUserId) {
@@ -141,6 +150,29 @@ export function AppProvider({ children }) {
       }
     })();
   }, [storageReady, authState]);
+
+  // Pull notes from server on login (merge with local)
+  useEffect(() => {
+    if (!storageReady || authState !== "app" || !userProfile.authUserId) return;
+    (async () => {
+      try {
+        const serverRows = await fetchNotesFromServer(userProfile.authUserId);
+        if (serverRows.length === 0) {
+          // 서버에 노트 없음 → 로컬 전체를 push
+          if (savedNotes.length > 0) {
+            syncNotesToServer(userProfile.authUserId, savedNotes).catch(() => {});
+          }
+          return;
+        }
+        const merged = mergeNotes(savedNotes, serverRows);
+        setSavedNotes(merged);
+        // 로컬에만 있던 노트를 서버에도 push
+        syncNotesToServer(userProfile.authUserId, merged).catch(() => {});
+      } catch (_) {
+        // Silent fail — 로컬 데이터 유지
+      }
+    })();
+  }, [storageReady, authState, userProfile.authUserId]);
 
   // Sync profile + stats to Supabase when profilePublic is enabled
   useEffect(() => {
@@ -189,28 +221,44 @@ export function AppProvider({ children }) {
 
   // ─── Note CRUD ───
   const handleSaveNote = useCallback((noteData) => {
-    const newNote = { id: Date.now(), createdAt: new Date().toISOString(), starred: false, ...noteData };
+    const now = new Date().toISOString();
+    const newNote = { id: Date.now(), createdAt: now, updatedAt: now, starred: false, ...noteData };
     setSavedNotes((prev) => [newNote, ...prev]);
-    showToast("노트가 저장되었습니다!", "success");
-  }, [showToast]);
+    showToast(i18n.t("toast.note_saved"), "success");
+    if (userProfile.authUserId) {
+      syncSingleNote(userProfile.authUserId, newNote).catch(() => {});
+    }
+  }, [showToast, userProfile.authUserId]);
 
   const handleDeleteNote = useCallback((noteId) => {
     setSavedNotes((prev) => prev.filter((n) => n.id !== noteId));
-    showToast("노트가 삭제되었습니다", "delete");
-  }, [showToast]);
+    showToast(i18n.t("toast.note_deleted"), "delete");
+    if (userProfile.authUserId) {
+      deleteNoteFromServer(userProfile.authUserId, noteId).catch(() => {});
+    }
+  }, [showToast, userProfile.authUserId]);
 
   const handleToggleStar = useCallback((noteId) => {
     setSavedNotes((prev) => {
       const note = prev.find((n) => n.id === noteId);
-      if (note) showToast(note.starred ? "즐겨찾기 해제" : "즐겨찾기에 추가!", note.starred ? "unstar" : "star");
-      return prev.map((n) => (n.id === noteId ? { ...n, starred: !n.starred } : n));
+      if (note) showToast(note.starred ? i18n.t("toast.star_removed") : i18n.t("toast.star_added"), note.starred ? "unstar" : "star");
+      const updated = prev.map((n) => (n.id === noteId ? { ...n, starred: !n.starred, updatedAt: new Date().toISOString() } : n));
+      if (userProfile.authUserId) {
+        const toggled = updated.find((n) => n.id === noteId);
+        if (toggled) syncSingleNote(userProfile.authUserId, toggled).catch(() => {});
+      }
+      return updated;
     });
-  }, [showToast]);
+  }, [showToast, userProfile.authUserId]);
 
   const handleUpdateNote = useCallback((updatedNote) => {
-    setSavedNotes((prev) => prev.map((n) => (n.id === updatedNote.id ? updatedNote : n)));
-    showToast("노트가 수정되었습니다", "edit");
-  }, [showToast]);
+    const withTimestamp = { ...updatedNote, updatedAt: new Date().toISOString() };
+    setSavedNotes((prev) => prev.map((n) => (n.id === updatedNote.id ? withTimestamp : n)));
+    showToast(i18n.t("toast.note_updated"), "edit");
+    if (userProfile.authUserId) {
+      syncSingleNote(userProfile.authUserId, withTimestamp).catch(() => {});
+    }
+  }, [showToast, userProfile.authUserId]);
 
   const handleUpdateGoals = useCallback((newGoals) => {
     setGoals(newGoals);
@@ -223,7 +271,7 @@ export function AppProvider({ children }) {
     setFeedbacks(updated);
     safeStorageSet(STORAGE_KEYS.FEEDBACKS, updated);
     notifyServer({ type: "feedback", content: feedback, userName: userProfile.name, email: userProfile.email, sentAt: new Date().toISOString() });
-    showToast("피드백이 전송되었습니다!", "success");
+    showToast(i18n.t("toast.feedback_sent"), "success");
   }, [feedbacks, showToast, notifyServer, userProfile]);
 
   const handleDismissGuide = useCallback(() => {
@@ -235,29 +283,29 @@ export function AppProvider({ children }) {
   const handleAddMatchingPost = useCallback((postData) => {
     const newPost = { id: Date.now(), source: "user", createdAt: new Date().toISOString(), ...postData };
     setMatchingPosts((prev) => [newPost, ...prev]);
-    showToast("매칭 글이 등록되었습니다!", "success");
+    showToast(i18n.t("toast.matching_added"), "success");
   }, [showToast]);
 
   const handleUpdateMatchingPost = useCallback((updatedPost) => {
     setMatchingPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)));
-    showToast("매칭 글이 수정되었습니다", "edit");
+    showToast(i18n.t("toast.matching_updated"), "edit");
   }, [showToast]);
 
   const handleDeleteMatchingPost = useCallback((postId) => {
     setMatchingPosts((prev) => prev.filter((p) => p.id !== postId));
-    showToast("매칭 글이 삭제되었습니다", "delete");
+    showToast(i18n.t("toast.matching_deleted"), "delete");
   }, [showToast]);
 
   // ─── Portfolio CRUD ───
   const handleAddPortfolioItem = useCallback((itemData) => {
     const newItem = { id: Date.now(), createdAt: new Date().toISOString(), ...itemData };
     setPortfolioItems((prev) => [newItem, ...prev]);
-    showToast("포트폴리오에 추가되었습니다!", "success");
+    showToast(i18n.t("toast.portfolio_added"), "success");
   }, [showToast]);
 
   const handleDeletePortfolioItem = useCallback((itemId) => {
     setPortfolioItems((prev) => prev.filter((item) => item.id !== itemId));
-    showToast("포트폴리오 항목이 삭제되었습니다", "delete");
+    showToast(i18n.t("toast.portfolio_deleted"), "delete");
   }, [showToast]);
 
   const handleUpdatePortfolioSummary = useCallback((summary) => {
@@ -274,10 +322,20 @@ export function AppProvider({ children }) {
     setUserProfile((prev) => {
       const updated = { ...prev, ...partial };
       safeStorageSet(STORAGE_KEYS.PROFILE, updated);
+      // 이름 변경 시 Supabase user_metadata에도 저장 (재로그인 시 복원용)
+      if (partial.name && prev.authUserId) {
+        supabase.auth.updateUser({ data: { name: partial.name } }).catch(() => {});
+      }
       return updated;
     });
-    showToast("프로필이 업데이트되었습니다!", "success");
+    showToast(i18n.t("toast.profile_updated"), "success");
   }, [showToast]);
+
+  const handleChangeLanguage = useCallback(async (langCode) => {
+    setLanguage(langCode);
+    await i18n.changeLanguage(langCode);
+    await safeStorageSet(STORAGE_KEYS.LANGUAGE, langCode);
+  }, []);
 
   const handleAuth = useCallback(async (profileData) => {
     if (profileData) {
@@ -333,6 +391,12 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.DATA_CONSENT_ASKED, true);
   }, []);
 
+  // ─── AI Disclosure ───
+  const handleAcceptAIDisclosure = useCallback(() => {
+    setAiDisclosureAccepted(true);
+    safeStorageSet(STORAGE_KEYS.AI_DISCLOSURE_ACCEPTED, true);
+  }, []);
+
   // ─── Server report notification ───
   const notifyServer = useCallback(async (reportData) => {
     try {
@@ -356,7 +420,7 @@ export function AppProvider({ children }) {
     });
     // Notify developer of the block (Apple Guideline 1.2 requirement)
     notifyServer({ type: "block_user", blockedUser: userName, reportedAt: new Date().toISOString() });
-    showToast("사용자가 차단되었습니다", "success");
+    showToast(i18n.t("toast.user_blocked"), "success");
   }, [showToast, notifyServer]);
 
   const handleUnblockUser = useCallback((userName) => {
@@ -365,7 +429,7 @@ export function AppProvider({ children }) {
       safeStorageSet(STORAGE_KEYS.BLOCKED_USERS, updated);
       return updated;
     });
-    showToast("차단이 해제되었습니다", "success");
+    showToast(i18n.t("toast.user_unblocked"), "success");
   }, [showToast]);
 
   const handleReportContent = useCallback((report) => {
@@ -377,8 +441,13 @@ export function AppProvider({ children }) {
     });
     // Send report to server so developer can act within 24 hours (Apple Guideline 1.2)
     notifyServer({ type: "content_report", ...newReport });
-    showToast("신고가 접수되었습니다. 24시간 이내에 조치됩니다.", "success");
+    showToast(i18n.t("toast.report_submitted"), "success");
   }, [showToast, notifyServer]);
+
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setAuthState("auth");
+  }, []);
 
   const handleDeleteAccount = useCallback(async () => {
     await supabase.auth.signOut();
@@ -398,30 +467,30 @@ export function AppProvider({ children }) {
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
-    dataConsent, dataConsentAsked,
+    dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
-    handleDismissGuide, handleFieldOrderChange, handleAuth,
+    handleDismissGuide, handleFieldOrderChange, handleAuth, handleChangeLanguage,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
-    handleUpdateProfile, handleDeleteAccount, setUserProfile, setAuthState,
-    handleAcceptEula, handleSetDataConsent, handleDataConsentAsked,
+    handleUpdateProfile, handleLogout, handleDeleteAccount, setUserProfile, setAuthState,
+    handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, handleAcceptAIDisclosure,
     handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
     savedNotes, userProfile, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
     portfolioItems, portfolioSummary, matchingPosts,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
-    dataConsent, dataConsentAsked,
+    dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
-    handleDismissGuide, handleFieldOrderChange, handleAuth,
+    handleDismissGuide, handleFieldOrderChange, handleAuth, handleChangeLanguage,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
-    handleUpdateProfile, handleDeleteAccount,
-    handleAcceptEula, handleSetDataConsent, handleDataConsentAsked,
+    handleUpdateProfile, handleLogout, handleDeleteAccount,
+    handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, handleAcceptAIDisclosure,
     handleBlockUser, handleUnblockUser, handleReportContent,
   ]);
 

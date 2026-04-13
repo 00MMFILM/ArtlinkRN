@@ -12,20 +12,24 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { useTranslation } from "react-i18next";
+import { BannerAd, BannerAdSize } from "react-native-google-mobile-ads";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { AD_UNITS } from "../services/adService";
+import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS } from "../utils/helpers";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EmptyState from "../components/EmptyState";
 
 const SORT_OPTIONS = [
-  { key: "newest", label: "최신순" },
-  { key: "oldest", label: "오래된순" },
-  { key: "starred", label: "즐겨찾기" },
+  { key: "newest", labelKey: "notes.sort_newest" },
+  { key: "oldest", labelKey: "notes.sort_oldest" },
+  { key: "starred", labelKey: "notes.sort_starred" },
 ];
 
 export default function NotesScreen({ navigation }) {
-  const { savedNotes, handleDeleteNote, handleToggleStar, fieldOrder } = useApp();
+  const { t } = useTranslation();
+  const { savedNotes, handleDeleteNote, handleToggleStar, fieldOrder, isKoreanLocale } = useApp();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedField, setSelectedField] = useState("all");
@@ -34,12 +38,12 @@ export default function NotesScreen({ navigation }) {
   // Build the ordered field tabs using fieldOrder from context
   const fieldTabs = useMemo(() => {
     const ordered = fieldOrder && fieldOrder.length > 0 ? fieldOrder : FIELDS;
-    return [{ key: "all", label: "전체", emoji: "📋" }, ...ordered.map((f) => ({
+    return [{ key: "all", label: t("common.all"), emoji: "📋" }, ...ordered.map((f) => ({
       key: f,
-      label: FIELD_LABELS[f] || f,
+      label: t("fields." + f),
       emoji: FIELD_EMOJIS[f] || "📝",
     }))];
-  }, [fieldOrder]);
+  }, [fieldOrder, t]);
 
   // Filter and sort notes
   const filteredNotes = useMemo(() => {
@@ -82,8 +86,8 @@ export default function NotesScreen({ navigation }) {
       if (Platform.OS === "ios") {
         ActionSheetIOS.showActionSheetWithOptions(
           {
-            title: noteTitle || "이 노트",
-            options: ["취소", "삭제", "즐겨찾기 토글"],
+            title: noteTitle || t("notes.this_note"),
+            options: [t("common.cancel"), t("common.delete"), t("notes.toggle_star")],
             destructiveButtonIndex: 1,
             cancelButtonIndex: 0,
           },
@@ -93,14 +97,14 @@ export default function NotesScreen({ navigation }) {
           }
         );
       } else {
-        Alert.alert("노트 관리", noteTitle || "이 노트", [
-          { text: "취소", style: "cancel" },
-          { text: "즐겨찾기 토글", onPress: () => handleToggleStar(noteId) },
-          { text: "삭제", style: "destructive", onPress: () => handleDeleteNote(noteId) },
+        Alert.alert(t("notes.manage_note"), noteTitle || t("notes.this_note"), [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("notes.toggle_star"), onPress: () => handleToggleStar(noteId) },
+          { text: t("common.delete"), style: "destructive", onPress: () => handleDeleteNote(noteId) },
         ]);
       }
     },
-    [handleDeleteNote, handleToggleStar]
+    [handleDeleteNote, handleToggleStar, t]
   );
 
   // Navigate to detail
@@ -139,7 +143,7 @@ export default function NotesScreen({ navigation }) {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="노트 검색..."
+            placeholder={t("notes.search_placeholder")}
             placeholderTextColor={CLight.gray400}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -203,11 +207,11 @@ export default function NotesScreen({ navigation }) {
                 sortKey === opt.key && styles.sortChipTextActive,
               ]}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </Text>
           </TouchableOpacity>
         ))}
-        <Text style={styles.noteCount}>{filteredNotes.length}개의 노트</Text>
+        <Text style={styles.noteCount}>{t("notes.note_count", { count: filteredNotes.length })}</Text>
       </View>
 
       {/* Notes List */}
@@ -223,18 +227,28 @@ export default function NotesScreen({ navigation }) {
       ) : (
         <EmptyState
           icon={selectedField !== "all" ? FIELD_EMOJIS[selectedField] || "📝" : "📝"}
-          title={searchQuery ? "검색 결과가 없어요" : "아직 노트가 없어요"}
+          title={searchQuery ? t("notes.no_search_results") : t("notes.no_notes_yet")}
           message={
             searchQuery
-              ? "다른 검색어로 시도해보세요"
-              : "오른쪽 아래 + 버튼을 눌러\n첫 번째 연습 노트를 기록해보세요!"
+              ? t("notes.try_other_search")
+              : t("notes.no_notes_desc")
           }
         />
       )}
 
+      {/* Banner Ad — foreign users only */}
+      {!isKoreanLocale && (
+        <View style={styles.bannerContainer}>
+          <BannerAd
+            unitId={AD_UNITS.BANNER}
+            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          />
+        </View>
+      )}
+
       {/* FAB Button */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, !isKoreanLocale && styles.fabWithBanner]}
         onPress={handleCreatePress}
         activeOpacity={0.85}
       >
@@ -246,9 +260,10 @@ export default function NotesScreen({ navigation }) {
 
 // ─── Note Card Component ───
 function NoteCard({ note, onPress, onLongPress, onToggleStar }) {
+  const { t } = useTranslation();
   const fieldColor = FIELD_COLORS[note.field] || CLight.gray500;
   const fieldEmoji = FIELD_EMOJIS[note.field] || "📝";
-  const fieldLabel = FIELD_LABELS[note.field] || note.field;
+  const fieldLabel = t("fields." + note.field);
 
   return (
     <TouchableOpacity
@@ -265,6 +280,11 @@ function NoteCard({ note, onPress, onLongPress, onToggleStar }) {
           <Text style={[styles.fieldBadgeLabel, { color: fieldColor }]}>{fieldLabel}</Text>
         </View>
         <View style={styles.cardHeaderRight}>
+          {note.type === "checkin" ? (
+            <View style={styles.checkinBadge}>
+              <Text style={styles.checkinBadgeText}>{t("notes.checkin_badge")}</Text>
+            </View>
+          ) : null}
           {note.aiComment ? (
             <View style={styles.aiBadge}>
               <Text style={styles.aiBadgeText}>AI</Text>
@@ -278,7 +298,7 @@ function NoteCard({ note, onPress, onLongPress, onToggleStar }) {
 
       {/* Title */}
       <Text style={styles.cardTitle} numberOfLines={1}>
-        {note.title || "제목 없음"}
+        {note.title || t("common.untitled")}
       </Text>
 
       {/* Content Preview */}
@@ -521,6 +541,28 @@ const styles = StyleSheet.create({
     color: CLight.gray500,
   },
 
+  // Check-in badge
+  checkinBadge: {
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  checkinBadgeText: {
+    ...T.tinyBold,
+    color: CLight.green,
+  },
+
+  // Banner Ad
+  bannerContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    backgroundColor: CLight.bg,
+  },
+
   // FAB
   fab: {
     position: "absolute",
@@ -537,6 +579,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 12,
     elevation: 8,
+  },
+  fabWithBanner: {
+    bottom: 90,
   },
   fabText: {
     fontSize: 28,

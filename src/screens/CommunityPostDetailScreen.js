@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
 import {
@@ -21,7 +22,9 @@ import {
   toggleLike,
   deletePost,
   getDemoComments,
+  moderateContent,
 } from "../services/communityService";
+import { checkProfanity } from "../utils/profanityFilter";
 
 const TYPE_COLORS = {
   공지: CLight.red,
@@ -31,23 +34,24 @@ const TYPE_COLORS = {
   콜라보: CLight.pink,
 };
 
-function formatTimeAgo(dateStr) {
+function formatTimeAgo(dateStr, t) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "방금";
-  if (mins < 60) return `${mins}분 전`;
+  if (mins < 1) return t("common.just_now");
+  if (mins < 60) return t("common.mins_ago", { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}시간 전`;
+  if (hours < 24) return t("common.hours_ago", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}일 전`;
+  if (days < 7) return t("common.days_ago", { count: days });
   return new Date(dateStr).toLocaleDateString("ko-KR");
 }
 
 function CommentItem({ comment }) {
+  const { t } = useTranslation();
   const field = comment.author_field || comment.field;
   const emoji = FIELD_EMOJIS[field] || "";
   const author = comment.author_name || comment.author;
-  const timeAgo = comment.created_at ? formatTimeAgo(comment.created_at) : comment.timeAgo;
+  const timeAgo = comment.created_at ? formatTimeAgo(comment.created_at, t) : comment.timeAgo;
 
   return (
     <View style={styles.commentItem}>
@@ -66,6 +70,7 @@ function CommentItem({ comment }) {
 }
 
 export default function CommunityPostDetailScreen({ route, navigation }) {
+  const { t } = useTranslation();
   const { post, isDemo: routeIsDemo } = route.params;
   const { handleBlockUser, handleReportContent, deviceUserId, userProfile, showToast } = useApp();
   const [commentText, setCommentText] = useState("");
@@ -81,7 +86,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
   const emoji = FIELD_EMOJIS[field] || "";
   const badgeColor = TYPE_COLORS[post.type] || CLight.gray500;
   const author = post.author_name || post.author;
-  const timeAgo = post.created_at ? formatTimeAgo(post.created_at) : post.timeAgo;
+  const timeAgo = post.created_at ? formatTimeAgo(post.created_at, t) : post.timeAgo;
 
   // Load comments and like status
   useEffect(() => {
@@ -120,26 +125,26 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
 
     if (isMyPost) {
       options.push({
-        text: "삭제하기",
+        text: t("communityDetail.delete_title"),
         style: "destructive",
         onPress: () => {
           Alert.alert(
-            "게시물 삭제",
-            "이 게시물을 삭제하시겠습니까?\n삭제된 게시물은 되돌릴 수 없습니다.",
+            t("communityDetail.delete_title"),
+            t("communityDetail.delete_msg"),
             [
-              { text: "취소", style: "cancel" },
+              { text: t("common.cancel"), style: "cancel" },
               {
-                text: "삭제",
+                text: t("common.delete"),
                 style: "destructive",
                 onPress: async () => {
                   try {
                     if (!isDemo) {
                       await deletePost(post.id, deviceUserId);
                     }
-                    showToast("게시물이 삭제되었습니다.", "success");
+                    showToast(t("communityDetail.delete_success"), "success");
                     navigation.goBack();
                   } catch (_) {
-                    Alert.alert("오류", "게시물 삭제에 실패했습니다. 다시 시도해주세요.");
+                    Alert.alert(t("common.error"), t("communityDetail.delete_failed"));
                   }
                 },
               },
@@ -149,12 +154,12 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
       });
     } else {
       options.push({
-        text: "신고하기",
+        text: t("common.report_title"),
         onPress: () => {
-          Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
-            { text: "취소", style: "cancel" },
+          Alert.alert(t("common.report_title"), t("common.report_confirm"), [
+            { text: t("common.cancel"), style: "cancel" },
             {
-              text: "부적절한 콘텐츠",
+              text: t("common.inappropriate_content"),
               onPress: () =>
                 handleReportContent({
                   contentId: post.id,
@@ -164,7 +169,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
                 }),
             },
             {
-              text: "스팸/사기",
+              text: t("common.spam_scam"),
               onPress: () =>
                 handleReportContent({
                   contentId: post.id,
@@ -177,16 +182,16 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
         },
       });
       options.push({
-        text: "작성자 차단",
+        text: t("common.block_author"),
         style: "destructive",
         onPress: () => {
           Alert.alert(
-            "차단하기",
-            `'${author}'님을 차단하시겠습니까?\n이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.`,
+            t("common.block_title"),
+            t("common.block_confirm", { name: author }),
             [
-              { text: "취소", style: "cancel" },
+              { text: t("common.cancel"), style: "cancel" },
               {
-                text: "차단",
+                text: t("common.block"),
                 style: "destructive",
                 onPress: () => {
                   handleBlockUser(author);
@@ -199,9 +204,9 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
       });
     }
 
-    options.push({ text: "취소", style: "cancel" });
-    Alert.alert("게시물 관리", null, options);
-  }, [post, author, isMyPost, isDemo, deviceUserId, handleBlockUser, handleReportContent, navigation, showToast]);
+    options.push({ text: t("common.cancel"), style: "cancel" });
+    Alert.alert(t("common.post_management"), null, options);
+  }, [post, author, isMyPost, isDemo, deviceUserId, handleBlockUser, handleReportContent, navigation, showToast, t]);
 
   const handleToggleLike = useCallback(async () => {
     if (isDemo || !deviceUserId) {
@@ -225,11 +230,18 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
     const text = commentText.trim();
     if (!text) return;
 
+    // Layer 1: Client-side profanity filter (instant)
+    const profanityResult = checkProfanity(text);
+    if (profanityResult.blocked) {
+      Alert.alert(t("communityDetail.comment_blocked"), t("communityDetail.comment_inappropriate"));
+      return;
+    }
+
     if (isDemo || !deviceUserId) {
       // Local-only comment for demo
       const newComment = {
         id: `local_${Date.now()}`,
-        author_name: userProfile.name || "나",
+        author_name: userProfile.name || t("communityDetail.me"),
         author_field: userProfile.fields?.[0] || "acting",
         content: text,
         created_at: new Date().toISOString(),
@@ -243,10 +255,17 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
 
     setSubmitting(true);
     try {
+      // Layer 2: Server AI moderation (fail-open)
+      const aiResult = await moderateContent(text, "comment");
+      if (!aiResult.safe) {
+        Alert.alert(t("communityDetail.comment_blocked"), t("communityDetail.comment_guideline"));
+        return;
+      }
+
       const newComment = await createComment({
         postId: post.id,
         userId: deviceUserId,
-        authorName: userProfile.name || "익명",
+        authorName: userProfile.name || t("common.anonymous"),
         authorField: userProfile.fields?.[0] || null,
         content: text,
       });
@@ -255,11 +274,11 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
       setCommentText("");
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (_) {
-      Alert.alert("오류", "댓글 작성에 실패했습니다. 다시 시도해주세요.");
+      Alert.alert(t("common.error"), t("communityDetail.comment_failed"));
     } finally {
       setSubmitting(false);
     }
-  }, [commentText, post.id, deviceUserId, userProfile, isDemo]);
+  }, [commentText, post.id, deviceUserId, userProfile, isDemo, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -272,7 +291,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
         >
           <Text style={styles.topBarBtnText}>{"←"}</Text>
         </TouchableOpacity>
-        <Text style={[T.title, { color: CLight.gray900 }]}>게시물</Text>
+        <Text style={[T.title, { color: CLight.gray900 }]}>{t("communityDetail.title")}</Text>
         <TouchableOpacity
           onPress={handleReport}
           style={styles.topBarBtn}
@@ -365,7 +384,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
             <Text
               style={[T.captionBold, { color: CLight.gray700, marginBottom: 12 }]}
             >
-              댓글 {commentsCount}
+              {t("communityDetail.comments", { count: commentsCount })}
             </Text>
             {loadingComments ? (
               <ActivityIndicator
@@ -376,7 +395,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
             ) : comments.length === 0 ? (
               <View style={styles.emptyComments}>
                 <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-                  아직 댓글이 없습니다.{"\n"}첫 댓글을 남겨보세요!
+                  {t("communityDetail.empty_comments")}
                 </Text>
               </View>
             ) : (
@@ -391,7 +410,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
         <View style={styles.commentInputBar}>
           <TextInput
             style={styles.commentInput}
-            placeholder="댓글을 입력하세요..."
+            placeholder={t("communityDetail.comment_placeholder")}
             placeholderTextColor={CLight.gray400}
             value={commentText}
             onChangeText={setCommentText}
@@ -417,7 +436,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
                   },
                 ]}
               >
-                전송
+                {t("common.send")}
               </Text>
             )}
           </TouchableOpacity>

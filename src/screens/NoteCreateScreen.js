@@ -19,13 +19,15 @@ import { Audio } from "expo-av";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
 import { FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
+import { useTranslation } from "react-i18next";
 
 export default function NoteCreateScreen({ navigation }) {
-  const { handleSaveNote, savedNotes, userProfile } = useApp();
+  const { t } = useTranslation();
+  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure } = useApp();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -110,17 +112,17 @@ export default function NoteCreateScreen({ navigation }) {
   const handleCancel = useCallback(() => {
     if (hasUnsavedChangesRef.current) {
       Alert.alert(
-        "저장하지 않고 나가기",
-        "작성 중인 내용이 사라집니다. 정말 나가시겠어요?",
+        t("common.discard_title"),
+        t("common.discard_message"),
         [
-          { text: "계속 작성", style: "cancel" },
-          { text: "나가기", style: "destructive", onPress: () => { hasUnsavedChangesRef.current = false; navigation.goBack(); } },
+          { text: t("common.keep_editing"), style: "cancel" },
+          { text: t("common.leave"), style: "destructive", onPress: () => { hasUnsavedChangesRef.current = false; navigation.goBack(); } },
         ]
       );
     } else {
       navigation.goBack();
     }
-  }, [navigation]);
+  }, [navigation, t]);
 
   // Intercept hardware back / navigation gesture
   useEffect(() => {
@@ -128,12 +130,12 @@ export default function NoteCreateScreen({ navigation }) {
       if (!hasUnsavedChangesRef.current) return;
       e.preventDefault();
       Alert.alert(
-        "저장하지 않고 나가기",
-        "작성 중인 내용이 사라집니다. 정말 나가시겠어요?",
+        t("common.discard_title"),
+        t("common.discard_message"),
         [
-          { text: "계속 작성", style: "cancel" },
+          { text: t("common.keep_editing"), style: "cancel" },
           {
-            text: "나가기",
+            text: t("common.leave"),
             style: "destructive",
             onPress: () => navigation.dispatch(e.data.action),
           },
@@ -161,51 +163,66 @@ export default function NoteCreateScreen({ navigation }) {
   }, []);
 
   // AI Analysis
-  const handleAnalyze = useCallback(async () => {
-    if (!content.trim()) {
-      Alert.alert("내용 필요", "AI 분석을 받으려면 연습 내용을 먼저 작성해주세요.");
-      return;
-    }
+  const runAnalyze = useCallback(async () => {
     setAiLoading(true);
     try {
       const result = await analyzeNote(field, content, savedNotes, { title, field, images, voiceRecordings, audioFiles, pdfFiles }, userProfile);
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
     } catch (e) {
-      Alert.alert("분석 실패", "AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
+      Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
     } finally {
       setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, t]);
+
+  const handleAnalyze = useCallback(async () => {
+    if (!content.trim()) {
+      Alert.alert(t("noteCreate.ai_content_required"), t("noteCreate.ai_content_required_msg"));
+      return;
+    }
+    if (!aiDisclosureAccepted) {
+      Alert.alert(
+        t("aiDisclosure.title"),
+        t("aiDisclosure.message"),
+        [
+          { text: t("aiDisclosure.cancel"), style: "cancel" },
+          { text: t("aiDisclosure.accept"), onPress: () => { handleAcceptAIDisclosure(); runAnalyze(); } },
+        ]
+      );
+      return;
+    }
+    runAnalyze();
+  }, [content, aiDisclosureAccepted, handleAcceptAIDisclosure, runAnalyze, t]);
 
   // Video AI Analysis
   const noteVideos = images.filter((i) => i.type === "video");
 
   const handleVideoAnalyze = useCallback(async () => {
     if (noteVideos.length === 0) {
-      Alert.alert("영상 필요", "영상 AI 분석을 받으려면 영상을 먼저 첨부해주세요.");
+      Alert.alert(t("noteCreate.video_required"), t("noteCreate.video_required_msg"));
       return;
     }
     const video = noteVideos[0];
     const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
     if (durationSec > 300) {
-      Alert.alert("영상 길이 초과", "5분 이내 영상만 분석 가능합니다. 더 짧은 영상을 첨부해주세요.");
+      Alert.alert(t("noteCreate.video_too_long"), t("noteCreate.video_too_long_msg"));
       return;
     }
     try {
       const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
       const sizeMB = (fileInfo.size || 0) / (1024 * 1024);
       if (sizeMB > 100) {
-        Alert.alert("영상 용량 초과", `현재 영상 크기: ${Math.round(sizeMB)}MB\n\n100MB 이하 영상만 분석 가능합니다.\n4K 영상은 1080p로 변환하거나, 더 짧은 영상을 사용해주세요.`);
+        Alert.alert(t("noteCreate.video_too_large"), t("noteCreate.video_too_large_msg", { size: Math.round(sizeMB) }));
         return;
       }
     } catch {}
     startVideoAnalysis();
-  }, [noteVideos, field, content, title, userProfile]);
+  }, [noteVideos, field, content, title, userProfile, t]);
 
   const startVideoAnalysis = useCallback(async () => {
     setVideoAiLoading(true);
-    setVideoAiProgress({ phase: "extracting", percent: 0, message: "준비 중..." });
+    setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteCreate.preparing") });
     try {
       const result = await analyzeVideoFrames(
         field,
@@ -217,19 +234,19 @@ export default function NoteCreateScreen({ navigation }) {
       );
       setVideoAnalysis(result);
     } catch (e) {
-      Alert.alert("분석 실패", "영상 AI 분석 중 오류가 발생했어요. 다시 시도해주세요.");
+      Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
     } finally {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [noteVideos, field, content, title, userProfile]);
+  }, [noteVideos, field, content, title, userProfile, t]);
 
   // ─── Media Handlers ───
 
   const handleTakePhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("권한 필요", "카메라 사용을 위해 권한을 허용해주세요.");
+      Alert.alert(t("common.permission_required"), t("common.camera_permission"));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -256,7 +273,7 @@ export default function NoteCreateScreen({ navigation }) {
   const handlePickMedia = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("권한 필요", "갤러리 접근을 위해 권한을 허용해주세요.");
+      Alert.alert(t("common.permission_required"), t("common.gallery_permission"));
       return;
     }
 
@@ -309,7 +326,7 @@ export default function NoteCreateScreen({ navigation }) {
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("권한 필요", "음성 녹음을 위해 마이크 권한을 허용해주세요.");
+        Alert.alert(t("common.permission_required"), t("common.mic_permission"));
         return;
       }
       await Audio.setAudioModeAsync({
@@ -326,9 +343,9 @@ export default function NoteCreateScreen({ navigation }) {
         setRecordingDuration((d) => d + 1);
       }, 1000);
     } catch (e) {
-      Alert.alert("녹음 오류", "녹음을 시작할 수 없습니다.");
+      Alert.alert(t("noteCreate.recording_error"), t("noteCreate.recording_error_msg"));
     }
-  }, []);
+  }, [t]);
 
   const handleStopRecording = useCallback(async () => {
     if (!recordingRef.current) return;
@@ -373,9 +390,9 @@ export default function NoteCreateScreen({ navigation }) {
       });
       await sound.playAsync();
     } catch (e) {
-      Alert.alert("재생 오류", "음성을 재생할 수 없습니다.");
+      Alert.alert(t("noteCreate.playback_error"), t("noteCreate.voice_playback_error"));
     }
-  }, [playingSound, playingIdx]);
+  }, [playingSound, playingIdx, t]);
 
   // ─── Audio File Handlers ───
 
@@ -402,14 +419,14 @@ export default function NoteCreateScreen({ navigation }) {
           } catch (e) {
             console.warn("[handlePickAudio] copyAsync failed:", e.message, "using original URI");
           }
-          newFiles.push({ uri: finalUri, name: asset.name || "오디오 파일" });
+          newFiles.push({ uri: finalUri, name: asset.name || t("noteCreate.audio_file") });
         }
         setAudioFiles((prev) => [...prev, ...newFiles]);
       }
     } catch (e) {
-      Alert.alert("파일 선택 오류", "오디오 파일을 선택할 수 없습니다.");
+      Alert.alert(t("noteCreate.file_select_error"), t("noteCreate.audio_select_error"));
     }
-  }, []);
+  }, [t]);
 
   const handlePlayAudio = useCallback(async (uri, index) => {
     try {
@@ -432,9 +449,9 @@ export default function NoteCreateScreen({ navigation }) {
       });
       await sound.playAsync();
     } catch (e) {
-      Alert.alert("재생 오류", "오디오 파일을 재생할 수 없습니다.");
+      Alert.alert(t("noteCreate.playback_error"), t("noteCreate.audio_playback_error"));
     }
-  }, [playingSound, playingIdx]);
+  }, [playingSound, playingIdx, t]);
 
   const handleRemoveAudio = useCallback((index) => {
     setAudioFiles((prev) => prev.filter((_, i) => i !== index));
@@ -458,23 +475,23 @@ export default function NoteCreateScreen({ navigation }) {
 
         if (hwpFiles.length > 0) {
           Alert.alert(
-            "HWP 미지원",
-            "HWP 파일은 직접 처리할 수 없습니다.\n한컴오피스에서 PDF로 변환 후 첨부해주세요.\n(파일 → 다른 이름으로 저장 → PDF)"
+            t("noteCreate.hwp_unsupported"),
+            t("noteCreate.hwp_unsupported_msg")
           );
         }
 
         if (pdfs.length > 0) {
           const newFiles = pdfs.map((asset) => ({
             uri: asset.uri,
-            name: asset.name || "문서.pdf",
+            name: asset.name || `${t("noteCreate.document")}.pdf`,
           }));
           setPdfFiles((prev) => [...prev, ...newFiles]);
         }
       }
     } catch (e) {
-      Alert.alert("파일 선택 오류", "문서 파일을 선택할 수 없습니다.");
+      Alert.alert(t("noteCreate.file_select_error"), t("noteCreate.document_select_error"));
     }
-  }, []);
+  }, [t]);
 
   const handleRemovePdf = useCallback((index) => {
     setPdfFiles((prev) => prev.filter((_, i) => i !== index));
@@ -489,11 +506,11 @@ export default function NoteCreateScreen({ navigation }) {
   // Save note
   const handleSave = useCallback(() => {
     if (!title.trim()) {
-      Alert.alert("제목 필요", "제목을 입력해주세요.");
+      Alert.alert(t("noteCreate.title_required"), t("noteCreate.title_required_msg"));
       return;
     }
     if (!content.trim()) {
-      Alert.alert("내용 필요", "연습 내용을 입력해주세요.");
+      Alert.alert(t("noteCreate.content_required"), t("noteCreate.content_required_msg"));
       return;
     }
     const noteData = {
@@ -513,7 +530,7 @@ export default function NoteCreateScreen({ navigation }) {
     hasUnsavedChangesRef.current = false;
     handleSaveNote(noteData);
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation]);
+  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation, t]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -528,15 +545,15 @@ export default function NoteCreateScreen({ navigation }) {
     >
       {/* Top Bar */}
       <TopBar
-        title="새 노트"
+        title={t("noteCreate.title")}
         left={
           <TouchableOpacity onPress={handleCancel} activeOpacity={0.7}>
-            <Text style={styles.topBarCancel}>취소</Text>
+            <Text style={styles.topBarCancel}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         }
         right={
           <TouchableOpacity onPress={handleSave} activeOpacity={0.7}>
-            <Text style={styles.topBarSave}>저장</Text>
+            <Text style={styles.topBarSave}>{t("common.save")}</Text>
           </TouchableOpacity>
         }
       />
@@ -550,7 +567,7 @@ export default function NoteCreateScreen({ navigation }) {
         {/* Title Input */}
         <TextInput
           style={styles.titleInput}
-          placeholder="제목을 입력하세요"
+          placeholder={t("noteCreate.title_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={title}
           onChangeText={setTitle}
@@ -561,7 +578,7 @@ export default function NoteCreateScreen({ navigation }) {
         {/* Content Input */}
         <TextInput
           style={styles.contentInput}
-          placeholder="오늘의 연습을 기록해보세요..."
+          placeholder={t("noteCreate.content_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={content}
           onChangeText={setContent}
@@ -571,15 +588,15 @@ export default function NoteCreateScreen({ navigation }) {
         />
 
         {/* ─── Media Attachment ─── */}
-        <Text style={styles.sectionLabel}>미디어 첨부</Text>
+        <Text style={styles.sectionLabel}>{t("noteCreate.media_attach")}</Text>
         <View style={styles.mediaButtonRow}>
           <TouchableOpacity style={styles.mediaBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
             <Text style={styles.mediaBtnIcon}>📷</Text>
-            <Text style={styles.mediaBtnText}>촬영</Text>
+            <Text style={styles.mediaBtnText}>{t("noteCreate.camera")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.mediaBtn} onPress={handlePickMedia} activeOpacity={0.7}>
             <Text style={styles.mediaBtnIcon}>🖼️</Text>
-            <Text style={styles.mediaBtnText}>갤러리</Text>
+            <Text style={styles.mediaBtnText}>{t("noteCreate.gallery")}</Text>
           </TouchableOpacity>
           {isRecording ? (
             <TouchableOpacity style={[styles.mediaBtn, styles.mediaBtnRecording]} onPress={handleStopRecording} activeOpacity={0.7}>
@@ -589,16 +606,16 @@ export default function NoteCreateScreen({ navigation }) {
           ) : (
             <TouchableOpacity style={styles.mediaBtn} onPress={handleStartRecording} activeOpacity={0.7}>
               <Text style={styles.mediaBtnIcon}>🎤</Text>
-              <Text style={styles.mediaBtnText}>녹음</Text>
+              <Text style={styles.mediaBtnText}>{t("noteCreate.record")}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.mediaBtn} onPress={handlePickAudio} activeOpacity={0.7}>
             <Text style={styles.mediaBtnIcon}>🎵</Text>
-            <Text style={styles.mediaBtnText}>오디오</Text>
+            <Text style={styles.mediaBtnText}>{t("noteCreate.audio")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.mediaBtn} onPress={handlePickPdf} activeOpacity={0.7}>
             <Text style={styles.mediaBtnIcon}>📄</Text>
-            <Text style={styles.mediaBtnText}>문서</Text>
+            <Text style={styles.mediaBtnText}>{t("noteCreate.document")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -630,7 +647,7 @@ export default function NoteCreateScreen({ navigation }) {
                   <View style={{ width: `${videoAiProgress.percent || 0}%`, height: 6, backgroundColor: "#007AFF", borderRadius: 3 }} />
                 </View>
                 <Text style={styles.aiLoadingText}>
-                  {videoAiProgress.message || "준비 중..."} ({videoAiProgress.percent || 0}%)
+                  {videoAiProgress.message || t("noteCreate.preparing")} ({videoAiProgress.percent || 0}%)
                 </Text>
               </View>
             ) : (
@@ -640,10 +657,10 @@ export default function NoteCreateScreen({ navigation }) {
                   onPress={handleVideoAnalyze}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.videoAiButtonText}>🎥 영상 AI 분석 받기</Text>
+                  <Text style={styles.videoAiButtonText}>{t("noteCreate.video_ai_analyze")}</Text>
                 </TouchableOpacity>
                 <Text style={{ ...T.micro, color: CLight.gray400, textAlign: "center", marginBottom: 14 }}>
-                  5분 이내, 1080p 이하 영상을 권장합니다
+                  {t("noteCreate.video_ai_recommend")}
                 </Text>
               </>
             )}
@@ -651,7 +668,7 @@ export default function NoteCreateScreen({ navigation }) {
             {videoAnalysis ? (
               <View style={[styles.videoAiResultCard, { marginBottom: 14 }]}>
                 <View style={styles.videoAiResultHeader}>
-                  <Text style={styles.videoAiResultHeaderText}>🎥 영상 AI 분석 결과</Text>
+                  <Text style={styles.videoAiResultHeaderText}>{t("noteCreate.video_ai_result")}</Text>
                 </View>
                 <Text style={styles.aiResultContent}>{videoAnalysis}</Text>
               </View>
@@ -667,7 +684,7 @@ export default function NoteCreateScreen({ navigation }) {
                 <TouchableOpacity style={styles.voicePlayBtn} onPress={() => handlePlayRecording(rec.uri, `voice-${idx}`)}>
                   <Text style={styles.voicePlayIcon}>{playingIdx === `voice-${idx}` ? "⏸" : "▶️"}</Text>
                 </TouchableOpacity>
-                <Text style={styles.voiceDuration}>음성 {idx + 1} · {formatDuration(rec.duration)}</Text>
+                <Text style={styles.voiceDuration}>{t("noteCreate.voice_label", { index: idx + 1 })} · {formatDuration(rec.duration)}</Text>
                 <TouchableOpacity style={styles.voiceRemoveBtn} onPress={() => handleRemoveRecording(idx)}>
                   <Text style={styles.mediaRemoveText}>✕</Text>
                 </TouchableOpacity>
@@ -714,7 +731,7 @@ export default function NoteCreateScreen({ navigation }) {
         <View style={styles.divider} />
 
         {/* Field Selector */}
-        <Text style={styles.sectionLabel}>분야</Text>
+        <Text style={styles.sectionLabel}>{t("noteCreate.field")}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -744,7 +761,7 @@ export default function NoteCreateScreen({ navigation }) {
                     { color: isActive ? color : CLight.gray500, fontWeight: isActive ? "600" : "400" },
                   ]}
                 >
-                  {FIELD_LABELS[f]}
+                  {t("fields." + f)}
                 </Text>
               </TouchableOpacity>
             );
@@ -752,11 +769,11 @@ export default function NoteCreateScreen({ navigation }) {
         </ScrollView>
 
         {/* Tag Input */}
-        <Text style={styles.sectionLabel}>태그</Text>
+        <Text style={styles.sectionLabel}>{t("noteCreate.tags")}</Text>
         <View style={styles.tagInputRow}>
           <TextInput
             style={styles.tagTextInput}
-            placeholder="태그 입력"
+            placeholder={t("noteCreate.tag_input")}
             placeholderTextColor={CLight.gray400}
             value={tagInput}
             onChangeText={setTagInput}
@@ -776,7 +793,7 @@ export default function NoteCreateScreen({ navigation }) {
                 !tagInput.trim() && styles.tagAddTextDisabled,
               ]}
             >
-              추가
+              {t("common.add")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -797,10 +814,10 @@ export default function NoteCreateScreen({ navigation }) {
         )}
 
         {/* Series Name */}
-        <Text style={styles.sectionLabel}>시리즈 (선택)</Text>
+        <Text style={styles.sectionLabel}>{t("noteCreate.series")}</Text>
         <TextInput
           style={styles.seriesInput}
-          placeholder="시리즈 이름을 입력하세요"
+          placeholder={t("noteCreate.series_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={seriesName}
           onChangeText={setSeriesName}
@@ -821,7 +838,7 @@ export default function NoteCreateScreen({ navigation }) {
             <Animated.View
               style={[styles.shimmerBar, styles.shimmerBarMedium, { opacity: shimmerOpacity }]}
             />
-            <Text style={styles.aiLoadingText}>AI가 분석 중이에요...</Text>
+            <Text style={styles.aiLoadingText}>{t("noteCreate.ai_analyzing")}</Text>
           </View>
         ) : (
           <TouchableOpacity
@@ -829,7 +846,7 @@ export default function NoteCreateScreen({ navigation }) {
             onPress={handleAnalyze}
             activeOpacity={0.8}
           >
-            <Text style={styles.aiButtonText}>🤖 AI 분석 받기</Text>
+            <Text style={styles.aiButtonText}>{t("noteCreate.ai_analyze")}</Text>
           </TouchableOpacity>
         )}
 
@@ -837,7 +854,7 @@ export default function NoteCreateScreen({ navigation }) {
         {aiComment ? (
           <View style={styles.aiResultCard}>
             <View style={styles.aiResultHeader}>
-              <Text style={styles.aiResultHeaderText}>🤖 AI 분석 결과</Text>
+              <Text style={styles.aiResultHeaderText}>{t("noteCreate.ai_result")}</Text>
             </View>
             <Text style={styles.aiResultContent}>{aiComment}</Text>
           </View>

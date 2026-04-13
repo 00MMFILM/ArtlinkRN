@@ -5,7 +5,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text, View, StyleSheet, Modal, TextInput, TouchableOpacity, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from "react-native";
 import * as ExpoLinking from "expo-linking";
+import { useTranslation } from "react-i18next";
+import { initI18n } from "./src/i18n";
 
+import mobileAds from "react-native-google-mobile-ads";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppProvider, useApp } from "./src/context/AppContext";
 import { supabase } from "./src/services/supabaseClient";
 import Toast from "./src/components/Toast";
@@ -27,6 +31,7 @@ import GoalsScreen from "./src/screens/GoalsScreen";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
 import B2BDashboardScreen from "./src/screens/B2BDashboardScreen";
 import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
 import ProfileEditScreen from "./src/screens/ProfileEditScreen";
 import EULAScreen from "./src/screens/EULAScreen";
@@ -45,6 +50,8 @@ function TabIcon({ emoji, focused }) {
 }
 
 function MainTabs() {
+  const { t } = useTranslation();
+  const { isKoreanLocale } = useApp();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -65,7 +72,7 @@ function MainTabs() {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarLabel: "홈",
+          tabBarLabel: t("tabs.home"),
           tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
         }}
       />
@@ -73,23 +80,25 @@ function MainTabs() {
         name="Notes"
         component={NotesScreen}
         options={{
-          tabBarLabel: "노트",
+          tabBarLabel: t("tabs.notes"),
           tabBarIcon: ({ focused }) => <TabIcon emoji="📝" focused={focused} />,
         }}
       />
-      <Tab.Screen
-        name="Community"
-        component={CommunityScreen}
-        options={{
-          tabBarLabel: "커뮤니티",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
-        }}
-      />
+      {isKoreanLocale && (
+        <Tab.Screen
+          name="Community"
+          component={CommunityScreen}
+          options={{
+            tabBarLabel: t("tabs.community"),
+            tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
+          }}
+        />
+      )}
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: "프로필",
+          tabBarLabel: t("tabs.profile"),
           tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
         }}
       />
@@ -98,6 +107,7 @@ function MainTabs() {
 }
 
 function AccountLinkBanner({ visible, email, onLinked, onSkip }) {
+  const { t } = useTranslation();
   const [pw, setPw] = useState("");
   const [pwConfirm, setPwConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -111,14 +121,14 @@ function AccountLinkBanner({ visible, email, onLinked, onSkip }) {
     try {
       const { data, error } = await supabase.auth.signUp({ email, password: pw });
       if (error) {
-        Alert.alert("연동 실패", error.message.includes("already registered")
-          ? "이미 가입된 이메일입니다. 로그인해주세요."
+        Alert.alert(t("app.link_failed"), error.message.includes("already registered")
+          ? t("app.already_registered")
           : error.message);
         return;
       }
       onLinked(data.user?.id);
     } catch {
-      Alert.alert("오류", "계정 연동 중 문제가 발생했습니다.");
+      Alert.alert(t("common.error"), t("app.link_error"));
     } finally {
       setLoading(false);
     }
@@ -129,21 +139,21 @@ function AccountLinkBanner({ visible, email, onLinked, onSkip }) {
       <Pressable style={linkStyles.backdrop} onPress={onSkip} />
       <KeyboardAvoidingView style={linkStyles.sheetWrap} behavior={Platform.OS === "ios" ? "padding" : undefined} pointerEvents="box-none">
         <View style={linkStyles.sheet}>
-          <Text style={linkStyles.badge}>업데이트 안내</Text>
-          <Text style={linkStyles.title}>회원가입 시스템이 도입되었습니다</Text>
-          <Text style={linkStyles.desc}>기존 회원 대상 안내입니다.{"\n"}비밀번호만 설정하면 가입이 자동 완료됩니다.{"\n"}다른 기기에서도 로그인할 수 있고,{"\n"}데이터가 안전하게 보호됩니다.</Text>
-          <Text style={linkStyles.label}>이메일</Text>
+          <Text style={linkStyles.badge}>{t("app.update_notice")}</Text>
+          <Text style={linkStyles.title}>{t("app.signup_system_intro")}</Text>
+          <Text style={linkStyles.desc}>{t("app.existing_user_desc")}</Text>
+          <Text style={linkStyles.label}>{t("app.email")}</Text>
           <View style={linkStyles.emailBox}><Text style={linkStyles.emailText}>{email}</Text></View>
-          <Text style={linkStyles.label}>비밀번호</Text>
-          <TextInput style={linkStyles.input} placeholder="6자 이상" placeholderTextColor="#AEAEB2" secureTextEntry value={pw} onChangeText={setPw} />
-          <Text style={linkStyles.label}>비밀번호 확인</Text>
-          <TextInput style={[linkStyles.input, pwConfirm.length > 0 && pwConfirm !== pw && { borderColor: "#FF3B30" }]} placeholder="다시 입력" placeholderTextColor="#AEAEB2" secureTextEntry value={pwConfirm} onChangeText={setPwConfirm} />
-          {pwConfirm.length > 0 && pwConfirm !== pw && <Text style={linkStyles.error}>비밀번호가 일치하지 않습니다</Text>}
+          <Text style={linkStyles.label}>{t("app.password")}</Text>
+          <TextInput style={linkStyles.input} placeholder={t("app.password_min")} placeholderTextColor="#AEAEB2" secureTextEntry value={pw} onChangeText={setPw} />
+          <Text style={linkStyles.label}>{t("app.password_confirm")}</Text>
+          <TextInput style={[linkStyles.input, pwConfirm.length > 0 && pwConfirm !== pw && { borderColor: "#FF3B30" }]} placeholder={t("app.password_reenter")} placeholderTextColor="#AEAEB2" secureTextEntry value={pwConfirm} onChangeText={setPwConfirm} />
+          {pwConfirm.length > 0 && pwConfirm !== pw && <Text style={linkStyles.error}>{t("app.password_mismatch")}</Text>}
           <Pressable style={[linkStyles.btn, !canSubmit && linkStyles.btnDisabled]} onPress={handleLink} disabled={!canSubmit}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={linkStyles.btnText}>설정 완료</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={linkStyles.btnText}>{t("app.setup_complete")}</Text>}
           </Pressable>
           <Pressable style={linkStyles.skipBtn} onPress={onSkip}>
-            <Text style={linkStyles.skipText}>나중에 하기</Text>
+            <Text style={linkStyles.skipText}>{t("app.later")}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -172,6 +182,7 @@ const linkStyles = StyleSheet.create({
 });
 
 function ResetPasswordModal({ visible, onDone }) {
+  const { t } = useTranslation();
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [loading, setLoading] = useState(false);
@@ -183,12 +194,12 @@ function ResetPasswordModal({ visible, onDone }) {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) {
-        Alert.alert("오류", error.message);
+        Alert.alert(t("common.error"), error.message);
         return;
       }
-      Alert.alert("완료", "비밀번호가 변경되었습니다.", [{ text: "확인", onPress: onDone }]);
+      Alert.alert(t("common.done"), t("app.password_changed"), [{ text: t("common.confirm"), onPress: onDone }]);
     } catch {
-      Alert.alert("오류", "비밀번호 변경 중 문제가 발생했습니다.");
+      Alert.alert(t("common.error"), t("app.password_change_error"));
     } finally {
       setLoading(false);
     }
@@ -201,15 +212,15 @@ function ResetPasswordModal({ visible, onDone }) {
       <Pressable style={resetStyles.backdrop} onPress={onDone} />
       <KeyboardAvoidingView style={resetStyles.sheetWrap} behavior={Platform.OS === "ios" ? "padding" : undefined} pointerEvents="box-none">
         <View style={resetStyles.sheet}>
-          <Text style={resetStyles.title}>새 비밀번호 설정</Text>
-          <Text style={resetStyles.desc}>새로운 비밀번호를 입력해주세요.</Text>
-          <Text style={resetStyles.label}>새 비밀번호</Text>
-          <TextInput style={resetStyles.input} placeholder="6자 이상" placeholderTextColor="#AEAEB2" secureTextEntry value={newPw} onChangeText={setNewPw} />
-          <Text style={resetStyles.label}>비밀번호 확인</Text>
-          <TextInput style={[resetStyles.input, confirmPw.length > 0 && confirmPw !== newPw && { borderColor: "#FF3B30" }]} placeholder="다시 입력" placeholderTextColor="#AEAEB2" secureTextEntry value={confirmPw} onChangeText={setConfirmPw} />
-          {confirmPw.length > 0 && confirmPw !== newPw && <Text style={resetStyles.error}>비밀번호가 일치하지 않습니다</Text>}
+          <Text style={resetStyles.title}>{t("app.new_password_title")}</Text>
+          <Text style={resetStyles.desc}>{t("app.new_password_desc")}</Text>
+          <Text style={resetStyles.label}>{t("app.new_password")}</Text>
+          <TextInput style={resetStyles.input} placeholder={t("app.password_min")} placeholderTextColor="#AEAEB2" secureTextEntry value={newPw} onChangeText={setNewPw} />
+          <Text style={resetStyles.label}>{t("app.password_confirm")}</Text>
+          <TextInput style={[resetStyles.input, confirmPw.length > 0 && confirmPw !== newPw && { borderColor: "#FF3B30" }]} placeholder={t("app.password_reenter")} placeholderTextColor="#AEAEB2" secureTextEntry value={confirmPw} onChangeText={setConfirmPw} />
+          {confirmPw.length > 0 && confirmPw !== newPw && <Text style={resetStyles.error}>{t("app.password_mismatch")}</Text>}
           <Pressable style={[resetStyles.btn, !canSubmit && resetStyles.btnDisabled]} onPress={handleReset} disabled={!canSubmit}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={resetStyles.btnText}>변경 완료</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={resetStyles.btnText}>{t("app.change_complete")}</Text>}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -233,9 +244,17 @@ const resetStyles = StyleSheet.create({
 });
 
 function AppNavigator() {
+  const { t } = useTranslation();
   const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleUpdateProfile } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
+
+  useEffect(() => {
+    AsyncStorage.getItem("artlink-onboarding-seen").then((v) => {
+      setShowOnboarding(v !== "true");
+    });
+  }, []);
 
   useEffect(() => {
     const handleDeepLink = async (url) => {
@@ -284,7 +303,16 @@ function AppNavigator() {
     <View style={{ flex: 1 }}>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {authState === "auth" ? (
+          {authState === "auth" && showOnboarding === null ? (
+            <Stack.Screen name="Loading">{() => null}</Stack.Screen>
+          ) : authState === "auth" && showOnboarding ? (
+            <Stack.Screen name="Onboarding">
+              {() => <OnboardingScreen onComplete={() => {
+                setShowOnboarding(false);
+                AsyncStorage.setItem("artlink-onboarding-seen", "true").catch(() => {});
+              }} />}
+            </Stack.Screen>
+          ) : authState === "auth" ? (
             <Stack.Screen name="Auth" component={AuthScreen} />
           ) : (
             <>
@@ -330,7 +358,7 @@ function AppNavigator() {
         email={userProfile?.email || ""}
         onLinked={(authUserId) => {
           handleUpdateProfile({ authUserId });
-          Alert.alert("완료", "가입이 완료되었습니다!");
+          Alert.alert(t("common.done"), t("app.signup_complete"));
         }}
         onSkip={() => setLinkDismissed(true)}
       />
@@ -342,6 +370,15 @@ function AppNavigator() {
 }
 
 export default function App() {
+  const [i18nReady, setI18nReady] = useState(false);
+
+  useEffect(() => {
+    initI18n().then(() => setI18nReady(true));
+    mobileAds().initialize();
+  }, []);
+
+  if (!i18nReady) return null;
+
   return (
     <AppProvider>
       <AppNavigator />

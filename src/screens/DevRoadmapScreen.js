@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
 import TopBar from "../components/TopBar";
@@ -68,6 +69,7 @@ const ROADMAP = [
 ];
 
 export default function DevRoadmapScreen({ navigation }) {
+  const { t } = useTranslation();
   const { userProfile } = useApp();
 
   const totalItems = ROADMAP.reduce((sum, phase) => sum + phase.items.length, 0);
@@ -80,10 +82,10 @@ export default function DevRoadmapScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="개발 로드맵"
+        title={t("devRoadmap.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
       />
@@ -95,7 +97,7 @@ export default function DevRoadmapScreen({ navigation }) {
       >
         {/* Overall progress */}
         <View style={styles.overallCard}>
-          <Text style={[T.title, { color: CLight.gray900 }]}>전체 개발 진행률</Text>
+          <Text style={[T.title, { color: CLight.gray900 }]}>{t("devRoadmap.progress_title")}</Text>
           <View style={styles.overallRow}>
             <View style={{ flex: 1 }}>
               <View style={styles.overallBarBg}>
@@ -112,7 +114,7 @@ export default function DevRoadmapScreen({ navigation }) {
             </Text>
           </View>
           <Text style={[T.micro, { color: CLight.gray500, marginTop: 6 }]}>
-            총 {totalItems}개 항목 중 {doneItems}개 완료
+            {t("devRoadmap.progress_desc", { total: totalItems, done: doneItems })}
           </Text>
         </View>
 
@@ -140,7 +142,7 @@ export default function DevRoadmapScreen({ navigation }) {
                   </View>
                   {isComplete && (
                     <View style={[styles.completeBadge, { backgroundColor: CLight.green + "18" }]}>
-                      <Text style={[T.tinyBold, { color: CLight.green }]}>완료</Text>
+                      <Text style={[T.tinyBold, { color: CLight.green }]}>{t("devRoadmap.phase_complete")}</Text>
                     </View>
                   )}
                 </View>
@@ -207,9 +209,7 @@ export default function DevRoadmapScreen({ navigation }) {
         {/* Footer note */}
         <View style={styles.footerNote}>
           <Text style={[T.micro, { color: CLight.gray500, textAlign: "center", lineHeight: 20 }]}>
-            Artlink는 아티스트의 성장을 위해{"\n"}
-            지속적으로 개발되고 있습니다.{"\n"}
-            피드백은 언제든 환영합니다!
+            {t("devRoadmap.footer")}
           </Text>
         </View>
 

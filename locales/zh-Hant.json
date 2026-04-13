@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "需要存取照片以將圖片附加到筆記和個人資料中。",
+  "NSCameraUsageDescription": "需要存取相機以拍攝個人資料照片。",
+  "NSMicrophoneUsageDescription": "需要存取麥克風以錄製語音備忘錄。"
+}

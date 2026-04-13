@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "需要访问照片以将图片附加到笔记和个人资料中。",
+  "NSCameraUsageDescription": "需要访问相机以拍摄个人资料照片。",
+  "NSMicrophoneUsageDescription": "需要访问麦克风以录制语音备忘录。"
+}

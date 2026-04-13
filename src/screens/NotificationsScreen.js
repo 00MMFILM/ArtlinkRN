@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
 import TopBar from "../components/TopBar";
@@ -86,6 +87,7 @@ const SAMPLE_NOTIFICATIONS = [
 ];
 
 export default function NotificationsScreen({ navigation }) {
+  const { t } = useTranslation();
   const { userProfile } = useApp();
   const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
 
@@ -104,16 +106,16 @@ export default function NotificationsScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="알림"
+        title={t("notifications.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
         right={
           unreadCount > 0 ? (
             <TouchableOpacity onPress={handleMarkAllRead}>
-              <Text style={[T.micro, { color: CLight.pink }]}>모두 읽음</Text>
+              <Text style={[T.micro, { color: CLight.pink }]}>{t("notifications.mark_all_read")}</Text>
             </TouchableOpacity>
           ) : null
         }
@@ -123,7 +125,7 @@ export default function NotificationsScreen({ navigation }) {
       {unreadCount > 0 && (
         <View style={styles.unreadBanner}>
           <Text style={[T.captionBold, { color: CLight.pink }]}>
-            읽지 않은 알림 {unreadCount}개
+            {t("notifications.unread_count", { count: unreadCount })}
           </Text>
         </View>
       )}
@@ -190,7 +192,7 @@ export default function NotificationsScreen({ navigation }) {
         {notifications.length === 0 && (
           <View style={styles.emptyContainer}>
             <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-              알림이 없습니다.
+              {t("notifications.empty")}
             </Text>
           </View>
         )}

@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "Cần quyền truy cập ảnh để đính kèm hình ảnh vào ghi chú và hồ sơ.",
+  "NSCameraUsageDescription": "Cần quyền truy cập camera để chụp ảnh hồ sơ.",
+  "NSMicrophoneUsageDescription": "Cần quyền truy cập micro để ghi âm ghi chú thoại."
+}

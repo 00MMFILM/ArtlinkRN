@@ -1,0 +1,5 @@
+{
+  "NSPhotoLibraryUsageDescription": "Se necesita acceso a las fotos para adjuntar imágenes a las notas y al perfil.",
+  "NSCameraUsageDescription": "Se necesita acceso a la cámara para tomar fotos de perfil.",
+  "NSMicrophoneUsageDescription": "Se necesita acceso al micrófono para grabar notas de voz."
+}

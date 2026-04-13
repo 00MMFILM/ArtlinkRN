@@ -18,6 +18,7 @@ import {
 import { supabase } from "../services/supabaseClient";
 import * as ImagePicker from "expo-image-picker";
 import { useApp } from "../context/AppContext";
+import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
 import {
   ROLE_MODELS_BY_FIELD, INTERESTS_BY_FIELD, USER_TYPES,
@@ -26,21 +27,34 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+const LANGUAGES = [
+  { code: "ko", flag: "🇰🇷", label: "한국어" },
+  { code: "en", flag: "🇺🇸", label: "English" },
+  { code: "ja", flag: "🇯🇵", label: "日本語" },
+  { code: "zh-CN", flag: "🇨🇳", label: "简体中文" },
+  { code: "zh-TW", flag: "🇹🇼", label: "繁體中文" },
+  { code: "vi", flag: "🇻🇳", label: "Tiếng Việt" },
+  { code: "th", flag: "🇹🇭", label: "ภาษาไทย" },
+  { code: "id", flag: "🇮🇩", label: "Bahasa" },
+  { code: "ar", flag: "🇸🇦", label: "العربية" },
+  { code: "es", flag: "🇪🇸", label: "Español" },
+];
+
 const userTypes = [
-  { id: "professional", emoji: "\uD83C\uDF96\uFE0F", label: "전문 예술가", desc: "현업에서 활동 중인 아티스트" },
-  { id: "aspiring", emoji: "\uD83C\uDF31", label: "예술 지망생", desc: "전공 학생이거나 데뷔를 준비 중" },
-  { id: "hobby", emoji: "\uD83C\uDFA8", label: "취미 예술가", desc: "즐기면서 예술 활동을 하고 있어요" },
-  { id: "industry", emoji: "\uD83C\uDFE2", label: "업계 관계자", desc: "프로덕션, 기획사, 교육기관 등" },
-  { id: "fan", emoji: "\uD83D\uDC9C", label: "팬", desc: "좋아하는 아티스트를 응원해요" },
+  { id: "professional", emoji: "\uD83C\uDF96\uFE0F", labelKey: "auth.usertype_professional", descKey: "auth.usertype_professional_desc" },
+  { id: "aspiring", emoji: "\uD83C\uDF31", labelKey: "auth.usertype_aspiring", descKey: "auth.usertype_aspiring_desc" },
+  { id: "hobby", emoji: "\uD83C\uDFA8", labelKey: "auth.usertype_hobby", descKey: "auth.usertype_hobby_desc" },
+  { id: "industry", emoji: "\uD83C\uDFE2", labelKey: "auth.usertype_industry", descKey: "auth.usertype_industry_desc" },
+  { id: "fan", emoji: "\uD83D\uDC9C", labelKey: "auth.usertype_fan", descKey: "auth.usertype_fan_desc" },
 ];
 
 const artFields = [
-  { id: "acting", emoji: "\uD83C\uDFAD", label: "연기" },
-  { id: "music", emoji: "\uD83C\uDFB5", label: "음악" },
-  { id: "art", emoji: "\uD83C\uDFA8", label: "미술" },
-  { id: "dance", emoji: "\uD83D\uDC83", label: "무용" },
-  { id: "literature", emoji: "\u270D\uFE0F", label: "문학" },
-  { id: "film", emoji: "\uD83C\uDFAC", label: "영화" },
+  { id: "acting", emoji: "\uD83C\uDFAD", labelKey: "auth.field_acting" },
+  { id: "music", emoji: "\uD83C\uDFB5", labelKey: "auth.field_music" },
+  { id: "art", emoji: "\uD83C\uDFA8", labelKey: "auth.field_art" },
+  { id: "dance", emoji: "\uD83D\uDC83", labelKey: "auth.field_dance" },
+  { id: "literature", emoji: "\u270D\uFE0F", labelKey: "auth.field_literature" },
+  { id: "film", emoji: "\uD83C\uDFAC", labelKey: "auth.field_film" },
 ];
 
 const GENDER_EMOJIS = { male: "\uD83D\uDC68", female: "\uD83D\uDC69", other: "\uD83E\uDDD1" };
@@ -48,7 +62,8 @@ const GENDER_EMOJIS = { male: "\uD83D\uDC68", female: "\uD83D\uDC69", other: "\u
 const TOTAL_STEPS = 7;
 
 export default function AuthScreen({ navigation }) {
-  const { handleAuth } = useApp();
+  const { handleAuth, handleChangeLanguage, language } = useApp();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState("login");
   const [loginEmail, setLoginEmail] = useState("");
@@ -101,6 +116,7 @@ export default function AuthScreen({ navigation }) {
     arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
 
   const [loading, setLoading] = useState(false);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   // Validation
   const isStep0Valid = () =>
@@ -146,7 +162,7 @@ export default function AuthScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("권한 필요", "사진 앨범 접근 권한을 허용해주세요.");
+        Alert.alert(t("common.permission_required"), t("common.photo_permission"));
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -158,7 +174,7 @@ export default function AuthScreen({ navigation }) {
         setPhotoUris((prev) => [...prev, result.assets[0].uri]);
       }
     } catch (e) {
-      Alert.alert("오류", "사진을 불러올 수 없습니다.");
+      Alert.alert(t("common.error"), t("common.photo_load_error"));
     }
   };
 
@@ -176,9 +192,9 @@ export default function AuthScreen({ navigation }) {
       });
       if (error) {
         const msg = error.message.includes("already registered")
-          ? "이미 가입된 이메일입니다."
+          ? t("auth.already_registered_email")
           : error.message;
-        Alert.alert("회원가입 실패", msg);
+        Alert.alert(t("auth.signup_failed"), msg);
         return;
       }
       const profileData = {
@@ -206,7 +222,7 @@ export default function AuthScreen({ navigation }) {
       };
       handleAuth(profileData);
     } catch (e) {
-      Alert.alert("오류", "회원가입 중 문제가 발생했습니다.");
+      Alert.alert(t("common.error"), t("auth.signup_error"));
     } finally {
       setLoading(false);
     }
@@ -214,7 +230,7 @@ export default function AuthScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) {
-      Alert.alert("오류", "이메일과 비밀번호를 입력해주세요.");
+      Alert.alert(t("common.error"), t("auth.email_password_required"));
       return;
     }
     setLoading(true);
@@ -224,7 +240,7 @@ export default function AuthScreen({ navigation }) {
         password: loginPassword,
       });
       if (error) {
-        Alert.alert("로그인 실패", "이메일 또는 비밀번호가 올바르지 않습니다.");
+        Alert.alert(t("auth.login_failed"), t("auth.login_invalid"));
         return;
       }
       if (data.user) {
@@ -232,7 +248,7 @@ export default function AuthScreen({ navigation }) {
         handleAuth({ email: loginEmail.trim(), _mergeExisting: true });
       }
     } catch (e) {
-      Alert.alert("오류", "로그인 중 문제가 발생했습니다.");
+      Alert.alert(t("common.error"), t("auth.login_error"));
     } finally {
       setLoading(false);
     }
@@ -242,7 +258,7 @@ export default function AuthScreen({ navigation }) {
 
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim().includes("@")) {
-      Alert.alert("오류", "유효한 이메일을 입력해주세요.");
+      Alert.alert(t("common.error"), t("auth.valid_email_required"));
       return;
     }
     setLoading(true);
@@ -251,14 +267,14 @@ export default function AuthScreen({ navigation }) {
         redirectTo: "https://artlink-server.vercel.app/api/auth-callback",
       });
       if (error) {
-        Alert.alert("오류", error.message);
+        Alert.alert(t("common.error"), error.message);
         return;
       }
-      Alert.alert("안내", "비밀번호 재설정 링크가 전송되었습니다.", [
-        { text: "확인", onPress: () => setMode("login") },
+      Alert.alert(t("auth.reset_sent"), t("auth.reset_sent_message"), [
+        { text: t("common.confirm"), onPress: () => setMode("login") },
       ]);
     } catch (e) {
-      Alert.alert("오류", "요청 중 문제가 발생했습니다.");
+      Alert.alert(t("common.error"), t("auth.reset_error"));
     } finally {
       setLoading(false);
     }
@@ -298,44 +314,77 @@ export default function AuthScreen({ navigation }) {
   const renderLogin = () => (
     <View style={styles.loginContainer}>
       <View style={styles.brandContainer}>
-        <Image source={require("../../assets/icon.png")} style={styles.brandLogo} />
-        <Text style={styles.brandName}>ArtLink</Text>
-        <Text style={styles.brandTagline}>{"당신의 예술 여정을 기록하세요"}</Text>
+        <Image source={require("../../assets/logo-full.png")} style={styles.brandLogoFull} resizeMode="contain" />
       </View>
       <View style={styles.inputGroup}>
-        <TextInput style={styles.input} placeholder="이메일" placeholderTextColor={CLight.gray400} value={loginEmail} onChangeText={setLoginEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
-        <TextInput style={styles.input} placeholder="비밀번호" placeholderTextColor={CLight.gray400} value={loginPassword} onChangeText={setLoginPassword} secureTextEntry />
+        <TextInput style={styles.input} placeholder={t("auth.email_placeholder")} placeholderTextColor={CLight.gray400} value={loginEmail} onChangeText={setLoginEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+        <TextInput style={styles.input} placeholder={t("auth.password_placeholder")} placeholderTextColor={CLight.gray400} value={loginPassword} onChangeText={setLoginPassword} secureTextEntry />
       </View>
       <TouchableOpacity style={styles.forgotButton} onPress={() => animateTransition(() => setMode("forgot"))}>
-        <Text style={styles.forgotText}>비밀번호를 잊으셨나요?</Text>
+        <Text style={styles.forgotText}>{t("auth.forgot_password")}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={[styles.primaryButton, (!loginEmail.trim() || !loginPassword.trim() || loading) && styles.disabledButton]} onPress={handleLogin} disabled={!loginEmail.trim() || !loginPassword.trim() || loading}>
-        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>로그인</Text>}
+        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{t("auth.login")}</Text>}
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondaryButton} onPress={() => animateTransition(() => setMode("signup"))}>
-        <Text style={styles.secondaryButtonText}>회원가입</Text>
+        <Text style={styles.secondaryButtonText}>{t("auth.signup")}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipText}>둘러보기</Text>
+        <Text style={styles.skipText}>{t("auth.browse")}</Text>
       </TouchableOpacity>
+
+      {/* Language Selector — Dropdown */}
+      <View style={styles.langSelector}>
+        <TouchableOpacity
+          style={styles.langDropdownButton}
+          onPress={() => setLangDropdownOpen(!langDropdownOpen)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.langDropdownFlag}>
+            {LANGUAGES.find(l => l.code === language)?.flag}
+          </Text>
+          <Text style={styles.langDropdownLabel}>
+            {LANGUAGES.find(l => l.code === language)?.label}
+          </Text>
+          <Text style={styles.langDropdownArrow}>{langDropdownOpen ? "▲" : "▼"}</Text>
+        </TouchableOpacity>
+
+        {langDropdownOpen && (
+          <View style={styles.langDropdownList}>
+            {LANGUAGES.map((lang) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[styles.langDropdownItem, language === lang.code && styles.langDropdownItemActive]}
+                onPress={() => { handleChangeLanguage(lang.code); setLangDropdownOpen(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.langDropdownItemFlag}>{lang.flag}</Text>
+                <Text style={[styles.langDropdownItemLabel, language === lang.code && styles.langDropdownItemLabelActive]}>
+                  {lang.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
     </View>
   );
 
   const renderForgot = () => (
     <View style={styles.loginContainer}>
       <View style={styles.brandContainer}>
-        <Image source={require("../../assets/icon.png")} style={styles.brandLogo} />
-        <Text style={[T.h2, { color: CLight.gray900, marginTop: 8 }]}>비밀번호 찾기</Text>
-        <Text style={[T.caption, { color: CLight.gray500, marginTop: 4, textAlign: "center" }]}>{"가입한 이메일을 입력하면\n비밀번호 재설정 링크를 보내드립니다."}</Text>
+        <Image source={require("../../assets/logo-full.png")} style={styles.brandLogoFull} resizeMode="contain" />
+        <Text style={[T.h2, { color: CLight.gray900, marginTop: 8 }]}>{t("auth.find_password")}</Text>
+        <Text style={[T.caption, { color: CLight.gray500, marginTop: 4, textAlign: "center" }]}>{t("auth.find_password_desc")}</Text>
       </View>
       <View style={styles.inputGroup}>
-        <TextInput style={styles.input} placeholder="이메일" placeholderTextColor={CLight.gray400} value={forgotEmail} onChangeText={setForgotEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+        <TextInput style={styles.input} placeholder={t("auth.email_placeholder")} placeholderTextColor={CLight.gray400} value={forgotEmail} onChangeText={setForgotEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
       </View>
       <TouchableOpacity style={[styles.primaryButton, (!forgotEmail.trim().includes("@") || loading) && styles.disabledButton]} onPress={handleForgotPassword} disabled={!forgotEmail.trim().includes("@") || loading}>
-        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>재설정 링크 받기</Text>}
+        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{t("auth.reset_link")}</Text>}
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondaryButton} onPress={() => animateTransition(() => setMode("login"))}>
-        <Text style={styles.secondaryButtonText}>로그인으로 돌아가기</Text>
+        <Text style={styles.secondaryButtonText}>{t("auth.back_to_login")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -352,26 +401,26 @@ export default function AuthScreen({ navigation }) {
 
   const renderStep0 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>기본 정보</Text>
-      <Text style={styles.stepSubtitle}>계정을 만들어 볼까요?</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_basic")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_basic_desc")}</Text>
       <View style={styles.inputGroup}>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>이름</Text>
-          <TextInput style={styles.input} placeholder="이름을 입력해주세요" placeholderTextColor={CLight.gray400} value={name} onChangeText={setName} autoCorrect={false} />
+          <Text style={styles.inputLabel}>{t("auth.name")}</Text>
+          <TextInput style={styles.input} placeholder={t("auth.name_placeholder")} placeholderTextColor={CLight.gray400} value={name} onChangeText={setName} autoCorrect={false} />
         </View>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>이메일</Text>
+          <Text style={styles.inputLabel}>{t("auth.email_label")}</Text>
           <TextInput style={styles.input} placeholder="email@example.com" placeholderTextColor={CLight.gray400} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
         </View>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>비밀번호</Text>
-          <TextInput style={styles.input} placeholder="6자 이상" placeholderTextColor={CLight.gray400} value={password} onChangeText={setPassword} secureTextEntry />
+          <Text style={styles.inputLabel}>{t("auth.password_label")}</Text>
+          <TextInput style={styles.input} placeholder={t("auth.password_min_hint")} placeholderTextColor={CLight.gray400} value={password} onChangeText={setPassword} secureTextEntry />
         </View>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>비밀번호 확인</Text>
-          <TextInput style={[styles.input, confirmPassword.length > 0 && confirmPassword !== password && styles.inputError]} placeholder="비밀번호를 다시 입력해주세요" placeholderTextColor={CLight.gray400} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+          <Text style={styles.inputLabel}>{t("auth.password_confirm_label")}</Text>
+          <TextInput style={[styles.input, confirmPassword.length > 0 && confirmPassword !== password && styles.inputError]} placeholder={t("auth.password_confirm_placeholder")} placeholderTextColor={CLight.gray400} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
           {confirmPassword.length > 0 && confirmPassword !== password && (
-            <Text style={styles.errorText}>비밀번호가 일치하지 않습니다</Text>
+            <Text style={styles.errorText}>{t("app.password_mismatch")}</Text>
           )}
         </View>
       </View>
@@ -380,14 +429,14 @@ export default function AuthScreen({ navigation }) {
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>어떤 예술가신가요?</Text>
-      <Text style={styles.stepSubtitle}>당신에게 맞는 경험을 드릴게요</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_usertype")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_usertype_desc")}</Text>
       <View style={styles.optionGrid}>
         {userTypes.map((type) => (
           <TouchableOpacity key={type.id} style={[styles.optionCard, selectedUserType === type.id && styles.optionCardActive]} onPress={() => setSelectedUserType(type.id)} activeOpacity={0.7}>
             <Text style={styles.optionEmoji}>{type.emoji}</Text>
-            <Text style={[styles.optionLabel, selectedUserType === type.id && styles.optionLabelActive]}>{type.label}</Text>
-            <Text style={[styles.optionDesc, selectedUserType === type.id && styles.optionDescActive]}>{type.desc}</Text>
+            <Text style={[styles.optionLabel, selectedUserType === type.id && styles.optionLabelActive]}>{t(type.labelKey)}</Text>
+            <Text style={[styles.optionDesc, selectedUserType === type.id && styles.optionDescActive]}>{t(type.descKey)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -396,15 +445,15 @@ export default function AuthScreen({ navigation }) {
 
   const renderStep2 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>예술 분야</Text>
-      <Text style={styles.stepSubtitle}>관심 있는 분야를 모두 선택해주세요</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_fields")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_fields_desc")}</Text>
       <View style={styles.fieldGrid}>
         {artFields.map((field) => {
           const isSelected = selectedFields.includes(field.id);
           return (
             <TouchableOpacity key={field.id} style={[styles.fieldCard, isSelected && styles.fieldCardActive]} onPress={() => setSelectedFields(toggleInArray(selectedFields, field.id))} activeOpacity={0.7}>
               <Text style={styles.fieldEmoji}>{field.emoji}</Text>
-              <Text style={[styles.fieldLabel, isSelected && styles.fieldLabelActive]}>{field.label}</Text>
+              <Text style={[styles.fieldLabel, isSelected && styles.fieldLabelActive]}>{t(field.labelKey)}</Text>
             </TouchableOpacity>
           );
         })}
@@ -415,10 +464,10 @@ export default function AuthScreen({ navigation }) {
   // Step 3: Body info (NEW)
   const renderStep3 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>신체 정보</Text>
-      <Text style={styles.stepSubtitle}>캐스팅 매칭에 활용됩니다 (건너뛰기 가능)</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_body")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_body_desc")}</Text>
 
-      <Text style={styles.inputLabel}>프로필 사진 (최대 6장)</Text>
+      <Text style={styles.inputLabel}>{t("auth.profile_photos")}</Text>
       <View style={styles.photoGrid}>
         {photoUris.map((uri, i) => (
           <View key={i} style={styles.photoGridItem}>
@@ -426,18 +475,18 @@ export default function AuthScreen({ navigation }) {
             <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => handleRemovePhoto(i)}>
               <Text style={styles.photoRemoveText}>x</Text>
             </TouchableOpacity>
-            {i === 0 && <View style={styles.mainBadge}><Text style={styles.mainBadgeText}>대표</Text></View>}
+            {i === 0 && <View style={styles.mainBadge}><Text style={styles.mainBadgeText}>{t("auth.main_photo")}</Text></View>}
           </View>
         ))}
         {photoUris.length < 6 && (
           <TouchableOpacity style={styles.photoAddBtn} onPress={handleAddPhoto} activeOpacity={0.7}>
             <Text style={{ fontSize: 28, color: CLight.gray400 }}>+</Text>
-            <Text style={[T.micro, { color: CLight.gray400 }]}>추가</Text>
+            <Text style={[T.micro, { color: CLight.gray400 }]}>{t("auth.add_photo")}</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={styles.inputLabel}>성별</Text>
+      <Text style={styles.inputLabel}>{t("auth.gender")}</Text>
       <View style={styles.genderRow}>
         {GENDER_OPTIONS.map((g) => (
           <TouchableOpacity
@@ -446,38 +495,38 @@ export default function AuthScreen({ navigation }) {
             onPress={() => setGender(g.key)}
           >
             <Text style={styles.genderEmoji}>{GENDER_EMOJIS[g.key]}</Text>
-            <Text style={[styles.genderLabel, gender === g.key && styles.genderLabelActive]}>{g.label}</Text>
+            <Text style={[styles.genderLabel, gender === g.key && styles.genderLabelActive]}>{t(g.labelKey)}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.inputGroup}>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>생년월일</Text>
+          <Text style={styles.inputLabel}>{t("auth.birth_date")}</Text>
           <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={CLight.gray400} value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" maxLength={10} />
         </View>
         <View style={{ flexDirection: "row", gap: 12 }}>
           <View style={[styles.inputWrapper, { flex: 1 }]}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={styles.inputLabel}>키 (cm)</Text>
+              <Text style={styles.inputLabel}>{t("auth.height")}</Text>
               <TouchableOpacity onPress={() => setHeightPrivate(!heightPrivate)} style={[styles.privacyToggle, heightPrivate && styles.privacyToggleActive]}>
-                <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? "비공개" : "공개"}</Text>
+                <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? t("common.private") : t("common.public")}</Text>
               </TouchableOpacity>
             </View>
             <TextInput style={styles.input} placeholder="170" placeholderTextColor={CLight.gray400} value={height} onChangeText={setHeight} keyboardType="number-pad" maxLength={3} />
           </View>
           <View style={[styles.inputWrapper, { flex: 1 }]}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={styles.inputLabel}>몸무게 (kg)</Text>
+              <Text style={styles.inputLabel}>{t("auth.weight")}</Text>
               <TouchableOpacity onPress={() => setWeightPrivate(!weightPrivate)} style={[styles.privacyToggle, weightPrivate && styles.privacyToggleActive]}>
-                <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? "비공개" : "공개"}</Text>
+                <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? t("common.private") : t("common.public")}</Text>
               </TouchableOpacity>
             </View>
             <TextInput style={styles.input} placeholder="60" placeholderTextColor={CLight.gray400} value={weight} onChangeText={setWeight} keyboardType="number-pad" maxLength={3} />
           </View>
         </View>
         <Text style={[T.micro, { color: CLight.gray400, marginTop: 8, lineHeight: 18 }]}>
-          비공개 설정 시 관계자가 배우 프로필 열람 시에만 확인할 수 있습니다.
+          {t("auth.private_notice")}
         </Text>
       </View>
     </View>
@@ -486,10 +535,10 @@ export default function AuthScreen({ navigation }) {
   // Step 4: Specialties, school, career (NEW)
   const renderStep4 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>활동 정보</Text>
-      <Text style={styles.stepSubtitle}>특기, 학교, 경력을 입력해주세요 (건너뛰기 가능)</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_activity")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_activity_desc")}</Text>
 
-      <Text style={styles.inputLabel}>특기</Text>
+      <Text style={styles.inputLabel}>{t("auth.specialty")}</Text>
       <View style={styles.pillGrid}>
         {SPECIALTY_SUGGESTIONS.map((s) => {
           const isSelected = specialties.includes(s);
@@ -501,36 +550,36 @@ export default function AuthScreen({ navigation }) {
         })}
       </View>
       <View style={[styles.tagInputRow, { marginTop: 10 }]}>
-        <TextInput style={styles.tagInput} placeholder="직접 입력" placeholderTextColor={CLight.gray400} value={customSpecialty} onChangeText={setCustomSpecialty} onSubmitEditing={handleAddCustomSpecialty} returnKeyType="done" maxLength={20} />
+        <TextInput style={styles.tagInput} placeholder={t("auth.custom_input")} placeholderTextColor={CLight.gray400} value={customSpecialty} onChangeText={setCustomSpecialty} onSubmitEditing={handleAddCustomSpecialty} returnKeyType="done" maxLength={20} />
         <TouchableOpacity style={[styles.tagAddBtn, !customSpecialty.trim() && styles.tagAddBtnDisabled]} onPress={handleAddCustomSpecialty} disabled={!customSpecialty.trim()}>
-          <Text style={[styles.tagAddText, !customSpecialty.trim() && styles.tagAddTextDisabled]}>추가</Text>
+          <Text style={[styles.tagAddText, !customSpecialty.trim() && styles.tagAddTextDisabled]}>{t("common.add")}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={[styles.inputGroup, { marginTop: 16 }]}>
         <View style={{ flexDirection: "row", gap: 12 }}>
           <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <Text style={styles.inputLabel}>학교</Text>
-            <TextInput style={styles.input} placeholder="학교명" placeholderTextColor={CLight.gray400} value={school} onChangeText={setSchool} />
+            <Text style={styles.inputLabel}>{t("auth.school")}</Text>
+            <TextInput style={styles.input} placeholder={t("auth.school_placeholder")} placeholderTextColor={CLight.gray400} value={school} onChangeText={setSchool} />
           </View>
           <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <Text style={styles.inputLabel}>거주지</Text>
-            <TextInput style={styles.input} placeholder="서울" placeholderTextColor={CLight.gray400} value={location} onChangeText={setLocation} />
+            <Text style={styles.inputLabel}>{t("auth.location")}</Text>
+            <TextInput style={styles.input} placeholder={t("auth.location_placeholder")} placeholderTextColor={CLight.gray400} value={location} onChangeText={setLocation} />
           </View>
         </View>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>소속사</Text>
-          <TextInput style={styles.input} placeholder="소속사명 (없으면 생략)" placeholderTextColor={CLight.gray400} value={agency} onChangeText={setAgency} />
+          <Text style={styles.inputLabel}>{t("auth.agency")}</Text>
+          <TextInput style={styles.input} placeholder={t("auth.agency_placeholder")} placeholderTextColor={CLight.gray400} value={agency} onChangeText={setAgency} />
         </View>
       </View>
 
       {/* Career section */}
-      <Text style={[styles.inputLabel, { marginTop: 16 }]}>경력</Text>
+      <Text style={[styles.inputLabel, { marginTop: 16 }]}>{t("auth.career")}</Text>
       {career.map((c, i) => (
         <View key={i} style={styles.careerItem}>
           <View style={{ flex: 1 }}>
             <Text style={[T.captionBold, { color: CLight.gray900 }]}>{c.title}</Text>
-            <Text style={[T.micro, { color: CLight.gray500 }]}>{c.role} | {c.year} | {CAREER_TYPES.find((ct) => ct.key === c.type)?.label || c.type}</Text>
+            <Text style={[T.micro, { color: CLight.gray500 }]}>{c.role} | {c.year} | {t("careerTypes." + c.type)}</Text>
           </View>
           <TouchableOpacity onPress={() => setCareer((prev) => prev.filter((_, idx) => idx !== i))}>
             <Text style={{ color: CLight.red, fontSize: 18 }}>x</Text>
@@ -539,21 +588,21 @@ export default function AuthScreen({ navigation }) {
       ))}
       <View style={styles.careerAddSection}>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput style={[styles.input, { flex: 2 }]} placeholder="작품명" placeholderTextColor={CLight.gray400} value={careerTitle} onChangeText={setCareerTitle} />
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder="역할" placeholderTextColor={CLight.gray400} value={careerRole} onChangeText={setCareerRole} />
+          <TextInput style={[styles.input, { flex: 2 }]} placeholder={t("auth.work_title")} placeholderTextColor={CLight.gray400} value={careerTitle} onChangeText={setCareerTitle} />
+          <TextInput style={[styles.input, { flex: 1 }]} placeholder={t("auth.role")} placeholderTextColor={CLight.gray400} value={careerRole} onChangeText={setCareerRole} />
         </View>
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder="년도" placeholderTextColor={CLight.gray400} value={careerYear} onChangeText={setCareerYear} keyboardType="number-pad" maxLength={4} />
+          <TextInput style={[styles.input, { flex: 1 }]} placeholder={t("auth.year")} placeholderTextColor={CLight.gray400} value={careerYear} onChangeText={setCareerYear} keyboardType="number-pad" maxLength={4} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, alignItems: "center" }} style={{ flex: 2 }}>
             {CAREER_TYPES.slice(0, 5).map((ct) => (
               <TouchableOpacity key={ct.key} style={[styles.miniPill, careerType === ct.key && styles.miniPillActive]} onPress={() => setCareerType(ct.key)}>
-                <Text style={[styles.miniPillText, careerType === ct.key && styles.miniPillTextActive]}>{ct.label}</Text>
+                <Text style={[styles.miniPillText, careerType === ct.key && styles.miniPillTextActive]}>{t(ct.labelKey)}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
         <TouchableOpacity style={[styles.addCareerBtn, !careerTitle.trim() && styles.disabledButton]} onPress={handleAddCareer} disabled={!careerTitle.trim()}>
-          <Text style={[T.captionBold, { color: CLight.white }]}>+ 경력 추가</Text>
+          <Text style={[T.captionBold, { color: CLight.white }]}>{t("auth.add_career")}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -562,8 +611,8 @@ export default function AuthScreen({ navigation }) {
   // Step 5: Role Models (was step 3)
   const renderStep5 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>롤 모델</Text>
-      <Text style={styles.stepSubtitle}>존경하는 아티스트를 선택해주세요 (선택사항)</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_rolemodels")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_rolemodels_desc")}</Text>
       <View style={styles.pillGrid}>
         {availableRoleModels.map((model) => {
           const isSelected = selectedRoleModels.includes(model);
@@ -575,7 +624,7 @@ export default function AuthScreen({ navigation }) {
         })}
       </View>
       {availableRoleModels.length === 0 && (
-        <Text style={styles.emptyHint}>이전 단계에서 분야를 선택해주세요</Text>
+        <Text style={styles.emptyHint}>{t("auth.select_field_first")}</Text>
       )}
     </View>
   );
@@ -583,8 +632,8 @@ export default function AuthScreen({ navigation }) {
   // Step 6: Interests (was step 4)
   const renderStep6 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>관심 분야</Text>
-      <Text style={styles.stepSubtitle}>특별히 관심 있는 영역을 선택해주세요 (선택사항)</Text>
+      <Text style={styles.stepTitle}>{t("auth.step_interests")}</Text>
+      <Text style={styles.stepSubtitle}>{t("auth.step_interests_desc")}</Text>
       <View style={styles.pillGrid}>
         {availableInterests.map((interest) => {
           const isSelected = selectedInterests.includes(interest);
@@ -596,16 +645,16 @@ export default function AuthScreen({ navigation }) {
         })}
       </View>
       {availableInterests.length === 0 && (
-        <Text style={styles.emptyHint}>이전 단계에서 분야를 선택해주세요</Text>
+        <Text style={styles.emptyHint}>{t("auth.select_field_first")}</Text>
       )}
 
       {/* Profile Public Consent */}
       <View style={styles.consentSection}>
         <View style={styles.consentRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[T.captionBold, { color: CLight.gray900 }]}>프로필 공개</Text>
+            <Text style={[T.captionBold, { color: CLight.gray900 }]}>{t("auth.profile_public")}</Text>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2, lineHeight: 18 }]}>
-              업계 관계자(기획사, 캐스팅 디렉터 등)가 B2B 대시보드에서 내 프로필을 열람할 수 있습니다.
+              {t("auth.profile_public_desc")}
             </Text>
           </View>
           <Switch
@@ -638,7 +687,7 @@ export default function AuthScreen({ navigation }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>{"\u2190"}</Text>
         </TouchableOpacity>
-        <Text style={[T.title, { color: CLight.gray900, flex: 1, textAlign: "center" }]}>회원가입</Text>
+        <Text style={[T.title, { color: CLight.gray900, flex: 1, textAlign: "center" }]}>{t("auth.signup")}</Text>
         <View style={{ width: 44 }} />
       </View>
       {renderProgressBar()}
@@ -649,11 +698,11 @@ export default function AuthScreen({ navigation }) {
       </Animated.View>
       <View style={styles.signupActions}>
         <TouchableOpacity style={[styles.primaryButton, (!canProceed() || loading) && styles.disabledButton]} onPress={handleNext} disabled={!canProceed() || loading}>
-          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{signupStep === TOTAL_STEPS - 1 ? "시작하기" : "다음"}</Text>}
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{signupStep === TOTAL_STEPS - 1 ? t("auth.start") : t("common.next")}</Text>}
         </TouchableOpacity>
         {signupStep >= 3 && (
           <TouchableOpacity style={styles.skipStepButton} onPress={handleNext}>
-            <Text style={styles.skipStepText}>건너뛰기</Text>
+            <Text style={styles.skipStepText}>{t("auth.skip_step")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -687,6 +736,7 @@ const styles = StyleSheet.create({
   loginContainer: { alignItems: "center" },
   brandContainer: { alignItems: "center", marginBottom: 40 },
   brandLogo: { width: 80, height: 80, marginBottom: 8, borderRadius: 20 },
+  brandLogoFull: { width: 220, height: 180, marginBottom: 8 },
   brandName: { fontSize: 32, fontWeight: "800", color: CLight.gray900, letterSpacing: -0.5 },
   brandTagline: { ...T.caption, color: CLight.gray500, marginTop: 8 },
 
@@ -793,4 +843,17 @@ const styles = StyleSheet.create({
   privacyToggleActive: { backgroundColor: CLight.pinkSoft, borderColor: CLight.pink },
   privacyToggleText: { ...T.micro, color: CLight.gray500 },
   privacyToggleTextActive: { color: CLight.pink, fontWeight: "600" },
+
+  // Language selector
+  langSelector: { alignItems: "center", marginTop: 32, zIndex: 10 },
+  langDropdownButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: CLight.gray200, backgroundColor: "#fff" },
+  langDropdownFlag: { fontSize: 16 },
+  langDropdownLabel: { fontSize: 13, color: CLight.gray600, fontWeight: "500" },
+  langDropdownArrow: { fontSize: 9, color: CLight.gray400, marginLeft: 4 },
+  langDropdownList: { position: "absolute", bottom: 44, backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: CLight.gray200, paddingVertical: 4, width: 180, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+  langDropdownItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14 },
+  langDropdownItemActive: { backgroundColor: CLight.pinkSoft },
+  langDropdownItemFlag: { fontSize: 16 },
+  langDropdownItemLabel: { fontSize: 13, color: CLight.gray600 },
+  langDropdownItemLabelActive: { color: CLight.pink, fontWeight: "600" },
 });

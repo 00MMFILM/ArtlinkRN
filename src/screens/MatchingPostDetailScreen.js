@@ -9,21 +9,23 @@ import {
   Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 
 export default function MatchingPostDetailScreen({ route, navigation }) {
+  const { t } = useTranslation();
   const { post } = route.params;
   const { handleBlockUser, handleReportContent } = useApp();
 
   const fieldColor = FIELD_COLORS[post.field] || CLight.pink;
   const fieldEmoji = FIELD_EMOJIS[post.field] || "";
-  const fieldLabel = FIELD_LABELS[post.field] || post.field;
+  const fieldLabel = t("fields." + post.field);
 
   const getDaysLeft = (deadline) => {
     if (!deadline) return null;
     const diff = Math.ceil((new Date(deadline) - new Date()) / 86400000);
-    if (diff <= 0) return "마감";
+    if (diff <= 0) return t("matchingDetail.deadline_expired");
     return `D-${diff}`;
   };
 
@@ -34,14 +36,14 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
   }, [navigation]);
 
   const handleReport = useCallback(() => {
-    Alert.alert("게시물 관리", null, [
+    Alert.alert(t("common.post_management"), null, [
       {
-        text: "신고하기",
+        text: t("common.report_title"),
         onPress: () => {
-          Alert.alert("신고하기", "이 게시물을 신고하시겠습니까?", [
-            { text: "취소", style: "cancel" },
+          Alert.alert(t("common.report_title"), t("common.report_confirm"), [
+            { text: t("common.cancel"), style: "cancel" },
             {
-              text: "부적절한 콘텐츠",
+              text: t("common.inappropriate_content"),
               onPress: () =>
                 handleReportContent({
                   contentId: post.id,
@@ -51,7 +53,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
                 }),
             },
             {
-              text: "스팸/사기",
+              text: t("common.spam_scam"),
               onPress: () =>
                 handleReportContent({
                   contentId: post.id,
@@ -64,16 +66,16 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         },
       },
       {
-        text: "작성자 차단",
+        text: t("common.block_author"),
         style: "destructive",
         onPress: () => {
           Alert.alert(
-            "차단하기",
-            "이 작성자를 차단하시겠습니까?\n차단하면 이 사용자의 콘텐츠가 피드에서 즉시 제거됩니다.",
+            t("common.block_title"),
+            t("common.block_confirm", { name: post.authorName || `user_${post.id}` }),
             [
-              { text: "취소", style: "cancel" },
+              { text: t("common.cancel"), style: "cancel" },
               {
-                text: "차단",
+                text: t("common.block"),
                 style: "destructive",
                 onPress: () => {
                   handleBlockUser(post.authorName || `user_${post.id}`);
@@ -84,34 +86,34 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
           );
         },
       },
-      { text: "취소", style: "cancel" },
+      { text: t("common.cancel"), style: "cancel" },
     ]);
-  }, [post, handleBlockUser, handleReportContent, navigation]);
+  }, [post, handleBlockUser, handleReportContent, navigation, t]);
 
   const isCrawled = post.source === "ai";
 
   const handleBottomAction = useCallback(() => {
     if (isCrawled && post.sourceUrl) {
       Linking.openURL(post.sourceUrl).catch(() =>
-        Alert.alert("오류", "원본 사이트를 열 수 없습니다.")
+        Alert.alert(t("common.error"), t("matchingDetail.open_error"))
       );
     } else if (post.contact) {
       const c = post.contact.trim();
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c);
       const isPhone = /^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(c.replace(/\s/g, ""));
 
-      const buttons = [{ text: "닫기", style: "cancel" }];
+      const buttons = [{ text: t("common.close"), style: "cancel" }];
       if (isEmail) {
-        buttons.unshift({ text: "메일 보내기", onPress: () => Linking.openURL(`mailto:${c}`) });
+        buttons.unshift({ text: t("matchingDetail.send_email"), onPress: () => Linking.openURL(`mailto:${c}`) });
       } else if (isPhone) {
-        buttons.unshift({ text: "전화하기", onPress: () => Linking.openURL(`tel:${c.replace(/\s/g, "")}`) });
+        buttons.unshift({ text: t("matchingDetail.call"), onPress: () => Linking.openURL(`tel:${c.replace(/\s/g, "")}`) });
       }
 
-      Alert.alert("연락처", c, buttons);
+      Alert.alert(t("matchingDetail.contact_title"), c, buttons);
     } else {
-      Alert.alert("안내", "등록자가 연락처를 입력하지 않았습니다.");
+      Alert.alert(t("matchingDetail.no_contact"), t("matchingDetail.no_contact_msg"));
     }
-  }, [isCrawled, post.sourceUrl, post.contact]);
+  }, [isCrawled, post.sourceUrl, post.contact, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -124,7 +126,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         >
           <Text style={styles.topBarBtnText}>{"←"}</Text>
         </TouchableOpacity>
-        <Text style={[T.title, { color: CLight.gray900 }]}>매칭 상세</Text>
+        <Text style={[T.title, { color: CLight.gray900 }]}>{t("matchingDetail.title")}</Text>
         <TouchableOpacity
           onPress={handleReport}
           style={styles.topBarBtn}
@@ -162,19 +164,19 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
           {post.deadline && (
             <View style={styles.deadlineRow}>
               <Text style={[T.caption, { color: CLight.gray500 }]}>
-                마감일: {post.deadline}
+                {t("matchingDetail.deadline_prefix", { date: post.deadline })}
               </Text>
               {daysLeft && (
                 <View
                   style={[
                     styles.dDayBadge,
-                    daysLeft === "마감" && { backgroundColor: `${CLight.red}18` },
+                    daysLeft === t("matchingDetail.deadline_expired") && { backgroundColor: `${CLight.red}18` },
                   ]}
                 >
                   <Text
                     style={[
                       T.microBold,
-                      { color: daysLeft === "마감" ? CLight.red : CLight.pink },
+                      { color: daysLeft === t("matchingDetail.deadline_expired") ? CLight.red : CLight.pink },
                     ]}
                   >
                     {daysLeft}
@@ -188,7 +190,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
           {post.matchPercent != null && (
             <View style={styles.matchSection}>
               <Text style={[T.captionBold, { color: CLight.gray700 }]}>
-                매칭률
+                {t("matchingDetail.match_rate")}
               </Text>
               <View style={styles.matchBarBg}>
                 <View
@@ -220,7 +222,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
                   },
                 ]}
               >
-                {post.matchPercent}% 매칭
+                {t("matchingDetail.match_percent", { percent: post.matchPercent })}
               </Text>
             </View>
           )}
@@ -229,7 +231,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         {/* Description Card */}
         <View style={styles.card}>
           <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-            상세 설명
+            {t("matchingDetail.description")}
           </Text>
           <Text style={[T.body, { color: CLight.gray900, lineHeight: 26 }]}>
             {post.description}
@@ -240,22 +242,22 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         {post.casting && (
           <View style={styles.card}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-              캐스팅 요건
+              {t("matchingDetail.casting_requirements")}
             </Text>
             {post.casting.gender && (
-              <InfoRow label="성별" value={post.casting.gender} />
+              <InfoRow label={t("matchingDetail.gender")} value={post.casting.gender} />
             )}
             {post.casting.ageRange && (
-              <InfoRow label="연령" value={post.casting.ageRange} />
+              <InfoRow label={t("matchingDetail.age")} value={post.casting.ageRange} />
             )}
             {post.casting.heightRange && (
-              <InfoRow label="키" value={post.casting.heightRange} />
+              <InfoRow label={t("matchingDetail.height")} value={post.casting.heightRange} />
             )}
             {post.casting.specialties?.length > 0 && (
-              <InfoRow label="특기" value={post.casting.specialties.join(", ")} />
+              <InfoRow label={t("matchingDetail.skills")} value={post.casting.specialties.join(", ")} />
             )}
             {post.casting.location && (
-              <InfoRow label="지역" value={post.casting.location} />
+              <InfoRow label={t("matchingDetail.region")} value={post.casting.location} />
             )}
           </View>
         )}
@@ -264,7 +266,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         {post.tags?.length > 0 && (
           <View style={styles.card}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
-              태그
+              {t("matchingDetail.tags")}
             </Text>
             <View style={styles.tagsRow}>
               {post.tags.map((tag) => (
@@ -281,12 +283,12 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.applyBtn} onPress={handleBottomAction} activeOpacity={0.85}>
           <Text style={[T.bodyBold, { color: CLight.white }]}>
-            {isCrawled ? "원본 사이트 보기" : "연락하기"}
+            {isCrawled ? t("matchingDetail.view_original") : t("matchingDetail.contact_action")}
           </Text>
         </TouchableOpacity>
         {isCrawled && post.sourcePlatform && (
           <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 6 }]}>
-            {post.sourcePlatform}에서 가져온 공고입니다
+            {t("matchingDetail.source_attribution", { platform: post.sourcePlatform })}
           </Text>
         )}
       </View>

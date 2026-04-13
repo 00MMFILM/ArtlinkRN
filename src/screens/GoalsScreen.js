@@ -10,12 +10,14 @@ import {
   Modal,
   Alert,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_COLORS } from "../constants/theme";
+import { CLight, T, FIELD_COLORS } from "../constants/theme";
 import TopBar from "../components/TopBar";
 import { FIELDS, getFieldLabel, getFieldEmoji } from "../utils/helpers";
 
 export default function GoalsScreen({ navigation }) {
+  const { t } = useTranslation();
   const { goals, handleUpdateGoals } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [formTitle, setFormTitle] = useState("");
@@ -25,7 +27,7 @@ export default function GoalsScreen({ navigation }) {
 
   const handleAddGoal = () => {
     if (!formTitle.trim()) {
-      Alert.alert("오류", "목표 제목을 입력해주세요.");
+      Alert.alert(t("common.error"), t("goals.goal_required"));
       return;
     }
     const target = parseInt(formTarget, 10) || 10;
@@ -57,10 +59,10 @@ export default function GoalsScreen({ navigation }) {
   };
 
   const handleDeleteGoal = (goalId) => {
-    Alert.alert("목표 삭제", "이 목표를 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
+    Alert.alert(t("goals.delete_title"), t("goals.delete_msg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "삭제",
+        text: t("common.delete"),
         style: "destructive",
         onPress: () => handleUpdateGoals(goals.filter((g) => g.id !== goalId)),
       },
@@ -74,22 +76,22 @@ export default function GoalsScreen({ navigation }) {
 
   const getDaysLeft = (deadline) => {
     const diff = Math.ceil((new Date(deadline) - new Date()) / 86400000);
-    if (diff <= 0) return "기한 초과";
-    return `${diff}일 남음`;
+    if (diff <= 0) return t("goals.overdue");
+    return t("goals.days_remaining", { count: diff });
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="목표 관리"
+        title={t("goals.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
         right={
           <TouchableOpacity onPress={() => setShowForm(true)}>
-            <Text style={[T.captionBold, { color: CLight.pink }]}>+ 추가</Text>
+            <Text style={[T.captionBold, { color: CLight.pink }]}>{t("goals.add")}</Text>
           </TouchableOpacity>
         }
       />
@@ -103,19 +105,19 @@ export default function GoalsScreen({ navigation }) {
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
             <Text style={[T.h3, { color: CLight.pink }]}>{goals.length}</Text>
-            <Text style={[T.micro, { color: CLight.gray500 }]}>전체 목표</Text>
+            <Text style={[T.micro, { color: CLight.gray500 }]}>{t("goals.total_goals")}</Text>
           </View>
           <View style={styles.summaryItem}>
             <Text style={[T.h3, { color: CLight.green }]}>
               {goals.filter((g) => g.completed).length}
             </Text>
-            <Text style={[T.micro, { color: CLight.gray500 }]}>달성 완료</Text>
+            <Text style={[T.micro, { color: CLight.gray500 }]}>{t("goals.completed")}</Text>
           </View>
           <View style={styles.summaryItem}>
             <Text style={[T.h3, { color: CLight.orange }]}>
               {goals.filter((g) => !g.completed).length}
             </Text>
-            <Text style={[T.micro, { color: CLight.gray500 }]}>진행 중</Text>
+            <Text style={[T.micro, { color: CLight.gray500 }]}>{t("goals.in_progress")}</Text>
           </View>
         </View>
 
@@ -123,10 +125,10 @@ export default function GoalsScreen({ navigation }) {
         {goals.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-              아직 설정된 목표가 없습니다.
+              {t("goals.empty_msg")}
             </Text>
             <Text style={[T.small, { color: CLight.gray400, textAlign: "center", marginTop: 4 }]}>
-              우측 상단 '+ 추가' 버튼으로 첫 목표를 만들어보세요!
+              {t("goals.empty_hint")}
             </Text>
           </View>
         ) : (
@@ -190,7 +192,7 @@ export default function GoalsScreen({ navigation }) {
                   style={[
                     T.micro,
                     {
-                      color: getDaysLeft(goal.deadline) === "기한 초과"
+                      color: getDaysLeft(goal.deadline) === t("goals.overdue")
                         ? CLight.red
                         : CLight.gray400,
                     },
@@ -211,7 +213,7 @@ export default function GoalsScreen({ navigation }) {
                       { color: goal.completed ? CLight.white : CLight.green },
                     ]}
                   >
-                    {goal.completed ? "달성!" : "완료"}
+                    {goal.completed ? t("goals.achieved") : t("goals.complete")}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -225,7 +227,7 @@ export default function GoalsScreen({ navigation }) {
           onPress={() => setShowForm(true)}
         >
           <Text style={[T.captionBold, { color: CLight.pink }]}>
-            + 새 목표 추가
+            {t("goals.add_new")}
           </Text>
         </TouchableOpacity>
 
@@ -237,16 +239,16 @@ export default function GoalsScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={[T.h3, { color: CLight.gray900, marginBottom: 20 }]}>
-              목표 추가
+              {t("goals.add_title")}
             </Text>
 
             {/* Title */}
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6 }]}>
-              목표 제목
+              {t("goals.goal_title")}
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="예: 연기 노트 30개 작성하기"
+              placeholder={t("goals.goal_placeholder")}
               placeholderTextColor={CLight.gray400}
               value={formTitle}
               onChangeText={setFormTitle}
@@ -254,7 +256,7 @@ export default function GoalsScreen({ navigation }) {
 
             {/* Field picker */}
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6, marginTop: 14 }]}>
-              분야
+              {t("goals.field")}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
               <View style={styles.fieldPicker}>
@@ -289,11 +291,11 @@ export default function GoalsScreen({ navigation }) {
 
             {/* Target count */}
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6, marginTop: 14 }]}>
-              목표 횟수
+              {t("goals.target_count")}
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="예: 30"
+              placeholder={t("goals.target_placeholder")}
               placeholderTextColor={CLight.gray400}
               keyboardType="number-pad"
               value={formTarget}
@@ -302,11 +304,11 @@ export default function GoalsScreen({ navigation }) {
 
             {/* Deadline */}
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 6, marginTop: 14 }]}>
-              목표 기한 (YYYY-MM-DD)
+              {t("goals.deadline_label")}
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="예: 2026-06-30"
+              placeholder={t("goals.deadline_placeholder")}
               placeholderTextColor={CLight.gray400}
               value={formDeadline}
               onChangeText={setFormDeadline}
@@ -318,10 +320,10 @@ export default function GoalsScreen({ navigation }) {
                 style={styles.cancelBtn}
                 onPress={() => setShowForm(false)}
               >
-                <Text style={[T.captionBold, { color: CLight.gray500 }]}>취소</Text>
+                <Text style={[T.captionBold, { color: CLight.gray500 }]}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddGoal}>
-                <Text style={[T.captionBold, { color: CLight.white }]}>추가</Text>
+                <Text style={[T.captionBold, { color: CLight.white }]}>{t("common.add")}</Text>
               </TouchableOpacity>
             </View>
           </View>

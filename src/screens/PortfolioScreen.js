@@ -13,8 +13,9 @@ import {
   SafeAreaView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import { FIELDS, calculateAge, GENDER_OPTIONS } from "../utils/helpers";
 import { truncate, formatDate } from "../utils/helpers";
 import TopBar from "../components/TopBar";
@@ -24,17 +25,19 @@ import { generatePortfolioSummary, generateStructuredPortfolio } from "../servic
 const SCREEN_W = Dimensions.get("window").width;
 const GRID_ITEM_SIZE = (SCREEN_W - 32 - 16) / 3;
 
-const FIELD_TABS = [
-  { key: "all", label: "전체", emoji: "📋" },
-  ...FIELDS.map((f) => ({ key: f, label: FIELD_LABELS[f] || f, emoji: FIELD_EMOJIS[f] || "📝" })),
-];
 
 export default function PortfolioScreen({ navigation }) {
+  const { t } = useTranslation();
   const {
     artistProfile, userProfile, savedNotes,
     portfolioItems, portfolioSummary,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
   } = useApp();
+
+  const FIELD_TABS = useMemo(() => [
+    { key: "all", label: t("common.all"), emoji: "📋" },
+    ...FIELDS.map((f) => ({ key: f, label: t("fields." + f), emoji: FIELD_EMOJIS[f] || "📝" })),
+  ], [t]);
 
   const [selectedField, setSelectedField] = useState("all");
   const [addField, setAddField] = useState(userProfile.fields?.[0] || "acting");
@@ -46,11 +49,11 @@ export default function PortfolioScreen({ navigation }) {
   const topFields = artistProfile.topFields || [];
 
   const scores = [
-    { label: "기록량", value: artistProfile.noteScore, color: CLight.pink },
-    { label: "AI 활용", value: artistProfile.aiScore, color: CLight.purple },
-    { label: "다양성", value: artistProfile.diversityScore, color: CLight.orange },
-    { label: "깊이", value: artistProfile.depthScore, color: CLight.blue },
-    { label: "꾸준함", value: artistProfile.consistencyScore, color: CLight.green },
+    { label: t("growth.skill_volume"), value: artistProfile.noteScore, color: CLight.pink },
+    { label: t("growth.skill_ai"), value: artistProfile.aiScore, color: CLight.purple },
+    { label: t("growth.skill_diversity"), value: artistProfile.diversityScore, color: CLight.orange },
+    { label: t("growth.skill_depth"), value: artistProfile.depthScore, color: CLight.blue },
+    { label: t("growth.skill_consistency"), value: artistProfile.consistencyScore, color: CLight.green },
   ];
 
   const featuredNotes = artistProfile.featuredNotes || [];
@@ -65,7 +68,7 @@ export default function PortfolioScreen({ navigation }) {
   const handleTakePhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("권한 필요", "카메라 사용을 위해 권한을 허용해주세요.");
+      Alert.alert(t("common.permission_required"), t("common.camera_permission"));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -86,7 +89,7 @@ export default function PortfolioScreen({ navigation }) {
   const handlePickMedia = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("권한 필요", "갤러리 접근을 위해 권한을 허용해주세요.");
+      Alert.alert(t("common.permission_required"), t("common.gallery_permission"));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -109,11 +112,11 @@ export default function PortfolioScreen({ navigation }) {
   }, [addField, addDescription, handleAddPortfolioItem]);
 
   const confirmDeleteItem = useCallback((itemId) => {
-    Alert.alert("삭제", "이 포트폴리오 항목을 삭제할까요?", [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: () => handleDeletePortfolioItem(itemId) },
+    Alert.alert(t("portfolio.delete_title"), t("portfolio.delete_msg"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => handleDeletePortfolioItem(itemId) },
     ]);
-  }, [handleDeletePortfolioItem]);
+  }, [handleDeletePortfolioItem, t]);
 
   const handleGenerateCard = useCallback(async () => {
     setCardLoading(true);
@@ -125,7 +128,7 @@ export default function PortfolioScreen({ navigation }) {
         cardGeneratedAt: new Date().toISOString(),
       });
     } catch {
-      Alert.alert("생성 실패", "프로필 카드 생성에 실패했습니다.");
+      Alert.alert(t("portfolio.generate_failed"), t("portfolio.card_failed_msg"));
     } finally {
       setCardLoading(false);
     }
@@ -133,7 +136,7 @@ export default function PortfolioScreen({ navigation }) {
 
   const handleGenerateSummary = useCallback(async () => {
     if (portfolioItems.length === 0) {
-      Alert.alert("포트폴리오 필요", "포트폴리오에 작품을 먼저 추가해주세요.");
+      Alert.alert(t("portfolio.portfolio_required"), t("portfolio.portfolio_required_msg"));
       return;
     }
     setSummaryLoading(true);
@@ -141,7 +144,7 @@ export default function PortfolioScreen({ navigation }) {
       const text = await generatePortfolioSummary(portfolioItems, userProfile, artistProfile);
       handleUpdatePortfolioSummary({ summaryText: text, generatedAt: new Date().toISOString() });
     } catch {
-      Alert.alert("생성 실패", "요약 생성에 실패했습니다.");
+      Alert.alert(t("portfolio.generate_failed"), t("portfolio.bio_failed_msg"));
     } finally {
       setSummaryLoading(false);
     }
@@ -152,10 +155,10 @@ export default function PortfolioScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="포트폴리오"
+        title={t("portfolio.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
       />
@@ -176,19 +179,19 @@ export default function PortfolioScreen({ navigation }) {
             {artistProfile.displayName}
           </Text>
           <Text style={[T.caption, { color: CLight.pink, marginTop: 4 }]}>
-            {artistProfile.displayFields || "아티스트"}
+            {artistProfile.displayFields || t("common.artist")}
           </Text>
           {/* Body info badges */}
           {(userProfile.gender || userProfile.birthDate || userProfile.height) ? (
             <View style={styles.bodyBadgeRow}>
               {userProfile.gender ? (
                 <View style={styles.bodyBadge}>
-                  <Text style={styles.bodyBadgeText}>{GENDER_OPTIONS.find((g) => g.key === userProfile.gender)?.label || ""}</Text>
+                  <Text style={styles.bodyBadgeText}>{t("gender." + userProfile.gender)}</Text>
                 </View>
               ) : null}
               {userProfile.birthDate ? (
                 <View style={styles.bodyBadge}>
-                  <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}세</Text>
+                  <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}{t("common.years_old")}</Text>
                 </View>
               ) : null}
               {userProfile.height ? (
@@ -202,29 +205,29 @@ export default function PortfolioScreen({ navigation }) {
           <View style={styles.quickStats}>
             <View style={styles.statItem}>
               <Text style={[T.h3, { color: CLight.pink }]}>{portfolioItems.length}</Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>작품</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("portfolio.works")}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={[T.h3, { color: CLight.pink }]}>{totalNotes}</Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>노트</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("portfolio.notes")}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={[T.h3, { color: CLight.pink }]}>{artistProfile.streak}</Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>연속일</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("portfolio.streak_days")}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={[T.h3, { color: CLight.pink }]}>{artistProfile.overallScore}</Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>점수</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("portfolio.score")}</Text>
             </View>
           </View>
         </View>
 
         {/* ─── AI Profile Card ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
-          AI 프로필 카드
+          {t("portfolio.ai_profile_card")}
         </Text>
         {portfolioSummary?.cardText ? (
           <View style={styles.profileCard}>
@@ -235,7 +238,7 @@ export default function PortfolioScreen({ navigation }) {
               {cardLoading ? (
                 <ActivityIndicator size="small" color={CLight.pink} />
               ) : (
-                <Text style={[T.micro, { color: CLight.pink }]}>재생성</Text>
+                <Text style={[T.micro, { color: CLight.pink }]}>{t("portfolio.regenerate")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -244,14 +247,14 @@ export default function PortfolioScreen({ navigation }) {
             {cardLoading ? (
               <ActivityIndicator size="small" color={CLight.white} />
             ) : (
-              <Text style={[T.captionBold, { color: CLight.white }]}>AI 프로필 카드 생성</Text>
+              <Text style={[T.captionBold, { color: CLight.white }]}>{t("portfolio.generate_card")}</Text>
             )}
           </TouchableOpacity>
         )}
 
         {/* ─── AI Summary ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
-          AI 소개글
+          {t("portfolio.ai_bio")}
         </Text>
         {portfolioSummary ? (
           <View style={styles.summaryCard}>
@@ -266,7 +269,7 @@ export default function PortfolioScreen({ navigation }) {
               {summaryLoading ? (
                 <ActivityIndicator size="small" color={CLight.pink} />
               ) : (
-                <Text style={[T.micro, { color: CLight.pink }]}>재생성</Text>
+                <Text style={[T.micro, { color: CLight.pink }]}>{t("portfolio.regenerate")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -281,7 +284,7 @@ export default function PortfolioScreen({ navigation }) {
               <ActivityIndicator size="small" color={CLight.white} />
             ) : (
               <Text style={[T.captionBold, { color: CLight.white }]}>
-                ✨ AI 소개글 생성
+                {t("portfolio.generate_bio")}
               </Text>
             )}
           </TouchableOpacity>
@@ -289,7 +292,7 @@ export default function PortfolioScreen({ navigation }) {
 
         {/* ─── Gallery Section ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
-          갤러리 ({portfolioItems.length})
+          {t("portfolio.gallery")} ({portfolioItems.length})
         </Text>
 
         {/* Add media controls */}
@@ -314,7 +317,7 @@ export default function PortfolioScreen({ navigation }) {
                 >
                   <Text style={{ fontSize: 13 }}>{FIELD_EMOJIS[f]}</Text>
                   <Text style={[T.micro, { color: isActive ? color : CLight.gray500, fontWeight: isActive ? "600" : "400" }]}>
-                    {FIELD_LABELS[f]}
+                    {t("fields." + f)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -324,7 +327,7 @@ export default function PortfolioScreen({ navigation }) {
           {/* Description input */}
           <TextInput
             style={styles.descInput}
-            placeholder="작품 설명 (선택)"
+            placeholder={t("portfolio.work_desc_placeholder")}
             placeholderTextColor={CLight.gray400}
             value={addDescription}
             onChangeText={setAddDescription}
@@ -335,11 +338,11 @@ export default function PortfolioScreen({ navigation }) {
           <View style={styles.mediaButtonRow}>
             <TouchableOpacity style={styles.mediaBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
               <Text style={{ fontSize: 16 }}>📷</Text>
-              <Text style={[T.caption, { color: CLight.gray700 }]}>촬영</Text>
+              <Text style={[T.caption, { color: CLight.gray700 }]}>{t("portfolio.camera")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.mediaBtn} onPress={handlePickMedia} activeOpacity={0.7}>
               <Text style={{ fontSize: 16 }}>🖼️</Text>
-              <Text style={[T.caption, { color: CLight.gray700 }]}>갤러리</Text>
+              <Text style={[T.caption, { color: CLight.gray700 }]}>{t("portfolio.gallery_btn")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -413,14 +416,14 @@ export default function PortfolioScreen({ navigation }) {
         ) : (
           <EmptyState
             icon="🎨"
-            title="포트폴리오가 비어있어요"
-            message="위의 버튼으로 작품을 추가해보세요!"
+            title={t("portfolio.empty_title")}
+            message={t("portfolio.empty_msg")}
           />
         )}
 
         {/* ─── Skill Scores ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
-          스킬 점수
+          {t("portfolio.skill_scores")}
         </Text>
         <View style={styles.card}>
           {scores.map((score) => (
@@ -445,7 +448,7 @@ export default function PortfolioScreen({ navigation }) {
 
         {/* ─── Featured Notes ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
-          대표 노트
+          {t("portfolio.featured_notes")}
         </Text>
         {featuredNotes.length > 0 ? (
           featuredNotes.map((note) => (
@@ -458,7 +461,7 @@ export default function PortfolioScreen({ navigation }) {
                   ]}
                 >
                   <Text style={[T.micro, { color: FIELD_COLORS[note.field] || CLight.pink }]}>
-                    {FIELD_EMOJIS[note.field] || ""} {FIELD_LABELS[note.field] || note.field}
+                    {FIELD_EMOJIS[note.field] || ""} {t("fields." + note.field)}
                   </Text>
                 </View>
                 {note.starred && (
@@ -466,7 +469,7 @@ export default function PortfolioScreen({ navigation }) {
                 )}
               </View>
               <Text style={[T.captionBold, { color: CLight.gray900, marginTop: 6 }]}>
-                {note.title || "제목 없음"}
+                {note.title || t("common.untitled")}
               </Text>
               <Text
                 style={[T.small, { color: CLight.gray500, marginTop: 4 }]}
@@ -482,14 +485,14 @@ export default function PortfolioScreen({ navigation }) {
         ) : (
           <View style={styles.emptyCard}>
             <Text style={[T.small, { color: CLight.gray400, textAlign: "center" }]}>
-              아직 대표 노트가 없습니다.{"\n"}내용이 풍부한 노트를 작성해보세요!
+              {t("portfolio.empty_featured")}
             </Text>
           </View>
         )}
 
         {/* ─── Field Distribution ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
-          분야 분포
+          {t("portfolio.field_distribution")}
         </Text>
         <View style={styles.card}>
           {topFields.length > 0 ? (
@@ -499,7 +502,7 @@ export default function PortfolioScreen({ navigation }) {
               return (
                 <View key={field} style={styles.fieldRow}>
                   <Text style={[T.caption, { color: CLight.gray700, width: 50 }]}>
-                    {FIELD_EMOJIS[field] || ""} {FIELD_LABELS[field] || field}
+                    {FIELD_EMOJIS[field] || ""} {t("fields." + field)}
                   </Text>
                   <View style={styles.fieldBarBg}>
                     <View
@@ -520,7 +523,7 @@ export default function PortfolioScreen({ navigation }) {
             })
           ) : (
             <Text style={[T.small, { color: CLight.gray400, textAlign: "center", paddingVertical: 16 }]}>
-              노트를 작성하면 분야 분포가 표시됩니다.
+              {t("portfolio.empty_fields")}
             </Text>
           )}
         </View>

@@ -7,17 +7,18 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import {
   CLight,
   T,
   FIELD_COLORS,
-  FIELD_LABELS,
   FIELD_EMOJIS,
 } from "../constants/theme";
 
 // ─── Score Ring ──────────────────────────────────────────────
 function ScoreRing({ score }) {
+  const { t } = useTranslation();
   const color =
     score >= 70 ? CLight.green : score >= 40 ? CLight.orange : CLight.pink;
   return (
@@ -26,7 +27,7 @@ function ScoreRing({ score }) {
         <View style={[styles.ringInner, { borderColor: color }]}>
           <Text style={[T.hero, { color }]}>{score}</Text>
           <Text style={[T.micro, { color: CLight.gray400, marginTop: -2 }]}>
-            종합점수
+            {t("growth.overall_score")}
           </Text>
         </View>
       </View>
@@ -58,17 +59,18 @@ function ProgressBar({ label, value, color = CLight.pink }) {
 
 // ─── Monthly Bar Chart ───────────────────────────────────────
 function MonthlyChart({ monthlyActivity }) {
+  const { t } = useTranslation();
   const entries = useMemo(() => {
     const now = new Date();
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = d.toISOString().slice(0, 7);
-      const label = `${d.getMonth() + 1}월`;
+      const label = t("growth.month_suffix", { month: d.getMonth() + 1 });
       months.push({ key, label, count: monthlyActivity[key] || 0 });
     }
     return months;
-  }, [monthlyActivity]);
+  }, [monthlyActivity, t]);
 
   const maxCount = Math.max(...entries.map((e) => e.count), 1);
 
@@ -101,6 +103,7 @@ function MonthlyChart({ monthlyActivity }) {
 
 // ─── Field Distribution ──────────────────────────────────────
 function FieldBars({ fieldCounts }) {
+  const { t } = useTranslation();
   const entries = useMemo(
     () =>
       Object.entries(fieldCounts)
@@ -113,7 +116,7 @@ function FieldBars({ fieldCounts }) {
   if (entries.length === 0) {
     return (
       <Text style={[T.small, { color: CLight.gray400, textAlign: "center", paddingVertical: 16 }]}>
-        노트를 추가하면 분야별 분포를 확인할 수 있어요.
+        {t("growth.empty_fields")}
       </Text>
     );
   }
@@ -123,7 +126,7 @@ function FieldBars({ fieldCounts }) {
       {entries.map(([field, count]) => {
         const color = FIELD_COLORS[field] || CLight.gray400;
         const emoji = FIELD_EMOJIS[field] || "";
-        const label = FIELD_LABELS[field] || field;
+        const label = t("fields." + field);
         const pct = Math.round((count / maxCount) * 100);
         return (
           <View key={field} style={styles.fieldRow}>
@@ -183,6 +186,7 @@ function InfoCard({ icon, label, value, sub }) {
 
 // ─── Growth Screen ───────────────────────────────────────────
 export default function GrowthScreen({ navigation }) {
+  const { t } = useTranslation();
   const { artistProfile, savedNotes } = useApp();
 
   const {
@@ -219,7 +223,7 @@ export default function GrowthScreen({ navigation }) {
         >
           <Text style={[T.title, { color: CLight.pink }]}>{"<"}</Text>
         </TouchableOpacity>
-        <Text style={[T.title, { color: CLight.gray900 }]}>성장 리포트</Text>
+        <Text style={[T.title, { color: CLight.gray900 }]}>{t("growth.title")}</Text>
         <View style={{ minWidth: 60 }} />
       </View>
 
@@ -230,7 +234,7 @@ export default function GrowthScreen({ navigation }) {
         {/* ── Overall Score ── */}
         <View style={styles.section}>
           <Text style={[T.small, { color: CLight.gray400, textAlign: "center" }]}>
-            {displayName}님의 예술 성장도
+            {t("growth.personal_growth", { name: displayName })}
           </Text>
           <ScoreRing score={overallScore} />
         </View>
@@ -238,35 +242,35 @@ export default function GrowthScreen({ navigation }) {
         {/* ── Score Breakdown ── */}
         <View style={styles.card}>
           <Text style={[T.title, { color: CLight.gray900, marginBottom: 16 }]}>
-            점수 분석
+            {t("growth.score_analysis")}
           </Text>
-          <ProgressBar label="기록량" value={noteScore} color={CLight.pink} />
-          <ProgressBar label="AI 활용" value={aiScore} color={CLight.purple} />
-          <ProgressBar label="다양성" value={diversityScore} color={CLight.teal} />
-          <ProgressBar label="깊이" value={depthScore} color={CLight.orange} />
-          <ProgressBar label="꾸준함" value={consistencyScore} color={CLight.green} />
+          <ProgressBar label={t("growth.skill_volume")} value={noteScore} color={CLight.pink} />
+          <ProgressBar label={t("growth.skill_ai")} value={aiScore} color={CLight.purple} />
+          <ProgressBar label={t("growth.skill_diversity")} value={diversityScore} color={CLight.teal} />
+          <ProgressBar label={t("growth.skill_depth")} value={depthScore} color={CLight.orange} />
+          <ProgressBar label={t("growth.skill_consistency")} value={consistencyScore} color={CLight.green} />
         </View>
 
         {/* ── Streak & Weekly ── */}
         <View style={styles.infoRow}>
           <InfoCard
             icon={"\uD83D\uDD25"}
-            label="연속 기록"
-            value={`${streak}일`}
-            sub="꾸준히 기록 중!"
+            label={t("growth.streak_label")}
+            value={t("growth.streak_value", { count: streak })}
+            sub={t("growth.streak_sub")}
           />
           <InfoCard
             icon={"\uD83D\uDCC8"}
-            label="이번 주"
-            value={`${weekNotes.length}개`}
-            sub={`지난 주 대비 ${growthLabel}`}
+            label={t("growth.this_week")}
+            value={t("growth.this_week_value", { count: weekNotes.length })}
+            sub={t("growth.week_compare", { label: growthLabel })}
           />
         </View>
 
         {/* ── Monthly Activity ── */}
         <View style={styles.card}>
           <Text style={[T.title, { color: CLight.gray900, marginBottom: 16 }]}>
-            월별 활동
+            {t("growth.monthly_activity")}
           </Text>
           <MonthlyChart monthlyActivity={monthlyActivity} />
         </View>
@@ -274,7 +278,7 @@ export default function GrowthScreen({ navigation }) {
         {/* ── Field Distribution ── */}
         <View style={styles.card}>
           <Text style={[T.title, { color: CLight.gray900, marginBottom: 16 }]}>
-            분야별 분포
+            {t("growth.field_distribution")}
           </Text>
           <FieldBars fieldCounts={fieldCounts} />
         </View>
@@ -282,7 +286,7 @@ export default function GrowthScreen({ navigation }) {
         {/* ── Top Tags ── */}
         <View style={styles.card}>
           <Text style={[T.title, { color: CLight.gray900, marginBottom: 14 }]}>
-            자주 사용한 태그
+            {t("growth.top_tags")}
           </Text>
           {topTags.length > 0 ? (
             <View style={styles.tagGrid}>
@@ -294,7 +298,7 @@ export default function GrowthScreen({ navigation }) {
             <Text
               style={[T.small, { color: CLight.gray400, textAlign: "center", paddingVertical: 12 }]}
             >
-              노트에 태그를 추가해보세요.
+              {t("growth.empty_tags")}
             </Text>
           )}
         </View>
@@ -306,7 +310,7 @@ export default function GrowthScreen({ navigation }) {
           onPress={() => navigation?.navigate?.("Portfolio")}
         >
           <Text style={[T.bodyBold, { color: "#FFFFFF" }]}>
-            포트폴리오 보기
+            {t("growth.view_portfolio")}
           </Text>
         </TouchableOpacity>
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,26 +8,64 @@ import {
   SafeAreaView,
   Alert,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_COLORS } from "../constants/theme";
+import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import TopBar from "../components/TopBar";
 
 const CARD_STYLES = [
-  { key: "minimal", label: "미니멀", bg: "#FFFFFF", text: CLight.gray900, accent: CLight.pink },
-  { key: "colorful", label: "컬러풀", bg: "linear", text: "#FFFFFF", accent: "#FFFFFF" },
-  { key: "dark", label: "다크", bg: "#1A1A2E", text: "#FFFFFF", accent: CLight.pink },
+  { key: "minimal", labelKey: "shareCard.style_minimal", bg: "#FFFFFF", text: CLight.gray900, accent: CLight.pink },
+  { key: "colorful", labelKey: "shareCard.style_colorful", bg: "linear", text: "#FFFFFF", accent: "#FFFFFF" },
+  { key: "dark", labelKey: "shareCard.style_dark", bg: "#1A1A2E", text: "#FFFFFF", accent: CLight.pink },
 ];
 
-export default function ShareCardScreen({ navigation }) {
-  const { artistProfile, userProfile } = useApp();
-  const [selectedStyle, setSelectedStyle] = useState("minimal");
+const LEVEL_TIERS = [
+  { min: 0,  label: "Seedling",   labelKey: "shareCard.level_1" },
+  { min: 10, label: "Apprentice", labelKey: "shareCard.level_2" },
+  { min: 20, label: "Explorer",   labelKey: "shareCard.level_3" },
+  { min: 30, label: "Devotee",    labelKey: "shareCard.level_4" },
+  { min: 40, label: "Artist",     labelKey: "shareCard.level_5" },
+  { min: 50, label: "Performer",  labelKey: "shareCard.level_6" },
+  { min: 60, label: "Specialist", labelKey: "shareCard.level_7" },
+  { min: 70, label: "Virtuoso",   labelKey: "shareCard.level_8" },
+  { min: 80, label: "Maestro",    labelKey: "shareCard.level_9" },
+  { min: 90, label: "Luminary",   labelKey: "shareCard.level_10" },
+];
 
-  const currentStyle = CARD_STYLES.find((s) => s.key === selectedStyle);
+function getLevel(score) {
+  for (let i = LEVEL_TIERS.length - 1; i >= 0; i--) {
+    if (score >= LEVEL_TIERS[i].min) return LEVEL_TIERS[i];
+  }
+  return LEVEL_TIERS[0];
+}
+
+function getActivityPeriod(notes, t) {
+  if (notes.length === 0) return null;
+  const dates = notes.map((n) => new Date(n.createdAt).getTime());
+  const earliest = new Date(Math.min(...dates));
+  const now = new Date();
+  const diffMs = now - earliest;
+  const days = Math.floor(diffMs / 86400000);
+  if (days < 1) return t("shareCard.started_today");
+  if (days < 7) return t("shareCard.recording_days", { days });
+  if (days < 30) return t("shareCard.recording_weeks", { weeks: Math.floor(days / 7) });
+  return t("shareCard.recording_months", { months: Math.floor(days / 30) });
+}
+
+export default function ShareCardScreen({ navigation }) {
+  const { t } = useTranslation();
+  const { artistProfile, userProfile, savedNotes } = useApp();
+  const [selectedStyle, setSelectedStyle] = useState("minimal");
 
   const topSkills = artistProfile.radarLabels
     .map((label, i) => ({ label, value: artistProfile.radarValues[i] }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 3);
+
+  const level = useMemo(() => getLevel(artistProfile.overallScore), [artistProfile.overallScore]);
+  const activityPeriod = useMemo(() => getActivityPeriod(savedNotes, t), [savedNotes, t]);
+  const topTags = useMemo(() => artistProfile.topTags?.slice(0, 3) || [], [artistProfile.topTags]);
+  const primaryEmoji = FIELD_EMOJIS[artistProfile.primaryField] || "🎭";
 
   const getCardBg = () => {
     if (selectedStyle === "colorful") return CLight.pink;
@@ -64,25 +102,47 @@ export default function ShareCardScreen({ navigation }) {
     return CLight.pink;
   };
 
+  const getTagBg = () => {
+    if (selectedStyle === "minimal") return CLight.gray100;
+    if (selectedStyle === "colorful") return "rgba(255,255,255,0.2)";
+    return "rgba(255,255,255,0.08)";
+  };
+
+  const getTagText = () => {
+    if (selectedStyle === "minimal") return CLight.gray700;
+    return "rgba(255,255,255,0.85)";
+  };
+
+  const getDivider = () => {
+    if (selectedStyle === "minimal") return "rgba(0,0,0,0.06)";
+    if (selectedStyle === "colorful") return "rgba(255,255,255,0.2)";
+    return "rgba(255,255,255,0.1)";
+  };
+
+  const getStatValueColor = () => {
+    if (selectedStyle === "minimal") return CLight.pink;
+    return "#FFFFFF";
+  };
+
   const handleShare = () => {
-    Alert.alert("공유하기", "공유 기능은 추후 업데이트에서 지원됩니다.", [
-      { text: "확인" },
+    Alert.alert(t("shareCard.share"), t("shareCard.share_coming_soon"), [
+      { text: t("common.confirm") },
     ]);
   };
 
   const handleSaveImage = () => {
-    Alert.alert("이미지 저장", "이미지 저장 기능은 추후 업데이트에서 지원됩니다.", [
-      { text: "확인" },
+    Alert.alert(t("shareCard.save_image"), t("shareCard.save_coming_soon"), [
+      { text: t("common.confirm") },
     ]);
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="공유 카드"
+        title={t("shareCard.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtn}>{"<"} 뒤로</Text>
+            <Text style={styles.backBtn}>{"<"} {t("common.back")}</Text>
           </TouchableOpacity>
         }
       />
@@ -94,7 +154,7 @@ export default function ShareCardScreen({ navigation }) {
       >
         {/* Card preview */}
         <View style={[styles.previewCard, { backgroundColor: getCardBg() }]}>
-          {/* Header */}
+          {/* Header: avatar + name + level badge */}
           <View style={styles.previewHeader}>
             <View
               style={[
@@ -110,23 +170,59 @@ export default function ShareCardScreen({ navigation }) {
               </Text>
             </View>
             <View style={{ marginLeft: 14, flex: 1 }}>
-              <Text style={[T.h3, { color: getCardText() }]}>
-                {artistProfile.displayName}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={[T.h3, { color: getCardText() }]}>
+                  {artistProfile.displayName}
+                </Text>
+              </View>
               <Text style={[T.small, { color: getCardSub(), marginTop: 2 }]}>
-                {artistProfile.displayFields || "아티스트"}
+                {primaryEmoji} {artistProfile.displayFields || t("common.artist")}
               </Text>
+            </View>
+            {/* Level badge */}
+            <View style={[styles.levelBadge, { backgroundColor: getScoreBg() }]}>
+              <Text style={[T.microBold, { color: getStatValueColor() }]}>{level.label}</Text>
+              <Text style={[T.tiny, { color: getCardSub() }]}>{t(level.labelKey)}</Text>
             </View>
           </View>
 
-          {/* Score */}
+          {/* Score + growth */}
           <View style={[styles.scoreSection, { backgroundColor: getScoreBg() }]}>
-            <Text style={[T.h1, { color: getCardText() }]}>
+            <Text style={[styles.scoreNumber, { color: getCardText() }]}>
               {artistProfile.overallScore}
             </Text>
             <Text style={[T.micro, { color: getCardSub(), marginTop: 2 }]}>
-              종합 점수
+              {t("shareCard.overall_score")}
             </Text>
+            {artistProfile.weekGrowth !== 0 && (
+              <Text style={[T.tiny, { color: artistProfile.weekGrowth > 0 ? CLight.green : CLight.orange, marginTop: 4 }]}>
+                {artistProfile.weekGrowth > 0 ? "+" : ""}{artistProfile.weekGrowth}% this week
+              </Text>
+            )}
+          </View>
+
+          {/* Mini stats row */}
+          <View style={[styles.miniStatsRow, { borderBottomColor: getDivider() }]}>
+            <View style={styles.miniStat}>
+              <Text style={[T.captionBold, { color: getStatValueColor() }]}>
+                {savedNotes.length}
+              </Text>
+              <Text style={[T.tiny, { color: getCardSub() }]}>{t("shareCard.total_records")}</Text>
+            </View>
+            <View style={[styles.miniStatDivider, { backgroundColor: getDivider() }]} />
+            <View style={styles.miniStat}>
+              <Text style={[T.captionBold, { color: getStatValueColor() }]}>
+                {artistProfile.aiAnalyzedCount}
+              </Text>
+              <Text style={[T.tiny, { color: getCardSub() }]}>{t("shareCard.ai_analysis")}</Text>
+            </View>
+            <View style={[styles.miniStatDivider, { backgroundColor: getDivider() }]} />
+            <View style={styles.miniStat}>
+              <Text style={[T.captionBold, { color: getStatValueColor() }]}>
+                {artistProfile.streak}{t("common.days")}
+              </Text>
+              <Text style={[T.tiny, { color: getCardSub() }]}>{t("shareCard.streak")}</Text>
+            </View>
           </View>
 
           {/* Top skills */}
@@ -157,25 +253,40 @@ export default function ShareCardScreen({ navigation }) {
             ))}
           </View>
 
-          {/* Streak */}
-          <View style={styles.streakRow}>
-            <Text style={[T.small, { color: getCardSub() }]}>
-              연속 기록
-            </Text>
-            <Text style={[T.captionBold, { color: getCardText() }]}>
-              {artistProfile.streak}일
-            </Text>
-          </View>
+          {/* Top tags */}
+          {topTags.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={[T.microBold, { color: getCardSub(), marginBottom: 8 }]}>
+                INTERESTS
+              </Text>
+              <View style={styles.tagsRow}>
+                {topTags.map(([tag]) => (
+                  <View key={tag} style={[styles.tagChip, { backgroundColor: getTagBg() }]}>
+                    <Text style={[T.tiny, { color: getTagText() }]}>#{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Activity period */}
+          {activityPeriod && (
+            <View style={[styles.activityRow, { borderTopColor: getDivider() }]}>
+              <Text style={[T.tiny, { color: getCardSub() }]}>
+                {activityPeriod}
+              </Text>
+            </View>
+          )}
 
           {/* Watermark */}
-          <Text style={[T.tiny, { color: getCardSub(), textAlign: "center", marginTop: 12 }]}>
-            Artlink | 아티스트 성장 노트
+          <Text style={[T.tiny, { color: getCardSub(), textAlign: "center", marginTop: 8 }]}>
+            {t("shareCard.watermark")}
           </Text>
         </View>
 
         {/* Style selector */}
         <Text style={[T.captionBold, { color: CLight.gray700, marginTop: 24, marginBottom: 12 }]}>
-          카드 스타일
+          {t("shareCard.card_style")}
         </Text>
         <View style={styles.styleRow}>
           {CARD_STYLES.map((style) => (
@@ -209,7 +320,7 @@ export default function ShareCardScreen({ navigation }) {
                   },
                 ]}
               >
-                {style.label}
+                {t(style.labelKey)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -217,11 +328,11 @@ export default function ShareCardScreen({ navigation }) {
 
         {/* Action buttons */}
         <TouchableOpacity style={styles.primaryBtn} onPress={handleShare}>
-          <Text style={[T.captionBold, { color: CLight.white }]}>공유하기</Text>
+          <Text style={[T.captionBold, { color: CLight.white }]}>{t("shareCard.share")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryBtn} onPress={handleSaveImage}>
-          <Text style={[T.captionBold, { color: CLight.pink }]}>이미지 저장</Text>
+          <Text style={[T.captionBold, { color: CLight.pink }]}>{t("shareCard.save_image")}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -255,13 +366,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  levelBadge: {
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 2,
+  },
   scoreSection: {
     alignItems: "center",
     paddingVertical: 16,
     borderRadius: 14,
     marginTop: 20,
   },
-  skillsSection: { marginTop: 20 },
+  scoreNumber: {
+    fontSize: 36,
+    fontWeight: "800",
+    lineHeight: 42,
+  },
+  miniStatsRow: {
+    flexDirection: "row",
+    marginTop: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  miniStat: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  miniStatDivider: {
+    width: 1,
+    height: 28,
+    alignSelf: "center",
+  },
+  skillsSection: { marginTop: 16 },
   skillRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -278,14 +417,24 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  streakRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  tagsSection: {
     marginTop: 16,
-    paddingTop: 12,
+  },
+  tagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  tagChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  activityRow: {
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(128,128,128,0.15)",
+    alignItems: "center",
   },
   styleRow: {
     flexDirection: "row",

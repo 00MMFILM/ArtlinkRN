@@ -13,10 +13,11 @@ import {
   Dimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useTranslation } from "react-i18next";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_LABELS, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
 import {
   FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES,
   calculateAge,
@@ -26,6 +27,7 @@ import TopBar from "../components/TopBar";
 const GENDER_EMOJIS = { male: "\uD83D\uDC68", female: "\uD83D\uDC69", other: "\uD83E\uDDD1" };
 
 export default function ProfileEditScreen({ navigation }) {
+  const { t } = useTranslation();
   const { userProfile, handleUpdateProfile, dataConsent, handleSetDataConsent } = useApp();
 
   const [name, setName] = useState(userProfile.name || "");
@@ -51,7 +53,7 @@ export default function ProfileEditScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("권한 필요", "사진 앨범 접근 권한을 허용해주세요.");
+        Alert.alert(t("common.permission_required"), t("common.photo_permission"));
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -63,7 +65,7 @@ export default function ProfileEditScreen({ navigation }) {
         setPhotos((prev) => [...prev, result.assets[0].uri]);
       }
     } catch (e) {
-      Alert.alert("오류", "사진을 불러올 수 없습니다.");
+      Alert.alert(t("common.error"), t("common.photo_load_error"));
     }
   };
 
@@ -82,7 +84,7 @@ export default function ProfileEditScreen({ navigation }) {
 
   const handleSave = useCallback(() => {
     if (!name.trim()) {
-      Alert.alert("이름 필요", "이름을 입력해주세요.");
+      Alert.alert(t("profileEdit.name_required"), t("profileEdit.name_required_msg"));
       return;
     }
     const localPhotos = photos.filter((p) => p.startsWith("file://"));
@@ -134,24 +136,24 @@ export default function ProfileEditScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <TopBar
-        title="프로필 편집"
+        title={t("profileEdit.title")}
         left={
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.cancelBtn}>취소</Text>
+            <Text style={styles.cancelBtn}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         }
         right={
           <TouchableOpacity onPress={handleSave}>
-            <Text style={styles.saveBtn}>저장</Text>
+            <Text style={styles.saveBtn}>{t("common.save")}</Text>
           </TouchableOpacity>
         }
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* 프로필 사진 */}
-        <Text style={styles.sectionTitle}>프로필 사진</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.profile_photos")}</Text>
         <View style={styles.card}>
-          <Text style={[T.micro, { color: CLight.gray500, marginBottom: 10 }]}>전신, 상반신 등 전문 프로필 사진을 등록하세요 (최대 6장)</Text>
+          <Text style={[T.micro, { color: CLight.gray500, marginBottom: 10 }]}>{t("profileEdit.photo_hint")}</Text>
           <View style={styles.photoGrid}>
             {photos.map((uri, i) => (
               <View key={i} style={styles.photoGridItem}>
@@ -159,40 +161,40 @@ export default function ProfileEditScreen({ navigation }) {
                 <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => handleRemovePhoto(i)}>
                   <Text style={styles.photoRemoveText}>x</Text>
                 </TouchableOpacity>
-                {i === 0 && <View style={styles.mainBadge}><Text style={styles.mainBadgeText}>대표</Text></View>}
+                {i === 0 && <View style={styles.mainBadge}><Text style={styles.mainBadgeText}>{t("profileEdit.main_photo")}</Text></View>}
               </View>
             ))}
             {photos.length < 6 && (
               <TouchableOpacity style={styles.photoAddBtn} onPress={handleAddPhoto} activeOpacity={0.7}>
                 <Text style={{ fontSize: 28, color: CLight.gray400 }}>+</Text>
-                <Text style={[T.micro, { color: CLight.gray400 }]}>추가</Text>
+                <Text style={[T.micro, { color: CLight.gray400 }]}>{t("profileEdit.add_photo")}</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
 
         {/* 기본 정보 */}
-        <Text style={styles.sectionTitle}>기본 정보</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.basic_info")}</Text>
         <View style={styles.card}>
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>이름</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="이름" placeholderTextColor={CLight.gray400} />
+            <Text style={styles.label}>{t("profileEdit.name")}</Text>
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={t("profileEdit.name_placeholder")} placeholderTextColor={CLight.gray400} />
           </View>
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>소개</Text>
-            <TextInput style={[styles.input, { height: 80, textAlignVertical: "top" }]} value={bio} onChangeText={setBio} placeholder="간단한 자기소개" placeholderTextColor={CLight.gray400} multiline maxLength={200} />
+            <Text style={styles.label}>{t("profileEdit.bio")}</Text>
+            <TextInput style={[styles.input, { height: 80, textAlignVertical: "top" }]} value={bio} onChangeText={setBio} placeholder={t("profileEdit.bio_placeholder")} placeholderTextColor={CLight.gray400} multiline maxLength={200} />
           </View>
         </View>
 
         {/* 분야 */}
-        <Text style={styles.sectionTitle}>예술 분야</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.art_fields")}</Text>
         <View style={styles.card}>
           <View style={styles.pillGrid}>
             {FIELDS.map((f) => {
               const isSelected = selectedFields.includes(f);
               return (
                 <TouchableOpacity key={f} style={[styles.pill, isSelected && styles.pillActive]} onPress={() => setSelectedFields(toggleInArray(selectedFields, f))}>
-                  <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{FIELD_EMOJIS[f]} {FIELD_LABELS[f]}</Text>
+                  <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{FIELD_EMOJIS[f]} {t("fields." + f)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -200,52 +202,52 @@ export default function ProfileEditScreen({ navigation }) {
         </View>
 
         {/* 신체 정보 */}
-        <Text style={styles.sectionTitle}>신체 정보</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.body_info")}</Text>
         <View style={styles.card}>
-          <Text style={styles.label}>성별</Text>
+          <Text style={styles.label}>{t("profileEdit.gender")}</Text>
           <View style={styles.genderRow}>
             {GENDER_OPTIONS.map((g) => (
               <TouchableOpacity key={g.key} style={[styles.genderCard, gender === g.key && styles.genderCardActive]} onPress={() => setGender(g.key)}>
                 <Text style={styles.genderEmoji}>{GENDER_EMOJIS[g.key]}</Text>
-                <Text style={[styles.genderLabel, gender === g.key && styles.genderLabelActive]}>{g.label}</Text>
+                <Text style={[styles.genderLabel, gender === g.key && styles.genderLabelActive]}>{t(g.labelKey)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>생년월일 {age ? `(${age}세)` : ""}</Text>
+            <Text style={styles.label}>{t("profileEdit.birth_date")}{age ? ` (${age}${t("common.years_old")})` : ""}</Text>
             <TextInput style={styles.input} value={birthDate} onChangeText={setBirthDate} placeholder="YYYY-MM-DD" placeholderTextColor={CLight.gray400} keyboardType="numbers-and-punctuation" maxLength={10} />
           </View>
 
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={[styles.inputWrapper, { flex: 1 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text style={styles.label}>키 (cm)</Text>
+                <Text style={styles.label}>{t("profileEdit.height")}</Text>
                 <TouchableOpacity onPress={() => setHeightPrivate(!heightPrivate)} style={[styles.privacyToggle, heightPrivate && styles.privacyToggleActive]}>
-                  <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? "비공개" : "공개"}</Text>
+                  <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? t("common.private") : t("common.public")}</Text>
                 </TouchableOpacity>
               </View>
               <TextInput style={styles.input} value={height} onChangeText={setHeight} placeholder="170" placeholderTextColor={CLight.gray400} keyboardType="number-pad" maxLength={3} />
             </View>
             <View style={[styles.inputWrapper, { flex: 1 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text style={styles.label}>몸무게 (kg)</Text>
+                <Text style={styles.label}>{t("profileEdit.weight")}</Text>
                 <TouchableOpacity onPress={() => setWeightPrivate(!weightPrivate)} style={[styles.privacyToggle, weightPrivate && styles.privacyToggleActive]}>
-                  <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? "비공개" : "공개"}</Text>
+                  <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? t("common.private") : t("common.public")}</Text>
                 </TouchableOpacity>
               </View>
               <TextInput style={styles.input} value={weight} onChangeText={setWeight} placeholder="60" placeholderTextColor={CLight.gray400} keyboardType="number-pad" maxLength={3} />
             </View>
           </View>
           <Text style={[T.micro, { color: CLight.gray400, marginTop: 4, lineHeight: 18 }]}>
-            비공개 설정 시 관계자가 배우 프로필 열람 시에만 확인할 수 있습니다.
+            {t("profileEdit.private_notice")}
           </Text>
         </View>
 
         {/* 활동 정보 */}
-        <Text style={styles.sectionTitle}>활동 정보</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.activity_info")}</Text>
         <View style={styles.card}>
-          <Text style={styles.label}>특기</Text>
+          <Text style={styles.label}>{t("profileEdit.specialty")}</Text>
           <View style={styles.pillGrid}>
             {SPECIALTY_SUGGESTIONS.map((s) => {
               const isSelected = specialties.includes(s);
@@ -257,37 +259,37 @@ export default function ProfileEditScreen({ navigation }) {
             })}
           </View>
           <View style={[styles.tagInputRow, { marginTop: 8 }]}>
-            <TextInput style={styles.tagInput} placeholder="직접 입력" placeholderTextColor={CLight.gray400} value={customSpecialty} onChangeText={setCustomSpecialty} onSubmitEditing={handleAddCustomSpecialty} returnKeyType="done" maxLength={20} />
+            <TextInput style={styles.tagInput} placeholder={t("profileEdit.custom_input")} placeholderTextColor={CLight.gray400} value={customSpecialty} onChangeText={setCustomSpecialty} onSubmitEditing={handleAddCustomSpecialty} returnKeyType="done" maxLength={20} />
             <TouchableOpacity style={[styles.tagAddBtn, !customSpecialty.trim() && styles.tagAddBtnDisabled]} onPress={handleAddCustomSpecialty} disabled={!customSpecialty.trim()}>
-              <Text style={[styles.tagAddText, !customSpecialty.trim() && styles.tagAddTextDisabled]}>추가</Text>
+              <Text style={[styles.tagAddText, !customSpecialty.trim() && styles.tagAddTextDisabled]}>{t("common.add")}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
             <View style={[styles.inputWrapper, { flex: 1 }]}>
-              <Text style={styles.label}>학교</Text>
-              <TextInput style={styles.input} value={school} onChangeText={setSchool} placeholder="학교명" placeholderTextColor={CLight.gray400} />
+              <Text style={styles.label}>{t("profileEdit.school")}</Text>
+              <TextInput style={styles.input} value={school} onChangeText={setSchool} placeholder={t("profileEdit.school_placeholder")} placeholderTextColor={CLight.gray400} />
             </View>
             <View style={[styles.inputWrapper, { flex: 1 }]}>
-              <Text style={styles.label}>거주지</Text>
-              <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="서울" placeholderTextColor={CLight.gray400} />
+              <Text style={styles.label}>{t("profileEdit.location")}</Text>
+              <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder={t("profileEdit.location_placeholder")} placeholderTextColor={CLight.gray400} />
             </View>
           </View>
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>소속사</Text>
-            <TextInput style={styles.input} value={agency} onChangeText={setAgency} placeholder="소속사명" placeholderTextColor={CLight.gray400} />
+            <Text style={styles.label}>{t("profileEdit.agency")}</Text>
+            <TextInput style={styles.input} value={agency} onChangeText={setAgency} placeholder={t("profileEdit.agency_placeholder")} placeholderTextColor={CLight.gray400} />
           </View>
         </View>
 
         {/* 경력 */}
-        <Text style={styles.sectionTitle}>경력</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.career")}</Text>
         <View style={styles.card}>
           {career.map((c, i) => (
             <View key={i} style={styles.careerItem}>
               <View style={{ flex: 1 }}>
                 <Text style={[T.captionBold, { color: CLight.gray900 }]}>{c.title}</Text>
                 <Text style={[T.micro, { color: CLight.gray500 }]}>
-                  {c.role}{c.year ? ` | ${c.year}` : ""} | {CAREER_TYPES.find((ct) => ct.key === c.type)?.label || c.type}
+                  {c.role}{c.year ? ` | ${c.year}` : ""} | {t("careerTypes." + c.type)}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setCareer((prev) => prev.filter((_, idx) => idx !== i))}>
@@ -297,32 +299,32 @@ export default function ProfileEditScreen({ navigation }) {
           ))}
 
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TextInput style={[styles.input, { flex: 2 }]} placeholder="작품명" placeholderTextColor={CLight.gray400} value={careerTitle} onChangeText={setCareerTitle} />
-            <TextInput style={[styles.input, { flex: 1 }]} placeholder="역할" placeholderTextColor={CLight.gray400} value={careerRole} onChangeText={setCareerRole} />
+            <TextInput style={[styles.input, { flex: 2 }]} placeholder={t("profileEdit.work_title")} placeholderTextColor={CLight.gray400} value={careerTitle} onChangeText={setCareerTitle} />
+            <TextInput style={[styles.input, { flex: 1 }]} placeholder={t("profileEdit.role")} placeholderTextColor={CLight.gray400} value={careerRole} onChangeText={setCareerRole} />
           </View>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-            <TextInput style={[styles.input, { width: 80 }]} placeholder="년도" placeholderTextColor={CLight.gray400} value={careerYear} onChangeText={setCareerYear} keyboardType="number-pad" maxLength={4} />
+            <TextInput style={[styles.input, { width: 80 }]} placeholder={t("profileEdit.year")} placeholderTextColor={CLight.gray400} value={careerYear} onChangeText={setCareerYear} keyboardType="number-pad" maxLength={4} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, alignItems: "center" }}>
               {CAREER_TYPES.map((ct) => (
                 <TouchableOpacity key={ct.key} style={[styles.miniPill, careerType === ct.key && styles.miniPillActive]} onPress={() => setCareerType(ct.key)}>
-                  <Text style={[styles.miniPillText, careerType === ct.key && styles.miniPillTextActive]}>{ct.label}</Text>
+                  <Text style={[styles.miniPillText, careerType === ct.key && styles.miniPillTextActive]}>{t(ct.labelKey)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
           <TouchableOpacity style={[styles.addCareerBtn, !careerTitle.trim() && styles.disabledBtn]} onPress={handleAddCareer} disabled={!careerTitle.trim()}>
-            <Text style={[T.captionBold, { color: CLight.white }]}>+ 경력 추가</Text>
+            <Text style={[T.captionBold, { color: CLight.white }]}>{t("profileEdit.add_career")}</Text>
           </TouchableOpacity>
         </View>
 
         {/* 공개 설정 */}
-        <Text style={styles.sectionTitle}>공개 설정</Text>
+        <Text style={styles.sectionTitle}>{t("profileEdit.public_settings")}</Text>
         <View style={styles.card}>
           <View style={styles.consentRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>프로필 공개</Text>
+              <Text style={styles.label}>{t("profileEdit.profile_public")}</Text>
               <Text style={[T.micro, { color: CLight.gray500, lineHeight: 18 }]}>
-                업계 관계자가 B2B 대시보드에서 프로필을 열람할 수 있습니다.
+                {t("profileEdit.profile_public_desc")}
               </Text>
             </View>
             <Switch
@@ -334,9 +336,9 @@ export default function ProfileEditScreen({ navigation }) {
           </View>
           <View style={[styles.consentRow, { marginTop: 16 }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>AI 학습 데이터 제공</Text>
+              <Text style={styles.label}>{t("profileEdit.ai_training")}</Text>
               <Text style={[T.micro, { color: CLight.gray500, lineHeight: 18 }]}>
-                연습 노트와 AI 피드백을 익명으로 수집하여 AI 품질 개선에 활용합니다.
+                {t("profileEdit.ai_training_desc")}
               </Text>
             </View>
             <Switch

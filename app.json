@@ -3,7 +3,7 @@
     "name": "Artlink",
     "slug": "ArtlinkRN",
     "scheme": "artlink",
-    "version": "1.10.1",
+    "version": "1.10.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.00MM.artlink",
-      "buildNumber": "36",
+      "buildNumber": "45",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "프로필 사진과 노트에 이미지를 첨부하기 위해 사진 접근 권한이 필요합니다.",
         "NSCameraUsageDescription": "프로필 사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
@@ -29,8 +29,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "versionCode": 45,
       "edgeToEdgeEnabled": true,
-      "package": "com.mm00.artlink"
+      "package": "com.mm00.artlink",
+      "permissions": ["CAMERA", "POST_NOTIFICATIONS"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,6 +42,28 @@
         "projectId": "e5ad74b9-85ad-4a41-9155-75217c126393"
       }
     },
-    "owner": "00mmfilm"
+    "owner": "00mmfilm",
+    "plugins": [
+      "expo-localization",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4155982682875139~5638428961",
+          "iosAppId": "ca-app-pub-4155982682875139~5638428961"
+        }
+      ]
+    ],
+    "locales": {
+      "ko": "./locales/ko.json",
+      "en": "./locales/en.json",
+      "ja": "./locales/ja.json",
+      "zh-Hans": "./locales/zh-Hans.json",
+      "zh-Hant": "./locales/zh-Hant.json",
+      "vi": "./locales/vi.json",
+      "th": "./locales/th.json",
+      "id": "./locales/id.json",
+      "ar": "./locales/ar.json",
+      "es": "./locales/es.json"
+    }
   }
 }

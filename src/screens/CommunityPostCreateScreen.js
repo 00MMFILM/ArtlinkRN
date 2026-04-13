@@ -11,26 +11,23 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
 import TopBar from "../components/TopBar";
-import { createPost } from "../services/communityService";
+import { createPost, moderateContent } from "../services/communityService";
+import { checkProfanity } from "../utils/profanityFilter";
 
-const TYPES = ["공지", "팁 공유", "작품 공유", "질문", "콜라보"];
-
-const BLOCKED_PATTERNS = [
-  /porn/i, /sex(?:ual)?/i, /nude/i, /naked/i,
-  /약물/, /마약/, /대마/, /필로폰/,
-  /성매매/, /원조교제/, /조건만남/,
-  /도박/, /불법/, /사기/,
+const TYPE_KEYS = [
+  { key: "tab_notice", value: "공지" },
+  { key: "tab_tip", value: "팁 공유" },
+  { key: "tab_work", value: "작품 공유" },
+  { key: "tab_question", value: "질문" },
+  { key: "tab_collab", value: "콜라보" },
 ];
 
-function containsObjectionableContent(text) {
-  if (!text) return false;
-  return BLOCKED_PATTERNS.some((pattern) => pattern.test(text));
-}
-
 export default function CommunityPostCreateScreen({ navigation }) {
+  const { t } = useTranslation();
   const { deviceUserId, userProfile, showToast } = useApp();
   const [type, setType] = useState("팁 공유");
   const [title, setTitle] = useState("");
@@ -46,62 +43,72 @@ export default function CommunityPostCreateScreen({ navigation }) {
     const unsub = navigation.addListener("beforeRemove", (e) => {
       if (!hasChangesRef.current) return;
       e.preventDefault();
-      Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
-        { text: "계속 작성", style: "cancel" },
-        { text: "나가기", style: "destructive", onPress: () => navigation.dispatch(e.data.action) },
+      Alert.alert(t("common.discard_title"), t("common.discard_message"), [
+        { text: t("common.keep_editing"), style: "cancel" },
+        { text: t("common.leave"), style: "destructive", onPress: () => navigation.dispatch(e.data.action) },
       ]);
     });
     return unsub;
-  }, [navigation]);
+  }, [navigation, t]);
 
   const handleSave = useCallback(async () => {
     if (!title.trim()) {
-      Alert.alert("제목 필요", "제목을 입력해주세요.");
+      Alert.alert(t("communityCreate.title_required"), t("communityCreate.title_required_msg"));
       return;
     }
     if (!content.trim()) {
-      Alert.alert("내용 필요", "내용을 입력해주세요.");
+      Alert.alert(t("communityCreate.content_required"), t("communityCreate.content_required_msg"));
       return;
     }
-    if (containsObjectionableContent(title) || containsObjectionableContent(content)) {
-      Alert.alert("게시 불가", "부적절한 내용이 포함되어 있습니다. 이용약관에 따라 부적절한 콘텐츠는 게시할 수 없습니다.");
+    // Layer 1: Client-side profanity filter (instant)
+    const titleCheck = checkProfanity(title);
+    const contentCheck = checkProfanity(content);
+    if (titleCheck.blocked || contentCheck.blocked) {
+      Alert.alert(t("communityCreate.post_blocked"), t("communityCreate.inappropriate_msg"));
       return;
     }
     if (!deviceUserId) {
-      Alert.alert("오류", "커뮤니티 연결에 실패했습니다. 앱을 재시작해주세요.");
+      Alert.alert(t("common.error"), t("communityCreate.connection_error"));
       return;
     }
 
     setSaving(true);
     try {
+      // Layer 2: Server AI moderation (fail-open)
+      const aiResult = await moderateContent(`${title.trim()}\n${content.trim()}`, "post");
+      if (!aiResult.safe) {
+        Alert.alert(t("communityCreate.post_blocked"), t("communityCreate.guideline_msg"));
+        return;
+      }
+
       await createPost({
         userId: deviceUserId,
-        authorName: userProfile.name || "익명",
+        authorName: userProfile.name || t("common.anonymous"),
         authorField: userProfile.fields?.[0] || null,
         type,
         title: title.trim(),
         content: content.trim(),
       });
       hasChangesRef.current = false;
-      showToast("게시물이 등록되었습니다!", "success");
+      showToast(t("communityCreate.post_success"), "success");
       navigation.goBack();
     } catch (_) {
-      Alert.alert("오류", "게시물 작성에 실패했습니다. 다시 시도해주세요.");
+      Alert.alert(t("common.error"), t("communityCreate.post_failed"));
     } finally {
       setSaving(false);
     }
-  }, [title, content, type, deviceUserId, userProfile, navigation, showToast]);
+  }, [title, content, type, deviceUserId, userProfile, navigation, showToast, t]);
 
   const handleCancel = useCallback(() => {
     if (hasChangesRef.current) {
-      Alert.alert("저장하지 않고 나가기", "작성 중인 내용이 사라집니다.", [
-        { text: "계속 작성", style: "cancel" },
-        { text: "나가기", style: "destructive", onPress: () => { hasChangesRef.current = false; navigation.goBack(); } },
+      Alert.alert(t("common.discard_title"), t("common.discard_message"), [
+        { text: t("common.keep_editing"), style: "cancel" },
+        { text: t("common.leave"), style: "destructive", onPress: () => { hasChangesRef.current = false; navigation.goBack(); } },
       ]);
     } else {
       navigation.goBack();
     }
-  }, [navigation]);
+  }, [navigation, t]);
 
   return (
     <KeyboardAvoidingView
@@ -109,10 +116,10 @@ export default function CommunityPostCreateScreen({ navigation }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TopBar
-        title="글 작성"
+        title={t("communityCreate.title")}
         left={
           <TouchableOpacity onPress={handleCancel} activeOpacity={0.7}>
-            <Text style={styles.cancelBtn}>취소</Text>
+            <Text style={styles.cancelBtn}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         }
         right={
@@ -124,7 +131,7 @@ export default function CommunityPostCreateScreen({ navigation }) {
             {saving ? (
               <ActivityIndicator size="small" color={CLight.pink} />
             ) : (
-              <Text style={styles.saveBtn}>게시</Text>
+              <Text style={styles.saveBtn}>{t("communityCreate.post")}</Text>
             )}
           </TouchableOpacity>
         }
@@ -137,15 +144,17 @@ export default function CommunityPostCreateScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Type Selector */}
-        <Text style={styles.sectionLabel}>카테고리</Text>
+        <Text style={styles.sectionLabel}>{t("communityCreate.category")}</Text>
         <View style={styles.typeRow}>
-          {TYPES.map((t) => (
+          {TYPE_KEYS.map(({ key, value }) => (
             <TouchableOpacity
-              key={t}
-              style={[styles.typeBtn, type === t && styles.typeBtnActive]}
-              onPress={() => setType(t)}
+              key={key}
+              style={[styles.typeBtn, type === value && styles.typeBtnActive]}
+              onPress={() => setType(value)}
             >
-              <Text style={[styles.typeText, type === t && styles.typeTextActive]}>{t}</Text>
+              <Text style={[styles.typeText, type === value && styles.typeTextActive]}>
+                {t(`community.${key}`)}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -153,7 +162,7 @@ export default function CommunityPostCreateScreen({ navigation }) {
         {/* Title */}
         <TextInput
           style={styles.titleInput}
-          placeholder="제목을 입력하세요"
+          placeholder={t("communityCreate.title_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={title}
           onChangeText={setTitle}
@@ -164,7 +173,7 @@ export default function CommunityPostCreateScreen({ navigation }) {
         {/* Content */}
         <TextInput
           style={styles.contentInput}
-          placeholder="내용을 작성해주세요..."
+          placeholder={t("communityCreate.content_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={content}
           onChangeText={setContent}
