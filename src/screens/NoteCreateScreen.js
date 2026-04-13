@@ -198,7 +198,7 @@ export default function NoteCreateScreen({ navigation }) {
   // Video AI Analysis
   const noteVideos = images.filter((i) => i.type === "video");
 
-  const handleVideoAnalyze = useCallback(async () => {
+  const runVideoAnalyzeFlow = useCallback(async () => {
     if (noteVideos.length === 0) {
       Alert.alert(t("noteCreate.video_required"), t("noteCreate.video_required_msg"));
       return;
@@ -219,6 +219,21 @@ export default function NoteCreateScreen({ navigation }) {
     } catch {}
     startVideoAnalysis();
   }, [noteVideos, field, content, title, userProfile, t]);
+
+  const handleVideoAnalyze = useCallback(async () => {
+    if (!aiDisclosureAccepted) {
+      Alert.alert(
+        t("aiDisclosure.title"),
+        t("aiDisclosure.message"),
+        [
+          { text: t("aiDisclosure.cancel"), style: "cancel" },
+          { text: t("aiDisclosure.accept"), onPress: () => { handleAcceptAIDisclosure(); runVideoAnalyzeFlow(); } },
+        ]
+      );
+      return;
+    }
+    runVideoAnalyzeFlow();
+  }, [aiDisclosureAccepted, handleAcceptAIDisclosure, runVideoAnalyzeFlow, t]);
 
   const startVideoAnalysis = useCallback(async () => {
     setVideoAiLoading(true);
