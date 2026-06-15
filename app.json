@@ -3,7 +3,7 @@
     "name": "Artlink",
     "slug": "ArtlinkRN",
     "scheme": "artlink",
-    "version": "1.10.4",
+    "version": "1.10.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.00MM.artlink",
-      "buildNumber": "45",
+      "buildNumber": "56",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "프로필 사진과 노트에 이미지를 첨부하기 위해 사진 접근 권한이 필요합니다.",
         "NSCameraUsageDescription": "프로필 사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
@@ -29,10 +29,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "versionCode": 45,
+      "versionCode": 64,
       "edgeToEdgeEnabled": true,
       "package": "com.mm00.artlink",
-      "permissions": ["CAMERA", "POST_NOTIFICATIONS"]
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -48,10 +51,11 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-4155982682875139~5638428961",
+          "androidAppId": "TODO_ANDROID_APP_ID_FROM_ADMOB_CONSOLE",
           "iosAppId": "ca-app-pub-4155982682875139~5638428961"
         }
-      ]
+      ],
+      "./plugins/withAndroidLintFix"
     ],
     "locales": {
       "ko": "./locales/ko.json",
