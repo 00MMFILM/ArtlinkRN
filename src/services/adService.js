@@ -8,27 +8,24 @@ import {
   TestIds,
 } from "react-native-google-mobile-ads";
 
-// ─── Ad Unit IDs ───
-// iOS: 실제 Ad Unit IDs (AdMob 콘솔 등록 완료)
-// Android: 사용자가 AdMob 콘솔에서 등록 후 ID 받으면 아래 TODO를 교체할 것
 const AD_UNITS = {
   INTERSTITIAL: __DEV__
     ? TestIds.INTERSTITIAL
     : Platform.select({
         ios: "ca-app-pub-4155982682875139/8204882550",
-        android: "TODO_ANDROID_INTERSTITIAL_AD_UNIT_ID", // 등록 후 교체
+        android: "ca-app-pub-4155982682875139/3847784236",
       }),
   REWARDED: __DEV__
     ? TestIds.REWARDED
     : Platform.select({
         ios: "ca-app-pub-4155982682875139/4537100280",
-        android: "TODO_ANDROID_REWARDED_AD_UNIT_ID", // 등록 후 교체
+        android: "ca-app-pub-4155982682875139/6793806923",
       }),
   BANNER: __DEV__
     ? TestIds.ADAPTIVE_BANNER
     : Platform.select({
         ios: "ca-app-pub-4155982682875139/6379284707",
-        android: "TODO_ANDROID_BANNER_AD_UNIT_ID", // 등록 후 교체
+        android: "ca-app-pub-4155982682875139/8582407029",
       }),
 };
 
