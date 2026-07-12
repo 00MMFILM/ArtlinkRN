@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS } from "../utils/helpers";
@@ -135,6 +136,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
   }, [navigation, t]);
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -347,6 +349,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

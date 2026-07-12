@@ -31,7 +31,16 @@
         "appleTeamId": "53D8SBYZ7V"
       },
       "android": {
-        "track": "internal"
+        "track": "production",
+        "releaseStatus": "completed",
+        "serviceAccountKeyPath": "./play-service-account.json"
+      }
+    },
+    "closed-testing": {
+      "android": {
+        "track": "alpha",
+        "releaseStatus": "draft",
+        "serviceAccountKeyPath": "./play-service-account.json"
       }
     }
   }

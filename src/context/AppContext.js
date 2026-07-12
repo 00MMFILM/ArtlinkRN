@@ -7,7 +7,8 @@ import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
 import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, deleteNoteFromServer } from "../services/notesSyncService";
-import { trackAppOpen } from "../services/mauService";
+import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
+import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 
 const AppContext = createContext();
 
@@ -104,6 +105,11 @@ export function AppProvider({ children }) {
       if (consentAsked) setDataConsentAsked(consentAsked);
       if (aiDisclosure) setAiDisclosureAccepted(aiDisclosure);
       setStorageReady(true);
+
+      // MAU: 앱 실행 즉시 기록 (가입 전 이탈 사용자도 포함)
+      trackAppOpen(i18n.language, profile?.userType);
+      // 퍼널: 프로필이 아직 없는 새 기기의 첫 실행
+      if (!profile) trackFunnelEvent("new_open", i18n.language);
     })();
   }, []);
 
@@ -135,21 +141,27 @@ export function AppProvider({ children }) {
           deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           await safeStorageSet(STORAGE_KEYS.DEVICE_ID, deviceId);
         }
-        trackAppOpen(language, userProfile.userType);
-        // Check cached userId first
+        // 익명 모드(authUserId 없음): 캐시된 userId+토큰이 둘 다 있으면 재사용
+        // 인증 모드(authUserId 있음): 캐시 무시하고 항상 재호출하여 auth 연결 보장
         const cachedUserId = await safeStorageGet(STORAGE_KEYS.DEVICE_USER_ID);
-        if (cachedUserId) {
+        const cachedToken = await safeStorageGet(STORAGE_KEYS.PROFILE_TOKEN);
+        if (cachedUserId && cachedToken && !userProfile.authUserId) {
           setDeviceUserId(cachedUserId);
           return;
         }
-        const userId = await ensureDeviceUser(deviceId, userProfile.name, userProfile.fields?.[0], userProfile.authUserId);
+        // 서버 등록 → userId + 소유권 토큰 발급/갱신
+        const { userId, profileToken } = await ensureDeviceUser(
+          deviceId, userProfile.name, userProfile.fields?.[0], userProfile.authUserId
+        );
         setDeviceUserId(userId);
         await safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, userId);
+        if (profileToken) await safeStorageSet(STORAGE_KEYS.PROFILE_TOKEN, profileToken);
+        if (userId) trackFunnelEvent("profile_registered", language);
       } catch (_) {
         // Silent fail — community features will use demo fallback
       }
     })();
-  }, [storageReady, authState]);
+  }, [storageReady, authState, userProfile.authUserId]);
 
   // Pull notes from server on login (merge with local)
   useEffect(() => {
@@ -378,7 +390,8 @@ export function AppProvider({ children }) {
   const handleAcceptEula = useCallback(() => {
     setEulaAccepted(true);
     safeStorageSet(STORAGE_KEYS.EULA_ACCEPTED, true);
-  }, []);
+    trackFunnelEvent("eula_accepted", language);
+  }, [language]);
 
   // ─── Data Consent ───
   const handleSetDataConsent = useCallback((value) => {
@@ -400,9 +413,9 @@ export function AppProvider({ children }) {
   // ─── Server report notification ───
   const notifyServer = useCallback(async (reportData) => {
     try {
-      await fetch("https://artlink-server.vercel.app/api/report", {
+      await fetch(`${SERVER_URL}/api/report`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getApiHeaders(),
         body: JSON.stringify(reportData),
       });
     } catch (_) {

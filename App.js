@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text, View, StyleSheet, Modal, TextInput, TouchableOpacity, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ExpoLinking from "expo-linking";
 import { useTranslation } from "react-i18next";
 import { initI18n } from "./src/i18n";
@@ -12,6 +13,7 @@ import mobileAds from "react-native-google-mobile-ads";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppProvider, useApp } from "./src/context/AppContext";
 import { supabase } from "./src/services/supabaseClient";
+import { trackFunnelEvent } from "./src/services/mauService";
 import Toast from "./src/components/Toast";
 
 // Screens
@@ -43,6 +45,22 @@ import InboxScreen from "./src/screens/InboxScreen";
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// ─── 외부 딥링크 → 노트 작성 (비움스튜디오 등에서 대본을 들고 진입) ───
+// artlink://practice?title=..&content=..&field=acting&source=bium
+const navigationRef = createNavigationContainerRef();
+
+function openNoteCreateWhenReady(prefill, attempt = 0) {
+  if (attempt > 60) return; // 온보딩 등으로 30초 내 진입 못 하면 포기
+  const hasRoute =
+    navigationRef.isReady() &&
+    navigationRef.getRootState()?.routeNames?.includes("NoteCreate");
+  if (hasRoute) {
+    navigationRef.navigate("NoteCreate", { prefill });
+    return;
+  }
+  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1), 500);
+}
+
 function TabIcon({ emoji, focused }) {
   return (
     <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.4 }}>{emoji}</Text>
@@ -52,6 +70,8 @@ function TabIcon({ emoji, focused }) {
 function MainTabs() {
   const { t } = useTranslation();
   const { isKoreanLocale } = useApp();
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
       screenOptions={{
@@ -59,9 +79,9 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: "rgba(255,255,255,0.95)",
           borderTopColor: "rgba(0,0,0,0.04)",
-          paddingBottom: 20,
+          paddingBottom: bottomPad,
           paddingTop: 6,
-          height: 80,
+          height: 56 + bottomPad,
         },
         tabBarActiveTintColor: "#FF2D78",
         tabBarInactiveTintColor: "#AEAEB2",
@@ -259,6 +279,24 @@ function AppNavigator() {
   useEffect(() => {
     const handleDeepLink = async (url) => {
       if (!url) return;
+      // 대본 → 노트 프리필 딥링크 (비움스튜디오 등)
+      try {
+        const parsed = ExpoLinking.parse(url);
+        const path = (parsed.hostname || parsed.path || "").replace(/^\//, "");
+        if (path === "practice") {
+          const qp = parsed.queryParams || {};
+          const prefill = {
+            title: typeof qp.title === "string" ? qp.title.slice(0, 120) : "",
+            content: typeof qp.content === "string" ? qp.content.slice(0, 2000) : "",
+            field: typeof qp.field === "string" ? qp.field : "acting",
+          };
+          trackFunnelEvent(`deeplink_${typeof qp.source === "string" && qp.source ? qp.source : "external"}`);
+          openNoteCreateWhenReady(prefill);
+          return;
+        }
+      } catch (e) {
+        // 파싱 실패 시 아래 recovery 처리로 계속
+      }
       // Supabase appends tokens as fragment: #access_token=...&type=recovery
       const fragment = url.split("#")[1];
       if (!fragment) return;
@@ -301,7 +339,7 @@ function AppNavigator() {
 
   return (
     <View style={{ flex: 1 }}>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {authState === "auth" && showOnboarding === null ? (
             <Stack.Screen name="Loading">{() => null}</Stack.Screen>
@@ -310,6 +348,7 @@ function AppNavigator() {
               {() => <OnboardingScreen onComplete={() => {
                 setShowOnboarding(false);
                 AsyncStorage.setItem("artlink-onboarding-seen", "true").catch(() => {});
+                trackFunnelEvent("onboarding_completed");
               }} />}
             </Stack.Screen>
           ) : authState === "auth" ? (

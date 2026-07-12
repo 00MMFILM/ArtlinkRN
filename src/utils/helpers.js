@@ -7,6 +7,26 @@ export const getFieldColor = (field) => FIELD_COLORS[field] || "#8E8E93";
 
 export const FIELDS = ["acting", "music", "art", "dance", "literature", "film", "etc"];
 
+// ─── Community personalization / actor gating (pure, testable) ───
+export const ACTOR_FIELD = "acting";
+
+// 사용자가 배우(연기 전공)인지
+export const isActor = (fields) => Array.isArray(fields) && fields.includes(ACTOR_FIELD);
+
+// 글이 선택된 분야 필터에 걸리는지 (전체/미지정이면 항상 통과)
+export const postMatchesField = (post, activeField) => {
+  if (!activeField || activeField === "전체") return true;
+  return (post?.author_field || post?.field) === activeField;
+};
+
+// 커뮤니티 피드 최종 필터: 차단 사용자 제외 + 분야 개인화
+export const visibleCommunityPosts = (posts, { blockedUsers = [], activeField } = {}) => {
+  const authorKey = (p) => p?.author_name || p?.author;
+  return (posts || []).filter(
+    (p) => !blockedUsers.includes(authorKey(p)) && postMatchesField(p, activeField)
+  );
+};
+
 // ─── Profile Constants (use labelKey for i18n) ───
 
 export const GENDER_OPTIONS = [

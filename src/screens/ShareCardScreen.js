@@ -5,9 +5,9 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";

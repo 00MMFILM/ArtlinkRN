@@ -5,8 +5,8 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
@@ -19,72 +19,7 @@ const NOTIFICATION_TYPES = {
   system: { icon: "!", color: CLight.blue, bgColor: "#E3F2FD" },
 };
 
-const SAMPLE_NOTIFICATIONS = [
-  {
-    id: 1,
-    type: "matching",
-    title: "새 매칭 프로젝트",
-    message: "단편영화 '빛의 경계' 출연자 모집이 회원님의 프로필과 92% 매칭됩니다.",
-    time: "10분 전",
-    read: false,
-  },
-  {
-    id: 2,
-    type: "streak",
-    title: "연속 기록 알림",
-    message: "오늘 아직 노트를 작성하지 않았어요! 연속 기록을 유지해보세요.",
-    time: "1시간 전",
-    read: false,
-  },
-  {
-    id: 3,
-    type: "community",
-    title: "커뮤니티 반응",
-    message: "회원님의 '감정 표현 연습법' 노트에 3명이 좋아요를 눌렀습니다.",
-    time: "3시간 전",
-    read: false,
-  },
-  {
-    id: 4,
-    type: "system",
-    title: "앱 업데이트",
-    message: "Artlink v1.3.0이 출시되었습니다. 새로운 매칭 기능을 확인해보세요!",
-    time: "6시간 전",
-    read: true,
-  },
-  {
-    id: 5,
-    type: "matching",
-    title: "오디션 마감 임박",
-    message: "드라마 '새벽의 문' 공개 오디션 마감이 3일 남았습니다.",
-    time: "어제",
-    read: true,
-  },
-  {
-    id: 6,
-    type: "streak",
-    title: "주간 리포트",
-    message: "이번 주 5개의 노트를 작성했어요. 지난주 대비 25% 증가했습니다!",
-    time: "2일 전",
-    read: true,
-  },
-  {
-    id: 7,
-    type: "community",
-    title: "새 댓글",
-    message: "김예술님이 '발레 기초 훈련 기록' 노트에 댓글을 남겼습니다.",
-    time: "3일 전",
-    read: true,
-  },
-  {
-    id: 8,
-    type: "system",
-    title: "보안 업데이트",
-    message: "개인정보 보호를 위해 보안 설정을 확인해주세요.",
-    time: "5일 전",
-    read: true,
-  },
-];
+const SAMPLE_NOTIFICATIONS = [];
 
 export default function NotificationsScreen({ navigation }) {
   const { t } = useTranslation();

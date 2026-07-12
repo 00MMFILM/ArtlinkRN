@@ -18,6 +18,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import * as FileSystem from "expo-file-system/legacy";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
@@ -26,13 +27,24 @@ import { FIELDS } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 import { useTranslation } from "react-i18next";
 
-export default function NoteCreateScreen({ navigation }) {
+export default function NoteCreateScreen({ navigation, route }) {
   const { t } = useTranslation();
   const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale } = useApp();
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [field, setField] = useState(FIELDS[0]);
+  // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
+  const prefill = route?.params?.prefill || null;
+  const [title, setTitle] = useState(prefill?.title || "");
+  const [content, setContent] = useState(prefill?.content || "");
+  const [field, setField] = useState(prefill?.field && FIELDS.includes(prefill.field) ? prefill.field : FIELDS[0]);
+
+  // 화면이 이미 떠 있는 상태에서 새 딥링크가 오면 params만 갱신됨 → 반영
+  useEffect(() => {
+    const p = route?.params?.prefill;
+    if (!p) return;
+    if (p.title) setTitle(p.title);
+    if (p.content) setContent(p.content);
+    if (p.field && FIELDS.includes(p.field)) setField(p.field);
+  }, [route?.params?.prefill]);
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState("");
   const [seriesName, setSeriesName] = useState("");
@@ -174,7 +186,13 @@ export default function NoteCreateScreen({ navigation }) {
           await showInterstitialAd();
         }
       }
-      const result = await analyzeNote(field, content, savedNotes, { title, field, images, voiceRecordings, audioFiles, pdfFiles }, userProfile);
+      // 스트리밍: 도착하는 대로 실시간 표시 (체감 대기 감소)
+      const result = await analyzeNote(
+        field, content, savedNotes,
+        { title, field, images, voiceRecordings, audioFiles, pdfFiles },
+        userProfile,
+        (partial) => setAiComment(partial)
+      );
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
     } catch (e) {
@@ -570,6 +588,7 @@ export default function NoteCreateScreen({ navigation }) {
   });
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -895,6 +914,7 @@ export default function NoteCreateScreen({ navigation }) {
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

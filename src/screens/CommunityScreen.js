@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { useNavigation } from "@react-navigation/native";
-import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
+import { FIELDS, visibleCommunityPosts } from "../utils/helpers";
 import Pill from "../components/Pill";
 import {
   fetchPosts,
@@ -30,6 +31,9 @@ const TAB_KEYS = [
   { key: "tab_question", value: "질문" },
   { key: "tab_collab", value: "콜라보" },
 ];
+
+// 분야 개인화 필터: 전체 + 전공 6분야 (+ 기타는 FIELDS에 포함)
+const FIELD_FILTERS = ["전체", ...FIELDS];
 
 const TYPE_COLORS = {
   "공지": CLight.red,
@@ -123,13 +127,25 @@ function PostCard({ post, onReport, onPress }) {
 // ─── Community Screen ────────────────────────────────────────
 export default function CommunityScreen() {
   const { t } = useTranslation();
-  const { blockedUsers, handleBlockUser, handleReportContent, deviceUserId } = useApp();
+  const { blockedUsers, handleBlockUser, handleReportContent, deviceUserId, userProfile } = useApp();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("전체");
+  const primaryField = userProfile?.fields?.[0];
+  // 분야 개인화: 기본값은 사용자 전공(연기 등), 없으면 전체
+  const [activeField, setActiveField] = useState(primaryField || "전체");
+  const didInitField = useRef(false);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [usingDemo, setUsingDemo] = useState(false);
+
+  // 전공이 뒤늦게 로드되면 한 번만 기본 필터를 사용자 전공으로 맞춤
+  useEffect(() => {
+    if (!didInitField.current && primaryField) {
+      setActiveField(primaryField);
+      didInitField.current = true;
+    }
+  }, [primaryField]);
 
   const loadPosts = useCallback(async (forceRefresh = false) => {
     try {
@@ -165,10 +181,11 @@ export default function CommunityScreen() {
     loadPosts(true);
   }, [loadPosts]);
 
-  const filtered = useMemo(() => {
-    const authorKey = (p) => p.author_name || p.author;
-    return posts.filter((p) => !blockedUsers.includes(authorKey(p)));
-  }, [posts, blockedUsers]);
+  // 차단 사용자 제외 + 분야 개인화 (순수 로직: helpers.visibleCommunityPosts, 테스트됨)
+  const filtered = useMemo(
+    () => visibleCommunityPosts(posts, { blockedUsers, activeField }),
+    [posts, blockedUsers, activeField]
+  );
 
   const handlePostPress = useCallback((post) => {
     navigation.navigate("CommunityPostDetail", { post, isDemo: usingDemo });
@@ -236,6 +253,32 @@ export default function CommunityScreen() {
         </ScrollView>
       </View>
 
+      {/* Field personalization filter */}
+      <View style={styles.fieldTabContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabRow}
+        >
+          {FIELD_FILTERS.map((f) => {
+            const isAll = f === "전체";
+            const label = isAll ? t("common.all") : t("fields." + f);
+            const emoji = isAll ? "🌐" : (FIELD_EMOJIS[f] || "");
+            const color = isAll ? CLight.gray500 : (FIELD_COLORS[f] || CLight.purple);
+            return (
+              <Pill
+                key={f}
+                active={activeField === f}
+                color={color}
+                onPress={() => setActiveField(f)}
+              >
+                {emoji ? emoji + " " : ""}{label}
+              </Pill>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {/* Post List */}
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -298,6 +341,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: CLight.topBarBg,
     flexGrow: 0,
+  },
+  fieldTabContainer: {
+    borderTopWidth: 1,
+    borderTopColor: CLight.gray100,
+    backgroundColor: CLight.topBarBg,
   },
   list: {
     paddingHorizontal: 16,

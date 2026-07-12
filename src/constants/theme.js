@@ -30,6 +30,7 @@ export const T = {
   h2: { fontSize: 24, fontWeight: "700", lineHeight: 31 },
   h3: { fontSize: 20, fontWeight: "700", lineHeight: 27 },
   title: { fontSize: 17, fontWeight: "600", lineHeight: 24 },
+  titleBold: { fontSize: 17, fontWeight: "700", lineHeight: 24 },
   body: { fontSize: 15, fontWeight: "400", lineHeight: 26 },
   bodyBold: { fontSize: 15, fontWeight: "600", lineHeight: 26 },
   caption: { fontSize: 14, fontWeight: "400", lineHeight: 21 },

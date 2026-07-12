@@ -3,9 +3,8 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { FIELD_LABELS } from "../constants/theme";
 import { extractVideoFrames } from "../utils/videoFrames";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabaseClient";
+import { SERVER_URL, getApiHeaders } from "./apiConfig";
 import i18n from "i18next";
-
-const SERVER_URL = "https://artlink-server.vercel.app";
 const IMAGE_MAX_DIMENSION = 1024; // Resize images before AI analysis to save API cost
 
 /**
@@ -753,7 +752,7 @@ async function transcribeAudioFile(audioUri, label = "audio") {
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/temp-media/${fileName}`;
     const res = await fetch(`${SERVER_URL}/api/transcribe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getApiHeaders(),
       body: JSON.stringify({ videoUrl: publicUrl }),
     });
 
@@ -807,7 +806,39 @@ async function transcribeAllAudio(voiceRecordings = [], audioFiles = []) {
   return results.filter(Boolean).join("\n\n");
 }
 
-export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}) {
+/**
+ * 서버 스트리밍 엔드포인트를 XHR로 소비 (React Native fetch는 스트리밍 미지원).
+ * onToken(누적텍스트)를 청크마다 호출하여 화면에 실시간 표시.
+ * 모델/프롬프트/길이 동일 → 품질 손실 없이 체감 대기만 감소.
+ */
+function streamAnalyze(requestBody, onToken) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${SERVER_URL}/api/ai-analyze?stream=1`);
+    const headers = getApiHeaders();
+    Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
+    xhr.timeout = 90000;
+
+    xhr.onprogress = () => {
+      // responseText는 지금까지 도착한 전체 텍스트 (누적)
+      if (xhr.responseText) onToken?.(xhr.responseText);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const text = xhr.responseText || "";
+        if (text.trim().length < 10) reject(new Error("AI_EMPTY_RESPONSE"));
+        else resolve(text);
+      } else {
+        reject(new Error("AI_SERVER_ERROR"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("AI_SERVER_ERROR"));
+    xhr.ontimeout = () => reject(new Error("AI_TIMEOUT"));
+    xhr.send(JSON.stringify(requestBody));
+  });
+}
+
+export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}, onToken = null) {
   const fmt = getResponseFormat();
 
   // Extract PDF text if PDF files are attached
@@ -879,12 +910,18 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
       requestBody.frames = imageFrames;
     }
 
+    // onToken 콜백이 있으면 스트리밍 (실시간 표시), 없으면 기존 방식
+    if (typeof onToken === "function") {
+      const fullText = await streamAnalyze(requestBody, onToken);
+      return { analysis: fullText, scores: null };
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 90000); // 90s client timeout
 
     const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getApiHeaders(),
       body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
@@ -993,7 +1030,7 @@ Overall score: ${score}`;
   try {
     const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getApiHeaders(),
       body: JSON.stringify({ prompt, field: "general" }),
     });
     if (!response.ok) throw new Error("Server error");
@@ -1154,7 +1191,7 @@ Write a professional yet distinctive profile introduction.`;
   try {
     const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getApiHeaders(),
       body: JSON.stringify({ prompt, field: "general" }),
     });
     if (!response.ok) throw new Error("Server error");
@@ -1269,7 +1306,7 @@ async function transcribeVideo(videoUri) {
 
     const res = await fetch(`${SERVER_URL}/api/transcribe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getApiHeaders(),
       body: JSON.stringify({ videoUrl: publicUrl }),
     });
 
@@ -1353,7 +1390,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
 
       const response = await fetch(`${SERVER_URL}/api/analyze-video`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           prompt,
           field,
@@ -1409,7 +1446,7 @@ export async function analyzeGrowth(userId, field, notes) {
 
   const response = await fetch(`${SERVER_URL}/api/growth-analysis`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getApiHeaders(),
     body: JSON.stringify({ userId, field, scores: scored }),
   });
 
@@ -1434,7 +1471,7 @@ export async function matchGrowth(userId, field) {
 
   const response = await fetch(`${SERVER_URL}/api/growth-matching`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getApiHeaders(),
     body: JSON.stringify(body),
   });
 

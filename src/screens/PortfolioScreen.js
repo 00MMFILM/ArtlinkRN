@@ -10,24 +10,25 @@ import {
   Dimensions,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import { FIELDS, calculateAge, GENDER_OPTIONS } from "../utils/helpers";
+import { FIELDS, calculateAge, GENDER_OPTIONS, isActor } from "../utils/helpers";
 import { truncate, formatDate } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 import EmptyState from "../components/EmptyState";
 import { generatePortfolioSummary, generateStructuredPortfolio } from "../services/aiService";
+import { trackFunnelEvent } from "../services/mauService";
 
 const SCREEN_W = Dimensions.get("window").width;
 const GRID_ITEM_SIZE = (SCREEN_W - 32 - 16) / 3;
 
 
 export default function PortfolioScreen({ navigation }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     artistProfile, userProfile, savedNotes,
     portfolioItems, portfolioSummary,
@@ -44,6 +45,20 @@ export default function PortfolioScreen({ navigation }) {
   const [addDescription, setAddDescription] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [cardLoading, setCardLoading] = useState(false);
+  const [videoProfileRequested, setVideoProfileRequested] = useState(false);
+
+  // AI 영상 프로필은 배우(연기 전공)에게만 노출되는 "준비중" 기능
+  const userIsActor = isActor(userProfile.fields);
+
+  const handleNotifyVideoProfile = useCallback(() => {
+    if (videoProfileRequested) return;
+    setVideoProfileRequested(true);
+    trackFunnelEvent("ai_video_profile_interest", i18n.language);
+    Alert.alert(
+      t("portfolio.video_profile_requested_title"),
+      t("portfolio.video_profile_requested_msg")
+    );
+  }, [videoProfileRequested, i18n.language, t]);
 
   const totalNotes = savedNotes.length;
   const topFields = artistProfile.topFields || [];
@@ -289,6 +304,47 @@ export default function PortfolioScreen({ navigation }) {
             )}
           </TouchableOpacity>
         )}
+
+        {/* ─── AI 영상 프로필 (배우 전용 · 준비중) ─── */}
+        {userIsActor ? (
+          <>
+            <View style={styles.videoProfileTitleRow}>
+              <Text style={[T.title, { color: CLight.gray900 }]}>
+                🎬 {t("portfolio.video_profile")}
+              </Text>
+              <View style={styles.comingSoonBadge}>
+                <Text style={styles.comingSoonText}>
+                  {t("portfolio.video_profile_badge")}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.videoProfileCard}>
+              <Text style={[T.body, { color: CLight.gray700, lineHeight: 22 }]}>
+                {t("portfolio.video_profile_desc")}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.videoProfileBtn,
+                  videoProfileRequested && styles.videoProfileBtnDone,
+                ]}
+                onPress={handleNotifyVideoProfile}
+                disabled={videoProfileRequested}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    T.captionBold,
+                    { color: videoProfileRequested ? CLight.purple : CLight.white },
+                  ]}
+                >
+                  {videoProfileRequested
+                    ? t("portfolio.video_profile_requested")
+                    : t("portfolio.video_profile_notify")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : null}
 
         {/* ─── Gallery Section ─── */}
         <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
@@ -610,6 +666,48 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+
+  // AI 영상 프로필 (준비중)
+  videoProfileTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  comingSoonBadge: {
+    backgroundColor: CLight.purple + "18",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  comingSoonText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: CLight.purple,
+  },
+  videoProfileCard: {
+    backgroundColor: CLight.white,
+    borderRadius: 16,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: CLight.purple,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  videoProfileBtn: {
+    backgroundColor: CLight.purple,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 14,
+  },
+  videoProfileBtnDone: {
+    backgroundColor: CLight.purple + "18",
   },
 
   // Gallery controls

@@ -4,12 +4,14 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Modal,
   StyleSheet,
-  SafeAreaView,
   Alert,
   Linking,
   Image,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, APP_VERSION } from "../constants/theme";
@@ -92,6 +94,8 @@ export default function ProfileScreen({ navigation }) {
   const skillValues = [noteScore, aiScore, diversityScore, depthScore, consistencyScore];
   const skillLabels = SKILL_LABEL_KEYS.map((key) => t(key));
   const filteredMenuItems = MENU_ITEMS.filter((item) => !item.koOnly || isKoreanLocale);
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
   const currentLang = LANGUAGE_OPTIONS.find((l) => l.code === language) || LANGUAGE_OPTIONS[0];
 
   // ─── Handlers ───
@@ -99,32 +103,8 @@ export default function ProfileScreen({ navigation }) {
   const handleMenuPress = useCallback(
     (item) => {
       if (item.route === "__feedback__") {
-        Alert.prompt
-          ? Alert.prompt(
-              t("profile.feedback_prompt_title"),
-              t("profile.feedback_prompt_msg"),
-              [
-                { text: t("common.cancel"), style: "cancel" },
-                {
-                  text: t("profile.feedback_submit"),
-                  onPress: (text) => {
-                    if (text && text.trim()) {
-                      handleSubmitFeedback({
-                        id: Date.now(),
-                        text: text.trim(),
-                        createdAt: new Date().toISOString(),
-                      });
-                    }
-                  },
-                },
-              ],
-              "plain-text"
-            )
-          : Alert.alert(
-              t("profile.feedback"),
-              t("profile.feedback_ios_only"),
-              [{ text: t("common.confirm") }]
-            );
+        setFeedbackText("");
+        setFeedbackModalVisible(true);
         return;
       }
       if (item.route === "__support__") {
@@ -336,9 +316,103 @@ export default function ProfileScreen({ navigation }) {
           <Text style={[T.caption, { color: CLight.gray400 || "#999", textDecorationLine: "underline" }]}>{t("profile.delete_account")}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Feedback Modal (cross-platform) */}
+      <Modal
+        visible={feedbackModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFeedbackModalVisible(false)}
+      >
+        <View style={profileStyles.feedbackOverlay}>
+          <View style={profileStyles.feedbackBox}>
+            <Text style={[T.titleBold, { color: CLight.gray900, marginBottom: 8 }]}>
+              {t("profile.feedback_prompt_title")}
+            </Text>
+            <Text style={[T.caption, { color: CLight.gray500, marginBottom: 12 }]}>
+              {t("profile.feedback_prompt_msg")}
+            </Text>
+            <TextInput
+              style={profileStyles.feedbackInput}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              placeholder={t("profile.feedback_prompt_msg")}
+              multiline
+              autoFocus
+            />
+            <View style={profileStyles.feedbackBtns}>
+              <TouchableOpacity
+                style={profileStyles.feedbackCancelBtn}
+                onPress={() => setFeedbackModalVisible(false)}
+              >
+                <Text style={[T.captionBold, { color: CLight.gray500 }]}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[profileStyles.feedbackSubmitBtn, !feedbackText.trim() && { opacity: 0.4 }]}
+                disabled={!feedbackText.trim()}
+                onPress={() => {
+                  if (feedbackText.trim()) {
+                    handleSubmitFeedback({
+                      id: Date.now(),
+                      text: feedbackText.trim(),
+                      createdAt: new Date().toISOString(),
+                    });
+                  }
+                  setFeedbackModalVisible(false);
+                }}
+              >
+                <Text style={[T.captionBold, { color: CLight.white }]}>{t("profile.feedback_submit")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const profileStyles = StyleSheet.create({
+  feedbackOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  feedbackBox: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 360,
+  },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    minHeight: 80,
+    textAlignVertical: "top",
+    color: "#111",
+  },
+  feedbackBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
+    gap: 10,
+  },
+  feedbackCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  feedbackSubmitBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: CLight.pink,
+    borderRadius: 8,
+  },
+});
 
 // ─── Sub-components ───
 

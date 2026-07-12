@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Secrets (절대 커밋 금지)
+play-service-account.json
+.stats.env

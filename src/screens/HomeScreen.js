@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Platform,
   Dimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
@@ -18,6 +18,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function HomeScreen({ navigation }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const {
     savedNotes,
     handleSaveNote,
@@ -139,7 +140,7 @@ export default function HomeScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: CLight.bg }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ---- Top section: greeting + bell ---- */}
@@ -385,7 +386,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 60 : 24,
+    // paddingTop is set dynamically via insets.top
     paddingHorizontal: 20,
   },
 

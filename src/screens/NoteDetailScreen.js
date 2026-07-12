@@ -7,11 +7,12 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Modal,
   StyleSheet,
-  SafeAreaView,
   Image,
   Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio, Video, ResizeMode } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
@@ -20,6 +21,7 @@ import { getRelatedNotes } from "../services/analyticsService";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
 import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCollectionService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
+import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { formatDate, timeAgo } from "../utils/helpers";
 import { useTranslation } from "react-i18next";
 
@@ -58,8 +60,11 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [editTitle, setEditTitle] = useState(note?.title || "");
   const [editContent, setEditContent] = useState(note?.content || "");
   const [aiLoading, setAiLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
   const [videoAiProgress, setVideoAiProgress] = useState({ phase: "", percent: 0, message: "" });
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
 
   const noteVideos = useMemo(
     () => (note?.images || []).filter((i) => i.type === "video"),
@@ -189,15 +194,18 @@ export default function NoteDetailScreen({ route, navigation }) {
           await showInterstitialAd(); // proceeds even if ad fails
         }
       }
+      setStreamingText("");
       const result = await analyzeNote(
         note.field,
         note.content,
         savedNotes,
         note,
-        userProfile
+        userProfile,
+        (partial) => setStreamingText(partial)
       );
       const analysis = result.analysis || result;
       const scores = result.scores || null;
+      setStreamingText("");
       handleUpdateNote({ ...note, aiComment: analysis, aiScores: scores });
       showToast(t("noteDetail.ai_complete"), "success");
 
@@ -475,6 +483,63 @@ export default function NoteDetailScreen({ route, navigation }) {
         {activeTab === "ai" && renderAITab()}
         {activeTab === "related" && renderRelatedTab()}
       </ScrollView>
+
+      {/* Feedback Modal (cross-platform replacement for Alert.prompt) */}
+      <Modal
+        visible={feedbackModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFeedbackModalVisible(false)}
+      >
+        <View style={styles.feedbackModalOverlay}>
+          <View style={styles.feedbackModalBox}>
+            <Text style={[T.titleBold, { color: CLight.gray900, marginBottom: 8 }]}>
+              {t("noteDetail.ai_feedback_prompt")}
+            </Text>
+            <Text style={[T.caption, { color: CLight.gray500, marginBottom: 12 }]}>
+              {t("noteDetail.ai_feedback_ask")}
+            </Text>
+            <TextInput
+              style={styles.feedbackModalInput}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              placeholder={t("noteDetail.ai_feedback_placeholder") || ""}
+              multiline
+              autoFocus
+            />
+            <View style={styles.feedbackModalBtns}>
+              <TouchableOpacity
+                style={styles.feedbackModalCancelBtn}
+                onPress={() => setFeedbackModalVisible(false)}
+              >
+                <Text style={[T.captionBold, { color: CLight.gray500 }]}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.feedbackModalSubmitBtn, !feedbackText.trim() && { opacity: 0.4 }]}
+                disabled={!feedbackText.trim()}
+                onPress={() => {
+                  fetch(`${SERVER_URL}/api/report`, {
+                    method: "POST",
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({
+                      type: "ai_feedback",
+                      rating: "bad",
+                      comment: feedbackText.trim(),
+                      noteField: note.field,
+                      noteId: note.id,
+                      sentAt: new Date().toISOString(),
+                    }),
+                  }).catch(() => {});
+                  setFeedbackModalVisible(false);
+                  showToast(t("noteDetail.ai_feedback_sent"), "success");
+                }}
+              >
+                <Text style={[T.captionBold, { color: CLight.white }]}>{t("noteDetail.ai_feedback_submit") || t("common.submit")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 
@@ -616,12 +681,25 @@ export default function NoteDetailScreen({ route, navigation }) {
       <View style={styles.tabContent}>
         {/* Text AI Analysis */}
         {aiLoading ? (
-          <View style={styles.aiLoadingContainer}>
-            <ActivityIndicator size="large" color={CLight.pink} />
-            <Text style={[T.caption, { color: CLight.gray500, marginTop: 16 }]}>
-              {t("noteDetail.ai_analyzing")}
-            </Text>
-          </View>
+          streamingText ? (
+            // 스트리밍 도착분 실시간 표시
+            <View style={styles.aiCard}>
+              <View style={styles.aiCardHeader}>
+                <Text style={styles.aiIcon}>{"🤖"}</Text>
+                <Text style={[T.captionBold, { color: CLight.pink }]}>{t("noteDetail.ai_result")}</Text>
+                <ActivityIndicator size="small" color={CLight.pink} style={{ marginLeft: 8 }} />
+              </View>
+              <View style={styles.aiDivider} />
+              <Text style={[T.body, { color: CLight.gray900 }]}>{streamingText}</Text>
+            </View>
+          ) : (
+            <View style={styles.aiLoadingContainer}>
+              <ActivityIndicator size="large" color={CLight.pink} />
+              <Text style={[T.caption, { color: CLight.gray500, marginTop: 16 }]}>
+                {t("noteDetail.ai_analyzing")}
+              </Text>
+            </View>
+          )
         ) : note.aiComment ? (
           <View style={styles.aiCard}>
             <View style={styles.aiCardHeader}>
@@ -637,8 +715,8 @@ export default function NoteDetailScreen({ route, navigation }) {
               <Text style={[T.small, { color: CLight.gray500 }]}>{t("noteDetail.ai_feedback_question")}</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
-                  fetch("https://artlink-server.vercel.app/api/report", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
+                  fetch(`${SERVER_URL}/api/report`, {
+                    method: "POST", headers: getApiHeaders(),
                     body: JSON.stringify({ type: "ai_feedback", rating: "good", noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
                   }).catch(() => {});
                   showToast(t("noteDetail.ai_feedback_thanks"), "success");
@@ -646,14 +724,8 @@ export default function NoteDetailScreen({ route, navigation }) {
                   <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4D"}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
-                  Alert.prompt(t("noteDetail.ai_feedback_prompt"), t("noteDetail.ai_feedback_ask"), (text) => {
-                    if (!text?.trim()) return;
-                    fetch("https://artlink-server.vercel.app/api/report", {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ type: "ai_feedback", rating: "bad", comment: text.trim(), noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
-                    }).catch(() => {});
-                    showToast(t("noteDetail.ai_feedback_sent"), "success");
-                  }, "plain-text", "", t("noteDetail.ai_feedback_submit"));
+                  setFeedbackText("");
+                  setFeedbackModalVisible(true);
                 }}>
                   <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4E"}</Text>
                 </TouchableOpacity>
@@ -1153,5 +1225,45 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF3E0",
     justifyContent: "center",
     alignItems: "center",
+  },
+  feedbackModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  feedbackModalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 360,
+  },
+  feedbackModalInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    minHeight: 80,
+    textAlignVertical: "top",
+    color: "#111",
+  },
+  feedbackModalBtns: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
+    gap: 10,
+  },
+  feedbackModalCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  feedbackModalSubmitBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: CLight.pink,
+    borderRadius: 8,
   },
 });

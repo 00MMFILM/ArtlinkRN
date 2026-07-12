@@ -1,6 +1,5 @@
 import { supabase } from "./supabaseClient";
-
-const SERVER_URL = "https://artlink-server.vercel.app";
+import { SERVER_URL, getApiHeaders } from "./apiConfig";
 
 // ─── Cache ──────────────────────────────────────────────────
 let postsCache = { data: null, ts: 0 };
@@ -78,49 +77,17 @@ const DEMO_COMMENTS = {
   ],
 };
 
-// ─── User ───────────────────────────────────────────────────
+// ─── User (서버 경유: users 접근을 서버로 이전, device_id 노출 차단) ──
+// 반환: { userId, profileToken } — 토큰은 이후 프로필 쓰기의 소유권 증명에 사용.
 export async function ensureDeviceUser(deviceId, displayName, field, authUserId) {
-  // If auth user ID provided, try to find existing user by it (cross-device reconnect)
-  if (authUserId) {
-    const { data: byAuth } = await supabase
-      .from("users")
-      .select("id")
-      .eq("auth_user_id", authUserId)
-      .single();
-
-    if (byAuth) return byAuth.id;
-  }
-
-  const { data: existing } = await supabase
-    .from("users")
-    .select("id")
-    .eq("device_id", deviceId)
-    .single();
-
-  if (existing) {
-    // Link auth_user_id if not yet set
-    if (authUserId) {
-      await supabase
-        .from("users")
-        .update({ auth_user_id: authUserId })
-        .eq("id", existing.id);
-    }
-    return existing.id;
-  }
-
-  const { data: created, error } = await supabase
-    .from("users")
-    .insert({
-      device_id: deviceId,
-      display_name: displayName || "익명",
-      field: field || null,
-      auth_user_id: authUserId || null,
-    })
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return created.id;
+  const res = await fetch(`${SERVER_URL}/api/user-register`, {
+    method: "POST",
+    headers: getApiHeaders(),
+    body: JSON.stringify({ deviceId, displayName, field, authUserId }),
+  });
+  if (!res.ok) throw new Error("user register failed");
+  const data = await res.json();
+  return { userId: data.userId, profileToken: data.profileToken };
 }
 
 // ─── Posts ───────────────────────────────────────────────────
@@ -245,7 +212,7 @@ export async function moderateContent(content, type = "post") {
   try {
     const res = await fetch(`${SERVER_URL}/api/moderate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getApiHeaders(),
       body: JSON.stringify({ content, type }),
       signal: controller.signal,
     });

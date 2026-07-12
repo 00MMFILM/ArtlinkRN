@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { CLight, T } from "../constants/theme";
 import TopBar from "../components/TopBar";
@@ -111,6 +112,7 @@ export default function CommunityPostCreateScreen({ navigation }) {
   }, [navigation, t]);
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top"]}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -185,6 +187,7 @@ export default function CommunityPostCreateScreen({ navigation }) {
         <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

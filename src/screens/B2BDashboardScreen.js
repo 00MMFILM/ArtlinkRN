@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  SafeAreaView,
   Modal,
   Dimensions,
   ActivityIndicator,
   Image,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Video, ResizeMode } from "expo-av";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
@@ -34,7 +35,7 @@ const DEMO_ACTORS = [
   { id: 8, name: "서윤아", fields: ["literature", "film"], gender: "female", birthDate: "1993-12-05", height: 162, weight: 48, specialties: ["영어", "피아노"], career: [{ title: "문학잡지 '새길' 등단", role: "소설가", year: "2023", type: "other" }], location: "제주", agency: "", score: 73, notes: 210, streak: 60 },
 ];
 
-const DEMO_STATS = { registeredArtists: 1247, activeProjects: 23, castingProposals: 89, matchRate: 76 };
+const DEMO_STATS = { registeredArtists: 1247, activeProjects: "-", castingProposals: "-", matchRate: "-" };
 
 const DEMO_ACTIVITIES = [
   { id: 1, type: "casting", text: "'빛의 경계' 프로젝트에 3명의 아티스트가 지원했습니다.", time: "30분 전" },
@@ -311,6 +312,21 @@ export default function B2BDashboardScreen({ navigation }) {
                   </ScrollView>
                 ) : null}
 
+                {/* Video profile (배우가 영상 프로필을 가진 경우에만 노출) */}
+                {actor.videoProfileUrl ? (
+                  <View style={styles.videoProfileWrap}>
+                    <View style={styles.videoProfileLabelRow}>
+                      <Text style={styles.videoProfileLabel}>🎬 {t("b2b.video_profile")}</Text>
+                    </View>
+                    <Video
+                      source={{ uri: actor.videoProfileUrl }}
+                      style={styles.videoProfilePlayer}
+                      resizeMode={ResizeMode.COVER}
+                      useNativeControls
+                    />
+                  </View>
+                ) : null}
+
                 {/* Profile header */}
                 <View style={styles.modalProfile}>
                   {!actor.photos?.length && (actor.photoUrl ? (
@@ -462,7 +478,7 @@ export default function B2BDashboardScreen({ navigation }) {
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.casting_proposals")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.green }]}>
-            <Text style={[T.h2, { color: CLight.green }]}>{DEMO_STATS.matchRate}%</Text>
+            <Text style={[T.h2, { color: CLight.green }]}>{DEMO_STATS.matchRate === "-" ? "-" : `${DEMO_STATS.matchRate}%`}</Text>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.match_rate")}</Text>
           </View>
         </View>
@@ -624,6 +640,10 @@ const styles = StyleSheet.create({
   modalAvatarImg: { width: 80, height: 80, borderRadius: 40 },
   modalPhotoScroll: { gap: 10, paddingHorizontal: 4 },
   modalPhotoItem: { width: 140, height: 187, borderRadius: 12 },
+  videoProfileWrap: { marginBottom: 16 },
+  videoProfileLabelRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  videoProfileLabel: { fontSize: 13, fontWeight: "700", color: CLight.purple },
+  videoProfilePlayer: { width: "100%", aspectRatio: 9 / 16, borderRadius: 12, backgroundColor: CLight.gray100, maxHeight: 420, alignSelf: "center" },
   modalBadgeRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   modalBadge: { backgroundColor: CLight.pinkSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   modalBadgeText: { ...T.micro, color: CLight.pink, fontWeight: "600" },

@@ -1,4 +1,4 @@
-const SERVER_URL = "https://server-00mmfilms-projects.vercel.app";
+import { MATCHING_SERVER_URL, getApiHeaders } from "./apiConfig";
 
 // In-memory cache (10 min TTL)
 let _cache = { data: null, ts: 0 };
@@ -25,9 +25,9 @@ export async function fetchMatchingFeed(userFields = []) {
     let page = 1;
     const limit = 50;
     while (true) {
-      const res = await fetch(`${SERVER_URL}/api/matching-feed`, {
+      const res = await fetch(`${MATCHING_SERVER_URL}/api/matching-feed`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getApiHeaders(),
         body: JSON.stringify({ userFields, page, limit }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

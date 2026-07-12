@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { supabase } from "../services/supabaseClient";
+import { trackFunnelEvent } from "../services/mauService";
+import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import * as ImagePicker from "expo-image-picker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
@@ -64,8 +67,13 @@ const TOTAL_STEPS = 7;
 export default function AuthScreen({ navigation }) {
   const { handleAuth, handleChangeLanguage, language } = useApp();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState("login");
+
+  useEffect(() => {
+    trackFunnelEvent("auth_reached", language);
+  }, []);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [forgotEmail, setForgotEmail] = useState("");
@@ -99,6 +107,40 @@ export default function AuthScreen({ navigation }) {
   const [careerType, setCareerType] = useState("drama");
   // Step 5,6: role models, interests
   const [selectedRoleModels, setSelectedRoleModels] = useState([]);
+  const [roleQuery, setRoleQuery] = useState("");
+  const [roleResults, setRoleResults] = useState([]);
+  const [roleSearching, setRoleSearching] = useState(false);
+  const roleSearchTimer = useRef(null);
+
+  // 인물 검색 (위키백과 연동) — 입력 디바운스 후 서버 호출
+  useEffect(() => {
+    if (roleSearchTimer.current) clearTimeout(roleSearchTimer.current);
+    const q = roleQuery.trim();
+    if (q.length < 2) { setRoleResults([]); setRoleSearching(false); return; }
+    setRoleSearching(true);
+    roleSearchTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${SERVER_URL}/api/person-search?q=${encodeURIComponent(q)}`, {
+          headers: getApiHeaders(),
+        });
+        const data = await res.json();
+        setRoleResults(data.results || []);
+      } catch (_) {
+        setRoleResults([]);
+      } finally {
+        setRoleSearching(false);
+      }
+    }, 400);
+    return () => roleSearchTimer.current && clearTimeout(roleSearchTimer.current);
+  }, [roleQuery]);
+
+  const addRoleModel = (nameToAdd) => {
+    const v = (nameToAdd || "").trim();
+    if (!v) return;
+    if (!selectedRoleModels.includes(v)) setSelectedRoleModels((prev) => [...prev, v]);
+    setRoleQuery("");
+    setRoleResults([]);
+  };
   const [selectedInterests, setSelectedInterests] = useState([]);
   // Profile public consent
   const [profilePublic, setProfilePublic] = useState(false);
@@ -220,6 +262,7 @@ export default function AuthScreen({ navigation }) {
         photos: photoUris,
         pendingPhotoUris: photoUris,
       };
+      trackFunnelEvent("signup_completed", language);
       handleAuth(profileData);
     } catch (e) {
       Alert.alert(t("common.error"), t("auth.signup_error"));
@@ -244,6 +287,7 @@ export default function AuthScreen({ navigation }) {
         return;
       }
       if (data.user) {
+        trackFunnelEvent("login_completed", language);
         // 기존 프로필이 있으면 이메일만 갱신, 없으면 최소 프로필 생성
         handleAuth({ email: loginEmail.trim(), _mergeExisting: true });
       }
@@ -254,7 +298,10 @@ export default function AuthScreen({ navigation }) {
     }
   };
 
-  const handleSkip = () => { handleAuth(null); };
+  const handleSkip = () => {
+    trackFunnelEvent("browse_skipped", language);
+    handleAuth(null);
+  };
 
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim().includes("@")) {
@@ -608,23 +655,80 @@ export default function AuthScreen({ navigation }) {
     </View>
   );
 
-  // Step 5: Role Models (was step 3)
+  // Step 5: Role Models — 자유 입력 + 인물 검색(위키백과) + 추천
   const renderStep5 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>{t("auth.step_rolemodels")}</Text>
       <Text style={styles.stepSubtitle}>{t("auth.step_rolemodels_desc")}</Text>
-      <View style={styles.pillGrid}>
-        {availableRoleModels.map((model) => {
-          const isSelected = selectedRoleModels.includes(model);
-          return (
-            <TouchableOpacity key={model} style={[styles.pill, isSelected && styles.pillActive]} onPress={() => setSelectedRoleModels(toggleInArray(selectedRoleModels, model))}>
-              <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{model}</Text>
-            </TouchableOpacity>
-          );
-        })}
+
+      {/* 인물 검색 입력 */}
+      <View style={styles.roleSearchBox}>
+        <TextInput
+          style={styles.roleSearchInput}
+          placeholder={t("auth.rolemodel_search_placeholder", { defaultValue: "롤모델 이름을 검색하세요 (예: 송강호)" })}
+          placeholderTextColor={CLight.gray400}
+          value={roleQuery}
+          onChangeText={setRoleQuery}
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={() => addRoleModel(roleQuery)}
+        />
+        {roleSearching && <ActivityIndicator size="small" color={CLight.pink} />}
       </View>
-      {availableRoleModels.length === 0 && (
-        <Text style={styles.emptyHint}>{t("auth.select_field_first")}</Text>
+
+      {/* 검색 결과 */}
+      {roleResults.length > 0 && (
+        <View style={styles.roleResults}>
+          {roleResults.map((r) => (
+            <TouchableOpacity key={r.name} style={styles.roleResultRow} onPress={() => addRoleModel(r.name)}>
+              {r.thumbnail ? (
+                <Image source={{ uri: r.thumbnail }} style={styles.roleThumb} />
+              ) : (
+                <View style={[styles.roleThumb, { backgroundColor: CLight.gray100, alignItems: "center", justifyContent: "center" }]}>
+                  <Text style={{ fontSize: 16 }}>👤</Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[T.captionBold, { color: CLight.gray900 }]} numberOfLines={1}>{r.name}</Text>
+                {!!r.description && <Text style={[T.micro, { color: CLight.gray500 }]} numberOfLines={1}>{r.description}</Text>}
+              </View>
+              <Text style={[T.captionBold, { color: CLight.pink }]}>+</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      {/* 검색 결과 없을 때 직접 추가 */}
+      {roleQuery.trim().length >= 2 && !roleSearching && roleResults.length === 0 && (
+        <TouchableOpacity style={styles.roleAddCustom} onPress={() => addRoleModel(roleQuery)}>
+          <Text style={[T.caption, { color: CLight.pink }]}>{t("auth.rolemodel_add_custom", { defaultValue: `"${roleQuery.trim()}" 직접 추가` })}</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 선택된 롤모델 (칩) */}
+      {selectedRoleModels.length > 0 && (
+        <View style={[styles.pillGrid, { marginTop: 14 }]}>
+          {selectedRoleModels.map((model) => (
+            <TouchableOpacity key={model} style={[styles.pill, styles.pillActive]} onPress={() => setSelectedRoleModels((prev) => prev.filter((m) => m !== model))}>
+              <Text style={[styles.pillText, styles.pillTextActive]}>{model}  ×</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* 분야별 추천 (빠른 선택) */}
+      {availableRoleModels.length > 0 && (
+        <>
+          <Text style={[T.micro, { color: CLight.gray500, marginTop: 18, marginBottom: 8 }]}>
+            {t("auth.rolemodel_suggestions", { defaultValue: "추천" })}
+          </Text>
+          <View style={styles.pillGrid}>
+            {availableRoleModels.filter((m) => !selectedRoleModels.includes(m)).map((model) => (
+              <TouchableOpacity key={model} style={styles.pill} onPress={() => addRoleModel(model)}>
+                <Text style={styles.pillText}>{model}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
       )}
     </View>
   );
@@ -682,7 +786,7 @@ export default function AuthScreen({ navigation }) {
   };
 
   const renderSignup = () => (
-    <View style={styles.signupContainer}>
+    <View style={[styles.signupContainer, { paddingTop: insets.top + 8 }]}>
       <View style={styles.signupHeader}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>{"\u2190"}</Text>
@@ -757,7 +861,7 @@ const styles = StyleSheet.create({
   skipButton: { marginTop: 20, paddingVertical: 8 },
   skipText: { ...T.caption, color: CLight.gray400, textDecorationLine: "underline" },
 
-  signupContainer: { flex: 1, paddingTop: Platform.OS === "ios" ? 56 : 16 },
+  signupContainer: { flex: 1 },
   signupHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 8 },
   backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: CLight.gray100, justifyContent: "center", alignItems: "center" },
   backButtonText: { fontSize: 20, color: CLight.gray700, fontWeight: "600" },
@@ -792,6 +896,12 @@ const styles = StyleSheet.create({
   fieldLabel: { ...T.captionBold, color: CLight.gray700 },
   fieldLabelActive: { color: CLight.pink },
 
+  roleSearchBox: { flexDirection: "row", alignItems: "center", gap: 8, height: 50, backgroundColor: CLight.gray100, borderRadius: 14, paddingHorizontal: 16, marginBottom: 6 },
+  roleSearchInput: { flex: 1, fontSize: 15, color: CLight.gray900 },
+  roleResults: { backgroundColor: CLight.white, borderRadius: 14, borderWidth: 1, borderColor: CLight.gray200, overflow: "hidden" },
+  roleResultRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: CLight.gray100 },
+  roleThumb: { width: 36, height: 36, borderRadius: 18 },
+  roleAddCustom: { paddingVertical: 12, paddingHorizontal: 4 },
   pillGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: CLight.gray200, backgroundColor: CLight.white },
   pillActive: { borderColor: CLight.pink, backgroundColor: CLight.pinkSoft },
