@@ -306,6 +306,7 @@ const RESPONSE_FORMAT = {
 🔜 다음 스텝 (구체적 연습 과제 1개)`,
     userNoteLabel: (fieldLabel) => `[사용자의 ${fieldLabel} 연습 노트]`,
     historyLabel: (fieldLabel, count) => `\n[이전 ${fieldLabel} 피드백 히스토리 — 최근 ${count}개]`,
+    prevTaskLabel: (task) => `\n[지난 연습 과제]\n${task}\n(중요: 피드백을 시작할 때, 사용자가 이 과제를 이번 노트에서 시도했는지 가장 먼저 짚고 구체적으로 반응할 것. 시도한 흔적이 있으면 그 변화를 칭찬하고, 없으면 다음 연습에서 함께 해보자고 부드럽게 권할 것)`,
     untitled: "무제",
     roleModelLabel: (models) => `\n[사용자 롤모델: ${models}]`,
     interestLabel: (interests) => `\n[관심 분야: ${interests}]`,
@@ -358,6 +359,7 @@ const RESPONSE_FORMAT = {
 🔜 Next Step (1 specific practice assignment)`,
     userNoteLabel: (fieldLabel) => `[User's ${fieldLabel} practice note]`,
     historyLabel: (fieldLabel, count) => `\n[Previous ${fieldLabel} feedback history — last ${count}]`,
+    prevTaskLabel: (task) => `\n[Previous practice task]\n${task}\n(Important: begin the feedback by checking whether the user attempted this task in this note. If they did, acknowledge the change specifically; if not, gently encourage trying it next time)`,
     untitled: "Untitled",
     roleModelLabel: (models) => `\n[User's role models: ${models}]`,
     interestLabel: (interests) => `\n[Interests: ${interests}]`,
@@ -410,6 +412,7 @@ const RESPONSE_FORMAT = {
 🔜 次のステップ (具体的な練習課題1つ)`,
     userNoteLabel: (fieldLabel) => `[ユーザーの${fieldLabel}練習ノート]`,
     historyLabel: (fieldLabel, count) => `\n[以前の${fieldLabel}フィードバック履歴 — 最近${count}件]`,
+    prevTaskLabel: (task) => `\n[前回の練習課題]\n${task}\n(重要: フィードバックの冒頭で、この課題を今回のノートで試したかを最初に確認し、具体的に反応すること。試した形跡があればその変化を認め、なければ次回一緒に試そうと優しく勧めること)`,
     untitled: "タイトルなし",
     roleModelLabel: (models) => `\n[ユーザーのロールモデル: ${models}]`,
     interestLabel: (interests) => `\n[関心分野: ${interests}]`,
@@ -462,6 +465,7 @@ const RESPONSE_FORMAT = {
 🔜 下一步 (1个具体练习任务)`,
     userNoteLabel: (fieldLabel) => `[用户的${fieldLabel}练习笔记]`,
     historyLabel: (fieldLabel, count) => `\n[之前的${fieldLabel}反馈记录 — 最近${count}条]`,
+    prevTaskLabel: (task) => `\n[上次的练习任务]\n${task}\n(重要: 在反馈开头首先确认用户是否在本次笔记中尝试了该任务。如有尝试请具体肯定其变化，如未尝试请温和建议下次一起尝试)`,
     untitled: "无标题",
     roleModelLabel: (models) => `\n[用户榜样: ${models}]`,
     interestLabel: (interests) => `\n[兴趣领域: ${interests}]`,
@@ -581,6 +585,17 @@ function buildAIPrompt(field, content, savedNotes = [], currentNote = null, user
   const fmt = getResponseFormat();
 
   const sameFieldNotes = savedNotes.filter((n) => n.field === field && n.aiComment).slice(0, 10);
+
+  // 지난 과제(🔜 섹션) 추출 — 세션을 잇는 코칭 루프
+  let prevTaskContext = "";
+  if (sameFieldNotes.length > 0 && typeof fmt.prevTaskLabel === "function") {
+    const lastComment = sameFieldNotes[0].aiComment || "";
+    const m = lastComment.match(/🔜[^📌💪🎯🎭🎨💡📈]*/u);
+    if (m) {
+      const task = m[0].replace(/^🔜\s*[^:\n]*[:\n]?/u, "").trim().slice(0, 300);
+      if (task.length > 10) prevTaskContext = fmt.prevTaskLabel(task);
+    }
+  }
   const historyContext = sameFieldNotes.length > 0
     ? `${fmt.historyLabel(fieldLabel, sameFieldNotes.length)}\n${sameFieldNotes.map((n, i) => `${i + 1}. (${n.title || fmt.untitled}) ${(n.aiComment || "").slice(0, 400)}`).join("\n")}`
     : "";
@@ -614,7 +629,7 @@ function buildAIPrompt(field, content, savedNotes = [], currentNote = null, user
   const mediaContext = mediaParts.length > 0 ? `\n[${mediaParts.join(", ")}]` : "";
 
   return `${fieldConfig.system}
-${historyContext}${personalContext}${interestContext}${careerContext}${specialtyContext}${mediaContext}
+${historyContext}${prevTaskContext}${personalContext}${interestContext}${careerContext}${specialtyContext}${mediaContext}
 
 ${fmt.userNoteLabel(fieldLabel)}
 ${content}

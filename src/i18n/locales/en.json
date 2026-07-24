@@ -817,5 +817,13 @@
     "message": "When using AI analysis, the following data is sent via Artlink's server to OpenAI to generate feedback.\n\nData sent:\n• Note title and content\n• Attached images and videos\n• Voice recordings (transcribed to text before sending)\n• Attached documents (PDF text)\n• Field information (acting, music, etc.)\n• Profile information (career, role models, interests, specialties)\n• Previous note AI analysis history (up to 10 recent summaries)\n\nAfter AI analysis, anonymized usage statistics (device identifier, field, tags, etc.) are stored in Supabase for service improvement.\n\nData is used solely for generating AI feedback and improving the service. OpenAI and Supabase provide equivalent levels of data protection.\n\nPlease refer to our Privacy Policy for details.",
     "accept": "Agree and analyze",
     "cancel": "Cancel"
+  },
+  "reminder": {
+    "offer_title": "Set a practice reminder",
+    "offer_msg": "Shall I remind you to practice at {{time}} every day?\nRecording at the same time each day builds your growth curve.",
+    "offer_yes": "Yes, remind me",
+    "offer_no": "No thanks",
+    "push_title": "It's practice time 🎭",
+    "push_body": "One step past yesterday. Record today's practice and get your AI coach's feedback."
   }
 }

@@ -24,6 +24,8 @@ import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { FIELDS } from "../utils/helpers";
+import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
+import { trackFunnelEvent } from "../services/mauService";
 import TopBar from "../components/TopBar";
 import { useTranslation } from "react-i18next";
 
@@ -195,12 +197,44 @@ export default function NoteCreateScreen({ navigation, route }) {
       );
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
+      maybeOfferReminder();
     } catch (e) {
       Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
     } finally {
       setAiLoading(false);
     }
   }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t]);
+
+  // 첫 AI 피드백 직후 딱 한 번: 매일 이 시간에 연습 알림 제안 (Calm 패턴)
+  const maybeOfferReminder = useCallback(async () => {
+    try {
+      if (await hasAskedReminder()) return;
+      await markReminderAsked();
+      const now = new Date();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const hh = `${hour}`.padStart(2, "0");
+      const mm = `${minute}`.padStart(2, "0");
+      Alert.alert(
+        t("reminder.offer_title"),
+        t("reminder.offer_msg", { time: `${hh}:${mm}` }),
+        [
+          { text: t("reminder.offer_no"), style: "cancel" },
+          {
+            text: t("reminder.offer_yes"),
+            onPress: async () => {
+              const ok = await scheduleDailyPracticeReminder(
+                hour, minute,
+                t("reminder.push_title"),
+                t("reminder.push_body")
+              );
+              if (ok) trackFunnelEvent("reminder_set");
+            },
+          },
+        ]
+      );
+    } catch {}
+  }, [t]);
 
   const handleAnalyze = useCallback(async () => {
     if (!content.trim()) {
