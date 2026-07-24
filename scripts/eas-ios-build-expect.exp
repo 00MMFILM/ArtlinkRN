@@ -1,0 +1,20 @@
+#!/usr/bin/expect -f
+# iOS EAS 빌드 자동 응답 래퍼.
+# 프로파일 재생성 확인 프롬프트("reuse the original profile?")에 y를 보낸다.
+# 자격증명(EXPO_ASC_*)은 호출 셸의 환경변수로 상속 — 이 파일엔 시크릿 없음.
+set timeout -1
+log_file -a /tmp/eas-build-ios-11013-r6.log
+spawn npx eas-cli build --platform ios --profile production --auto-submit
+expect {
+    -re {reuse the original profile} {
+        send "y\r"
+        exp_continue
+    }
+    -re {\(Y/n\)} {
+        send "y\r"
+        exp_continue
+    }
+    eof
+}
+catch wait result
+exit [lindex $result 3]

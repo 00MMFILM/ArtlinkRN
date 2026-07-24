@@ -14,8 +14,8 @@ import jwt, requests
 
 BASE = "https://api.appstoreconnect.apple.com"
 NOTES = {
-    "ko": "• 비움스튜디오 대본 연동 — 사이트에서 고른 대본이 연습 노트에 바로 담깁니다\n• 안정성 및 사용성 개선",
-    "default": "• Script hand-off from partner sites — start a practice note with your monologue pre-filled\n• Stability and usability improvements",
+    "ko": "• 과제 이어가기 — AI 피드백이 지난 연습에서 받은 과제를 기억하고, 얼마나 해냈는지부터 확인합니다\n• 연습 리마인더 — 원하는 시간에 매일 연습 알림을 받아보세요\n• 안정성 및 사용성 개선",
+    "default": "• Task follow-up — AI feedback now remembers your last assignment and checks how you did\n• Daily practice reminder — get a nudge at the time you choose\n• Stability and usability improvements",
 }
 
 def load_env(path=".stats.env"):
