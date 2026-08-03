@@ -50,7 +50,10 @@
     "block": "封鎖",
     "post_management": "貼文管理",
     "public": "公開",
-    "private": "不公開"
+    "private": "不公開",
+    "retry": "重試",
+    "video_ai_retry_msg": "未能收到分析結果。請檢查網路連線後重試，筆記內容保持不變。",
+    "video_quota_exceeded": "您已用完免費影片分析次數。升級進階版即可無限使用。"
   },
   "tabs": {
     "home": "首頁",

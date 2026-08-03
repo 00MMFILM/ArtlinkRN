@@ -50,7 +50,10 @@
     "block": "Chặn",
     "post_management": "Quản lý bài đăng",
     "public": "Công khai",
-    "private": "Riêng tư"
+    "private": "Riêng tư",
+    "retry": "Thử lại",
+    "video_ai_retry_msg": "Không nhận được kết quả phân tích. Vui lòng kiểm tra kết nối và thử lại — ghi chú của bạn vẫn còn nguyên.",
+    "video_quota_exceeded": "Bạn đã dùng hết lượt phân tích video miễn phí. Bản Premium cho phép sử dụng không giới hạn."
   },
   "tabs": {
     "home": "Trang chủ",

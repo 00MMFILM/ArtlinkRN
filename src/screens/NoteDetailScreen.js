@@ -281,6 +281,9 @@ export default function NoteDetailScreen({ route, navigation }) {
     runRequestAI();
   }, [note, aiDisclosureAccepted, handleAcceptAIDisclosure, runRequestAI, t]);
 
+  // 재시도 버튼에서 자신을 다시 부르기 위한 참조 (useCallback 자기참조 회피)
+  const startVideoAIRef = useRef(null);
+
   const startVideoAI = useCallback(async () => {
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteDetail.video_preparing") });
@@ -296,12 +299,27 @@ export default function NoteDetailScreen({ route, navigation }) {
       handleUpdateNote({ ...note, videoAnalysis: result });
       showToast(t("noteDetail.video_ai_complete"), "success");
     } catch (e) {
-      showToast(t("noteDetail.video_ai_failed"), "error");
+      // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
+      const quota = e?.videoAiReason === "QUOTA";
+      Alert.alert(
+        t("noteDetail.video_ai_failed"),
+        quota ? t("common.video_quota_exceeded") : t("common.video_ai_retry_msg"),
+        quota
+          ? [{ text: t("common.confirm") }]
+          : [
+              { text: t("common.cancel"), style: "cancel" },
+              { text: t("common.retry"), onPress: () => startVideoAIRef.current?.() },
+            ]
+      );
     } finally {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
   }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t]);
+
+  useEffect(() => {
+    startVideoAIRef.current = startVideoAI;
+  }, [startVideoAI]);
 
   const runVideoAIFlow = useCallback(async () => {
     const video = noteVideos[0];

@@ -303,6 +303,9 @@ export default function NoteCreateScreen({ navigation, route }) {
     runVideoAnalyzeFlow();
   }, [aiDisclosureAccepted, handleAcceptAIDisclosure, runVideoAnalyzeFlow, t]);
 
+  // 재시도 버튼에서 자신을 다시 부르기 위한 참조 (useCallback 자기참조 회피)
+  const startVideoAnalysisRef = useRef(null);
+
   const startVideoAnalysis = useCallback(async () => {
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteCreate.preparing") });
@@ -317,12 +320,27 @@ export default function NoteCreateScreen({ navigation, route }) {
       );
       setVideoAnalysis(result);
     } catch (e) {
-      Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
+      // 실패는 결과로 채우지 않는다 — 안내만 띄우고 재시도를 제안한다
+      const quota = e?.videoAiReason === "QUOTA";
+      Alert.alert(
+        t("noteCreate.ai_failed"),
+        quota ? t("common.video_quota_exceeded") : t("common.video_ai_retry_msg"),
+        quota
+          ? [{ text: t("common.confirm") }]
+          : [
+              { text: t("common.cancel"), style: "cancel" },
+              { text: t("common.retry"), onPress: () => startVideoAnalysisRef.current?.() },
+            ]
+      );
     } finally {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
   }, [noteVideos, field, content, title, userProfile, t]);
+
+  useEffect(() => {
+    startVideoAnalysisRef.current = startVideoAnalysis;
+  }, [startVideoAnalysis]);
 
   // ─── Media Handlers ───
 

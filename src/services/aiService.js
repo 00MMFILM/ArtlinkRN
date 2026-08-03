@@ -1230,56 +1230,16 @@ ${fmt.noteContent(content)}
 ${fmt.videoFeedbackHeader(fieldLabel)}`;
 }
 
-function heuristicVideoFallback(field, videoCount) {
-  const fieldLabel = getFieldLabel(field);
-  const lang = getAILanguage();
-
-  if (lang === "ko") {
-    return `📌 ${fieldLabel} 연습 영상 ${videoCount}개가 첨부되었습니다.
-
-💪 영상으로 기록하는 습관이 훌륭해요! 영상은 자신의 연습을 객관적으로 돌아볼 수 있는 최고의 도구입니다.
-
-🎯 영상을 볼 때는 소리를 끄고 동작만, 또는 눈을 감고 소리만 각각 집중해서 관찰해보세요. 시각과 청각을 분리해서 분석하면 놓치고 있던 디테일을 발견할 수 있어요.
-
-🎭 현재 AI 영상 분석 서비스에 접근할 수 없어 온디바이스 피드백을 드립니다. 네트워크 연결 상태를 확인하고 다시 시도해주세요.
-
-🔜 오늘 영상을 일주일 후에 다시 보세요. 시간을 두고 보면 당시에는 몰랐던 성장 포인트가 보일 거예요.`;
-  }
-
-  if (lang === "ja") {
-    return `📌 ${fieldLabel}の練習映像${videoCount}件が添付されました。
-
-💪 映像で記録する習慣は素晴らしいです！映像は自分の練習を客観的に振り返る最高のツールです。
-
-🎯 映像を見る際は、音を消して動きだけ、または目を閉じて音だけに集中して観察してみてください。視覚と聴覚を分離して分析すると、見落としていたディテールを発見できます。
-
-🎭 現在AI映像分析サービスにアクセスできないため、オンデバイスフィードバックをお届けします。ネットワーク接続状態を確認してもう一度お試しください。
-
-🔜 今日の映像を一週間後にもう一度見てください。時間を置いて見ると、当時は気づかなかった成長ポイントが見えてきます。`;
-  }
-
-  if (lang === "zh") {
-    return `📌 已附加${videoCount}个${fieldLabel}练习视频。
-
-💪 用视频记录的习惯非常好！视频是客观回顾自己练习的最佳工具。
-
-🎯 观看视频时，试试关掉声音只看动作，或闭上眼睛只听声音。将视觉和听觉分开分析，可以发现之前忽略的细节。
-
-🎭 当前无法访问AI视频分析服务，为您提供本地反馈。请检查网络连接状态后重试。
-
-🔜 一周后再看看今天的视频。隔一段时间再看，会发现当时没注意到的成长点。`;
-  }
-
-  // English
-  return `📌 ${videoCount} ${fieldLabel} practice video(s) attached.
-
-💪 Great habit of recording with video! Video is the best tool for objectively reviewing your own practice.
-
-🎯 When watching the video, try muting the sound to focus on movement only, or closing your eyes to focus on sound only. Analyzing visual and auditory elements separately can reveal details you've been missing.
-
-🎭 The AI video analysis service is currently unavailable, so here's on-device feedback. Please check your network connection and try again.
-
-🔜 Watch today's video again in a week. With some distance, you'll notice growth points you didn't see at the time.`;
+/**
+ * 영상 AI 실패를 호출부가 구분할 수 있는 에러로 만든다.
+ * 예전에는 실패 시 안내 문구를 반환했는데, 호출부가 그걸 분석 결과로 노트에 영구 저장해버려
+ * 사용자가 분석을 잃고도 잃은 줄 몰랐다 (2026-07-30 최배영 건).
+ * @param {string} reason NO_VIDEO | NO_FRAMES | QUOTA | REJECTED | TIMEOUT | NETWORK
+ */
+function videoAiError(reason, detail) {
+  const err = new Error(`video AI failed (${reason}): ${detail}`);
+  err.videoAiReason = reason;
+  return err;
 }
 
 /**
@@ -1354,10 +1314,13 @@ transcribeVideo._lastError = "";
  * @param {object} userProfile - user profile
  * @param {function} [onProgress] - progress callback ("extracting" | "transcribing" | "analyzing")
  * @returns {Promise<string>} analysis result text
+ * @throws {Error} on failure, with `videoAiReason` set to one of
+ *   NO_VIDEO | NO_FRAMES | QUOTA | REJECTED | TIMEOUT | NETWORK.
+ *   실패를 절대 안내 문구로 대체해 반환하지 않는다 — 호출부가 노트에 저장해버리기 때문.
  */
 export async function analyzeVideoFrames(field, content, title, videos, userProfile, onProgress) {
   if (!videos || videos.length === 0) {
-    return heuristicVideoFallback(field, 0);
+    throw videoAiError("NO_VIDEO", "no video attached");
   }
 
   const video = videos[0]; // Analyze first video
@@ -1389,49 +1352,75 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
 
     if (frames.length === 0) {
       console.log("[analyzeVideoFrames] No frames extracted");
-      return heuristicVideoFallback(field, videos.length);
+      throw videoAiError("NO_FRAMES", "frame extraction produced 0 frames");
     }
 
     // Phase 2: Send to Claude Vision (40-95%)
     onProgress?.({ phase: "analyzing", percent: 45, message: fmt.progressAIRequest });
 
     const prompt = buildVideoPrompt(field, content, title);
+    const body = JSON.stringify({
+      prompt,
+      field,
+      noteTitle: title || "",
+      frames,
+      ...(transcript ? { transcript } : {}),
+    });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 200000);
+    // 응답을 놓치면 분석이 소실되므로 일시적 실패는 1회 재시도한다.
+    // 4xx(인증·쿼터·잘못된 요청)는 재시도해도 결과가 같으므로 즉시 중단한다.
+    let lastError = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 200000);
+      try {
+        onProgress?.({
+          phase: "analyzing",
+          percent: attempt === 1 ? 55 : 60,
+          message: fmt.progressAIAnalyzing,
+        });
 
-    try {
-      onProgress?.({ phase: "analyzing", percent: 55, message: fmt.progressAIAnalyzing });
+        const response = await fetch(`${SERVER_URL}/api/analyze-video`, {
+          method: "POST",
+          headers: getApiHeaders(),
+          body,
+          signal: controller.signal,
+        });
 
-      const response = await fetch(`${SERVER_URL}/api/analyze-video`, {
-        method: "POST",
-        headers: getApiHeaders(),
-        body: JSON.stringify({
-          prompt,
-          field,
-          noteTitle: title || "",
-          frames,
-          ...(transcript ? { transcript } : {}),
-        }),
-        signal: controller.signal,
-      });
+        onProgress?.({ phase: "analyzing", percent: 85, message: fmt.progressResponse });
 
-      onProgress?.({ phase: "analyzing", percent: 85, message: fmt.progressResponse });
+        if (response.status === 429) {
+          const info = await response.json().catch(() => ({}));
+          throw videoAiError("QUOTA", `quota exceeded (${info.used}/${info.max})`);
+        }
+        if (response.status >= 400 && response.status < 500) {
+          throw videoAiError("REJECTED", `server rejected: ${response.status}`);
+        }
+        if (!response.ok) throw new Error(`server error: ${response.status}`);
 
-      if (!response.ok) throw new Error("Server error");
-      const data = await response.json();
-      onProgress?.({ phase: "done", percent: 100, message: fmt.progressDone });
-      return data.analysis || heuristicVideoFallback(field, videos.length);
-    } finally {
-      clearTimeout(timeout);
+        const data = await response.json();
+        if (!data.analysis) throw new Error("empty analysis in response");
+
+        onProgress?.({ phase: "done", percent: 100, message: fmt.progressDone });
+        return data.analysis;
+      } catch (e) {
+        if (e.videoAiReason) throw e; // 재시도 무의미 — 그대로 올림
+        lastError = e;
+        console.log(`[analyzeVideoFrames] attempt ${attempt} failed:`, e.name, e.message);
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+      } finally {
+        clearTimeout(timeout);
+      }
     }
+
+    throw videoAiError(
+      lastError?.name === "AbortError" ? "TIMEOUT" : "NETWORK",
+      lastError?.message || "unknown failure"
+    );
   } catch (e) {
-    if (e.name === "AbortError") {
-      console.log("[analyzeVideoFrames] Timeout after 100s");
-    } else {
-      console.log("[analyzeVideoFrames] Error:", e.message);
-    }
-    return heuristicVideoFallback(field, videos.length);
+    if (e.videoAiReason) throw e;
+    console.log("[analyzeVideoFrames] Error:", e.message);
+    throw videoAiError("NETWORK", e.message);
   }
 }
 

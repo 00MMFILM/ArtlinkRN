@@ -50,7 +50,10 @@
     "block": "Block",
     "post_management": "Post management",
     "public": "Public",
-    "private": "Private"
+    "private": "Private",
+    "retry": "Try again",
+    "video_ai_retry_msg": "The analysis result didn't come through. Check your connection and try again — your note is unchanged.",
+    "video_quota_exceeded": "You've used all your free video analysis trials. Premium gives you unlimited access."
   },
   "tabs": {
     "home": "Home",

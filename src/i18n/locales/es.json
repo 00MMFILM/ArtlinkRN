@@ -50,7 +50,10 @@
     "block": "Bloquear",
     "post_management": "Gestión de publicaciones",
     "public": "Público",
-    "private": "Privado"
+    "private": "Privado",
+    "retry": "Reintentar",
+    "video_ai_retry_msg": "No se recibió el resultado del análisis. Comprueba tu conexión e inténtalo de nuevo; tu nota sigue intacta.",
+    "video_quota_exceeded": "Has agotado tus análisis de vídeo gratuitos. Premium te da acceso ilimitado."
   },
   "tabs": {
     "home": "Inicio",

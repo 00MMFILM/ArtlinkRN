@@ -50,7 +50,10 @@
     "block": "屏蔽",
     "post_management": "帖子管理",
     "public": "公开",
-    "private": "私密"
+    "private": "私密",
+    "retry": "重试",
+    "video_ai_retry_msg": "未能收到分析结果。请检查网络连接后重试，笔记内容保持不变。",
+    "video_quota_exceeded": "您已用完免费视频分析次数。升级高级版可无限使用。"
   },
   "tabs": {
     "home": "首页",

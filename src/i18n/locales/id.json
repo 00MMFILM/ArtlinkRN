@@ -50,7 +50,10 @@
     "block": "Blokir",
     "post_management": "Kelola Postingan",
     "public": "Publik",
-    "private": "Privat"
+    "private": "Privat",
+    "retry": "Coba lagi",
+    "video_ai_retry_msg": "Hasil analisis tidak diterima. Periksa koneksi Anda dan coba lagi — catatan Anda tetap utuh.",
+    "video_quota_exceeded": "Anda telah memakai semua uji coba analisis video gratis. Premium memberi akses tanpa batas."
   },
   "tabs": {
     "home": "Beranda",
