@@ -3,9 +3,15 @@ default_platform(:ios)
 platform :ios do
   desc "Submit for App Store review"
   lane :submit_review do
+    api_key = app_store_connect_api_key(
+      key_id: "3668ZJUQVP",
+      issuer_id: "a56a8823-d600-423b-88ba-15d0dc92a2a0",
+      key_filepath: "/Users/leechangyeop/.private_keys/AuthKey_3668ZJUQVP.p8"
+    )
     deliver(
+      api_key: api_key,
       app_identifier: "com.00MM.artlink",
-      app_version: "1.7.3",
+      app_version: "1.10.14",
       submit_for_review: true,
       automatic_release: true,
       force: true,
@@ -13,8 +19,8 @@ platform :ios do
       skip_screenshots: true,
       skip_metadata: false,
       release_notes: {
-        "ko" => "- 영상 AI 분석 안정성 개선 (진행률 표시, 타임아웃 처리)\n- 커뮤니티 카테고리 필터 텍스트 잘림 수정\n- 캐스팅/협업 제안 시스템 추가\n- 제안 수락 후 답장 기능 추가\n- AI 피드백 품질 개선\n- 버그 수정 및 안정성 개선",
-        "default" => "- Improved video AI analysis stability (progress bar, timeout handling)\n- Fixed community category filter text truncation\n- Added casting/collaboration proposal system\n- Added reply messaging for accepted proposals\n- Improved AI feedback quality\n- Bug fixes and stability improvements"
+        "ko" => "- 영상 AI 분석이 실패해도 작성 중이던 노트 내용이 그대로 보존되도록 개선\n- 영상 분석 실패·무료 체험 한도 안내 문구를 명확하게 정리\n- 안정성 개선 및 버그 수정",
+        "default" => "- Your note content is now kept even if video AI analysis fails\n- Clearer messages for analysis failures and free trial limits\n- Stability improvements and bug fixes"
       },
       submission_information: {
         add_id_info_uses_idfa: false
