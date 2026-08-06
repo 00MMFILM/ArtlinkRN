@@ -828,5 +828,28 @@
     "offer_no": "No thanks",
     "push_title": "It's practice time 🎭",
     "push_body": "One step past yesterday. Record today's practice and get your AI coach's feedback."
+  },
+  "premium": {
+    "title": "ArtLink Premium",
+    "subtitle": "Unlimited AI coaching",
+    "benefit_text": "Unlimited AI text feedback (fair use)",
+    "benefit_video": "15 AI video analyses per month — full-video understanding",
+    "benefit_model": "Deeper coaching from our top AI model",
+    "trial_badge": "7-day free trial",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "yearly_save": "Save 41%",
+    "cta_trial": "Start 7-day free trial",
+    "cta_subscribe": "Subscribe",
+    "restore": "Restore purchases",
+    "purchase_success": "Premium activated!",
+    "purchase_fail": "Purchase could not be completed. Please try again.",
+    "restore_success": "Purchases restored.",
+    "restore_none": "No purchases to restore.",
+    "auto_renew_note": "Subscriptions auto-renew unless cancelled at least 24h before the period ends. Manage anytime in your App Store account settings.",
+    "terms": "Terms of Use",
+    "privacy": "Privacy Policy",
+    "not_ready": "Payments are being set up. Please try again soon.",
+    "quota_cta": "See Premium"
   }
 }

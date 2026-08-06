@@ -293,6 +293,20 @@ export default function ProfileScreen({ navigation }) {
             </React.Fragment>
           ))}
 
+          {/* \uD504\uB9AC\uBBF8\uC5C4 \uAD6C\uB3C5 */}
+          <View style={styles.menuDivider} />
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => navigation.navigate("Subscription")}
+            activeOpacity={0.6}
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>{"\u2B50"}</Text>
+              <Text style={[T.body, { color: CLight.gray900 }]}>{t("premium.title")}</Text>
+            </View>
+            <Text style={[T.caption, { color: CLight.gray300 }]}>{"\u203A"}</Text>
+          </TouchableOpacity>
+
           {/* \uACC4\uC815: \uAC8C\uC2A4\uD2B8\uBA74 \uB85C\uADF8\uC778/\uAC00\uC785, \uB85C\uADF8\uC778 \uC0C1\uD0DC\uBA74 \uB85C\uADF8\uC544\uC6C3 */}
           <View style={styles.menuDivider} />
           {userProfile.authUserId ? (

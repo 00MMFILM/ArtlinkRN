@@ -29,7 +29,7 @@ import MatchingScreen from "./src/screens/MatchingScreen";
 import ShareCardScreen from "./src/screens/ShareCardScreen";
 import PortfolioScreen from "./src/screens/PortfolioScreen";
 import GoalsScreen from "./src/screens/GoalsScreen";
-// SubscriptionScreen removed for App Store compliance (no IAP configured)
+import SubscriptionScreen from "./src/screens/SubscriptionScreen"; // 2026-08-06 복원 — RevenueCat IAP 구성 완료
 import NotificationsScreen from "./src/screens/NotificationsScreen";
 import B2BDashboardScreen from "./src/screens/B2BDashboardScreen";
 import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
@@ -37,6 +37,7 @@ import OnboardingScreen from "./src/screens/OnboardingScreen";
 import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
 import ProfileEditScreen from "./src/screens/ProfileEditScreen";
 import EULAScreen from "./src/screens/EULAScreen";
+import { initPurchases, logInPurchases } from "./src/services/purchasesService";
 import CommunityPostDetailScreen from "./src/screens/CommunityPostDetailScreen";
 import CommunityPostCreateScreen from "./src/screens/CommunityPostCreateScreen";
 import MatchingPostDetailScreen from "./src/screens/MatchingPostDetailScreen";
@@ -270,6 +271,12 @@ function AppNavigator() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
 
+  // RevenueCat 초기화 — authUserId 있으면 app_user_id로 연결 (웹훅 → premium_members 매칭 기준)
+  useEffect(() => {
+    initPurchases(userProfile?.authUserId);
+    if (userProfile?.authUserId) logInPurchases(userProfile.authUserId);
+  }, [userProfile?.authUserId]);
+
   useEffect(() => {
     AsyncStorage.getItem("artlink-onboarding-seen").then((v) => {
       setShowOnboarding(v !== "true");
@@ -377,6 +384,11 @@ function AppNavigator() {
               <Stack.Screen name="Portfolio" component={PortfolioScreen} />
               <Stack.Screen name="Goals" component={GoalsScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen
+                name="Subscription"
+                component={SubscriptionScreen}
+                options={{ presentation: "modal", animation: "slide_from_bottom" }}
+              />
               <Stack.Screen name="B2B" component={B2BDashboardScreen} />
               <Stack.Screen name="Inbox" component={InboxScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
