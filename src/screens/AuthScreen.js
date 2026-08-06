@@ -858,8 +858,9 @@ const styles = StyleSheet.create({
   secondaryButtonText: { ...T.bodyBold, color: CLight.pink },
   forgotButton: { alignSelf: "flex-end", marginBottom: 20, paddingVertical: 4 },
   forgotText: { ...T.small, color: CLight.gray500 },
-  skipButton: { marginTop: 20, paddingVertical: 8 },
-  skipText: { ...T.caption, color: CLight.gray400, textDecorationLine: "underline" },
+  // 게스트 진입은 주요 경로 — 버튼으로 격상 (기존: 작은 회색 밑줄 텍스트라 가입이 벽으로 오인됨)
+  skipButton: { width: "100%", height: 52, backgroundColor: CLight.white, borderRadius: 14, borderWidth: 1.5, borderColor: CLight.gray300, justifyContent: "center", alignItems: "center", marginTop: 12 },
+  skipText: { ...T.bodyBold, color: CLight.gray700 },
 
   signupContainer: { flex: 1 },
   signupHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 8 },

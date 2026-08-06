@@ -265,7 +265,7 @@ const resetStyles = StyleSheet.create({
 
 function AppNavigator() {
   const { t } = useTranslation();
-  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleUpdateProfile } = useApp();
+  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleUpdateProfile, handleAuth } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
@@ -349,6 +349,10 @@ function AppNavigator() {
                 setShowOnboarding(false);
                 AsyncStorage.setItem("artlink-onboarding-seen", "true").catch(() => {});
                 trackFunnelEvent("onboarding_completed");
+                // 가입 벽 제거: 온보딩 후 게스트로 바로 앱 진입 (스킵 버튼과 동일 경로)
+                // 로그인/가입은 Profile 메뉴 + AccountLinkBanner로 언제든 가능
+                trackFunnelEvent("guest_entered"); // 새 경로 측정용
+                handleAuth(null);
               }} />}
             </Stack.Screen>
           ) : authState === "auth" ? (
