@@ -1244,8 +1244,10 @@ function videoAiError(reason, detail) {
 
 /**
  * Upload video to server for Whisper transcription.
+ * 업로드된 temp-media URL은 Gemini 영상 분석에도 재사용되므로 여기서 삭제하지 않는다 —
+ * 삭제는 analyzeVideoFrames가 분석 완료 후 수행.
  * @param {string} videoUri - local file URI
- * @returns {Promise<string|null>} transcript text or null on failure
+ * @returns {Promise<{transcript: string|null, videoUrl: string|null, fileName: string|null}>}
  */
 async function transcribeVideo(videoUri) {
   let step = "init";
@@ -1272,7 +1274,7 @@ async function transcribeVideo(videoUri) {
 
     if (uploadResult.status < 200 || uploadResult.status >= 300) {
       transcribeVideo._lastError = `upload ${uploadResult.status}: ${(uploadResult.body || "").slice(0, 100)}`;
-      return null;
+      return { transcript: null, videoUrl: null, fileName: null };
     }
 
     // Step 2: Call transcribe API
@@ -1285,25 +1287,29 @@ async function transcribeVideo(videoUri) {
       body: JSON.stringify({ videoUrl: publicUrl }),
     });
 
-    // Clean up after getting response
-    fetch(`${SUPABASE_URL}/storage/v1/object/temp-media/${fileName}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-    }).catch(() => {});
-
     if (res.ok) {
       const data = await res.json();
-      return data.transcript || null;
+      return { transcript: data.transcript || null, videoUrl: publicUrl, fileName };
     }
     const errBody = await res.text().catch(() => "");
     transcribeVideo._lastError = `transcribe ${res.status}: ${errBody.slice(0, 100)}`;
-    return null;
+    // 전사는 실패했어도 업로드는 성공 — Gemini 분석에 영상은 쓸 수 있음
+    return { transcript: null, videoUrl: publicUrl, fileName };
   } catch (e) {
     transcribeVideo._lastError = `${step}: ${e.message}`;
-    return null;
+    return { transcript: null, videoUrl: null, fileName: null };
   }
 }
 transcribeVideo._lastError = "";
+
+/** temp-media 임시 파일 삭제 (분석 완료 후 호출, fire-and-forget) */
+function deleteTempMedia(fileName) {
+  if (!fileName) return;
+  fetch(`${SUPABASE_URL}/storage/v1/object/temp-media/${fileName}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  }).catch(() => {});
+}
 
 /**
  * Analyze video frames + optional audio transcript via Claude Vision.
@@ -1341,9 +1347,12 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     ]);
     onProgress?.({ phase: "extracting", percent: 20, message: fmt.progressAudioExtract });
 
-    const [frameResult, transcript] = await Promise.all([framePromise, transcribePromise]);
+    const [frameResult, tvResult] = await Promise.all([framePromise, transcribePromise]);
     const frames = frameResult.frames;
     const frameTimes = frameResult.times; // 프레임별 시각(초) — 서버 타임스탬프 라벨용
+    const transcript = tvResult?.transcript || null;
+    const videoUrl = tvResult?.videoUrl || null; // 서버 Gemini 영상 분석용
+    const tempFileName = tvResult?.fileName || null;
 
     // Transcript is optional — dance/art videos may have no speech
     if (transcript) {
@@ -1367,6 +1376,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
       noteTitle: title || "",
       frames,
       frameTimes,
+      ...(videoUrl ? { videoUrl } : {}),
       ...(transcript ? { transcript } : {}),
     });
 
@@ -1404,6 +1414,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
         const data = await response.json();
         if (!data.analysis) throw new Error("empty analysis in response");
 
+        deleteTempMedia(tempFileName); // 분석 완료 — 임시 원본 정리 (보존본은 서버가 media-archive에 복사함)
         onProgress?.({ phase: "done", percent: 100, message: fmt.progressDone });
         return data.analysis;
       } catch (e) {
@@ -1416,6 +1427,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
       }
     }
 
+    deleteTempMedia(tempFileName); // 재시도 소진 — 임시 원본 정리
     throw videoAiError(
       lastError?.name === "AbortError" ? "TIMEOUT" : "NETWORK",
       lastError?.message || "unknown failure"
