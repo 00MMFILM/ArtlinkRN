@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { Video as VideoCompressor } from "react-native-compressor";
 import { FIELD_LABELS } from "../constants/theme";
 import { extractVideoFrames } from "../utils/videoFrames";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabaseClient";
@@ -1255,6 +1256,21 @@ async function transcribeVideo(videoUri) {
     let localUri = videoUri;
     if (!localUri.startsWith("file://")) {
       localUri = "file://" + localUri;
+    }
+
+    // Step 0: 대용량 영상은 업로드 전 압축 (1080p 5분 ≈ 300MB → 수십MB)
+    // 업로드 시간·Gemini 비용 동시 절감. 압축 실패 시 원본 그대로 진행
+    step = "compress";
+    try {
+      const info = await FileSystem.getInfoAsync(localUri, { size: true });
+      if (info.exists && info.size > 50 * 1024 * 1024) {
+        const compressedUri = await VideoCompressor.compress(localUri, {
+          compressionMethod: "auto",
+        });
+        if (compressedUri) localUri = compressedUri.startsWith("file://") ? compressedUri : "file://" + compressedUri;
+      }
+    } catch (ce) {
+      console.log("[transcribeVideo] compress skipped:", ce.message);
     }
 
     // Step 1: Upload to Supabase Storage using FileSystem.uploadAsync
