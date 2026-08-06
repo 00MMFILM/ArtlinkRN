@@ -1341,7 +1341,9 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     ]);
     onProgress?.({ phase: "extracting", percent: 20, message: fmt.progressAudioExtract });
 
-    const [frames, transcript] = await Promise.all([framePromise, transcribePromise]);
+    const [frameResult, transcript] = await Promise.all([framePromise, transcribePromise]);
+    const frames = frameResult.frames;
+    const frameTimes = frameResult.times; // 프레임별 시각(초) — 서버 타임스탬프 라벨용
 
     // Transcript is optional — dance/art videos may have no speech
     if (transcript) {
@@ -1364,6 +1366,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
       field,
       noteTitle: title || "",
       frames,
+      frameTimes,
       ...(transcript ? { transcript } : {}),
     });
 
