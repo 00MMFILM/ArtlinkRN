@@ -5,7 +5,37 @@ import { FIELD_LABELS } from "../constants/theme";
 import { extractVideoFrames } from "../utils/videoFrames";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabaseClient";
 import { SERVER_URL, getApiHeaders } from "./apiConfig";
+import { getOrCreateDeviceId } from "./mauService";
 import i18n from "i18next";
+
+// 마지막 AI 생성 메타 — 노트 저장 시 함께 기록 (모델·프롬프트 버전 추적 = 학습 데이터 필터 기준)
+export const lastAiMeta = { model: null, promptVersion: null, pipeline: null, transcript: null };
+
+/**
+ * 피드백 평가 전송 (👍/👎 + 이유) — 학습 데이터 라벨링
+ * @returns {Promise<boolean>} 성공 여부
+ */
+export async function rateFeedback({ noteLocalId, kind = "text", rating, reason = null, aiModel = null, promptVersion = null }) {
+  try {
+    const deviceId = await getOrCreateDeviceId();
+    const res = await fetch(`${SERVER_URL}/api/rate-feedback`, {
+      method: "POST",
+      headers: getApiHeaders(),
+      body: JSON.stringify({
+        noteLocalId,
+        feedbackKind: kind,
+        rating,
+        reason,
+        aiModel,
+        promptVersion,
+        deviceId,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 const IMAGE_MAX_DIMENSION = 1024; // Resize images before AI analysis to save API cost
 
 /**
@@ -843,7 +873,14 @@ function streamAnalyze(requestBody, onToken) {
       if (xhr.status >= 200 && xhr.status < 300) {
         const text = xhr.responseText || "";
         if (text.trim().length < 10) reject(new Error("AI_EMPTY_RESPONSE"));
-        else resolve(text);
+        else {
+          // 생성 메타 (서버가 헤더로 전달) — 노트 저장 시 기록용
+          lastAiMeta.model = xhr.getResponseHeader("X-AL-Model") || null;
+          lastAiMeta.promptVersion = xhr.getResponseHeader("X-AL-Prompt-Version") || null;
+          lastAiMeta.pipeline = null;
+          lastAiMeta.transcript = null;
+          resolve(text);
+        }
       } else {
         reject(new Error("AI_SERVER_ERROR"));
       }
@@ -951,6 +988,11 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     if (!data.analysis && !data.content) {
       throw new Error("AI_EMPTY_RESPONSE");
     }
+    // 생성 메타 기록 (노트 저장 시 함께 저장)
+    lastAiMeta.model = data.meta?.model || null;
+    lastAiMeta.promptVersion = data.meta?.promptVersion || null;
+    lastAiMeta.pipeline = null;
+    lastAiMeta.transcript = null;
     return { analysis: data.analysis || data.content, scores: data.scores || null };
   } catch (e) {
     console.log("[analyzeNote] AI failed:", e.message);
@@ -1429,6 +1471,12 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
 
         const data = await response.json();
         if (!data.analysis) throw new Error("empty analysis in response");
+
+        // 생성 메타 + 전사 기록 (노트 저장 시 함께 저장)
+        lastAiMeta.model = data.meta?.model || null;
+        lastAiMeta.promptVersion = data.meta?.promptVersion || null;
+        lastAiMeta.pipeline = data.meta?.pipeline || null;
+        lastAiMeta.transcript = transcript || null;
 
         deleteTempMedia(tempFileName); // 분석 완료 — 임시 원본 정리 (보존본은 서버가 media-archive에 복사함)
         onProgress?.({ phase: "done", percent: 100, message: fmt.progressDone });

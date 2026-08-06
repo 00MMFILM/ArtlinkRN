@@ -4,7 +4,7 @@ import { SERVER_URL, getApiHeaders } from "./apiConfig";
 
 const APP_VERSION = require("../../app.json").expo.version;
 
-async function getOrCreateDeviceId() {
+export async function getOrCreateDeviceId() {
   let deviceId = await safeStorageGet(STORAGE_KEYS.DEVICE_ID);
   if (!deviceId) {
     deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;

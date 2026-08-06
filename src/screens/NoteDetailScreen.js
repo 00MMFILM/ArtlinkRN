@@ -18,7 +18,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { getRelatedNotes } from "../services/analyticsService";
-import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
+import { analyzeNote, analyzeVideoFrames, lastAiMeta, rateFeedback } from "../services/aiService";
 import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCollectionService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
@@ -65,6 +65,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [videoAiProgress, setVideoAiProgress] = useState({ phase: "", percent: 0, message: "" });
   const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackKind, setFeedbackKind] = useState("text"); // 'text' | 'video' — 어느 피드백에 대한 평가인지
 
   const noteVideos = useMemo(
     () => (note?.images || []).filter((i) => i.type === "video"),
@@ -206,7 +207,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       const analysis = result.analysis || result;
       const scores = result.scores || null;
       setStreamingText("");
-      handleUpdateNote({ ...note, aiComment: analysis, aiScores: scores });
+      handleUpdateNote({ ...note, aiComment: analysis, aiScores: scores, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
       showToast(t("noteDetail.ai_complete"), "success");
 
       // Submit anonymous metadata for ALL users (no personal content)
@@ -296,7 +297,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         userProfile,
         (progress) => setVideoAiProgress(progress)
       );
-      handleUpdateNote({ ...note, videoAnalysis: result });
+      handleUpdateNote({ ...note, videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || note.transcript });
       showToast(t("noteDetail.video_ai_complete"), "success");
     } catch (e) {
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
@@ -542,12 +543,15 @@ export default function NoteDetailScreen({ route, navigation }) {
                     body: JSON.stringify({
                       type: "ai_feedback",
                       rating: "bad",
+                      kind: feedbackKind,
                       comment: feedbackText.trim(),
                       noteField: note.field,
                       noteId: note.id,
                       sentAt: new Date().toISOString(),
                     }),
                   }).catch(() => {});
+                  // 구조화 평가 저장 (학습 데이터 라벨)
+                  rateFeedback({ noteLocalId: note.id, kind: feedbackKind, rating: "down", aiModel: note.aiModel, promptVersion: note.promptVersion });
                   setFeedbackModalVisible(false);
                   showToast(t("noteDetail.ai_feedback_sent"), "success");
                 }}
@@ -737,11 +741,14 @@ export default function NoteDetailScreen({ route, navigation }) {
                     method: "POST", headers: getApiHeaders(),
                     body: JSON.stringify({ type: "ai_feedback", rating: "good", noteField: note.field, noteId: note.id, sentAt: new Date().toISOString() }),
                   }).catch(() => {});
+                  // \uAD6C\uC870\uD654 \uD3C9\uAC00 \uC800\uC7A5 (\uD559\uC2B5 \uB370\uC774\uD130 \uB77C\uBCA8 \u2014 feedback_ratings \uD14C\uC774\uBE14)
+                  rateFeedback({ noteLocalId: note.id, kind: "text", rating: "up", aiModel: note.aiModel, promptVersion: note.promptVersion });
                   showToast(t("noteDetail.ai_feedback_thanks"), "success");
                 }}>
                   <Text style={{ fontSize: 18 }}>{"\uD83D\uDC4D"}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
+                  setFeedbackKind("text");
                   setFeedbackText("");
                   setFeedbackModalVisible(true);
                 }}>
@@ -793,6 +800,24 @@ export default function NoteDetailScreen({ route, navigation }) {
                 <TouchableOpacity style={styles.videoReAnalyzeBtn} onPress={handleRequestVideoAI}>
                   <Text style={[T.smallBold, { color: "#007AFF" }]}>{t("noteDetail.video_ai_reanalyze")}</Text>
                 </TouchableOpacity>
+                <View style={styles.aiFeedbackRow}>
+                  <Text style={[T.small, { color: CLight.gray500 }]}>{t("noteDetail.ai_feedback_question")}</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
+                      rateFeedback({ noteLocalId: note.id, kind: "video", rating: "up", aiModel: note.aiModel, promptVersion: note.promptVersion });
+                      showToast(t("noteDetail.ai_feedback_thanks"), "success");
+                    }}>
+                      <Text style={{ fontSize: 18 }}>{"👍"}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.aiFeedbackBtn} onPress={() => {
+                      setFeedbackKind("video");
+                      setFeedbackText("");
+                      setFeedbackModalVisible(true);
+                    }}>
+                      <Text style={{ fontSize: 18 }}>{"👎"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             ) : (
               <>

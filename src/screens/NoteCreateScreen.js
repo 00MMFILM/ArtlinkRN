@@ -21,7 +21,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
-import { analyzeNote, analyzeVideoFrames } from "../services/aiService";
+import { analyzeNote, analyzeVideoFrames, lastAiMeta } from "../services/aiService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { FIELDS } from "../utils/helpers";
 import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
@@ -623,6 +623,10 @@ export default function NoteCreateScreen({ navigation, route }) {
       aiComment: aiComment || undefined,
       aiScores: aiScores || undefined,
       videoAnalysis: videoAnalysis || undefined,
+      // 생성 메타 + 전사 — 품질 추적·학습 데이터 필터·재분석 재료
+      aiModel: (aiComment || videoAnalysis) ? lastAiMeta.model || undefined : undefined,
+      promptVersion: (aiComment || videoAnalysis) ? lastAiMeta.promptVersion || undefined : undefined,
+      transcript: videoAnalysis ? lastAiMeta.transcript || undefined : undefined,
       images: images.length > 0 ? images : undefined,
       voiceRecordings: voiceRecordings.length > 0 ? voiceRecordings : undefined,
       audioFiles: audioFiles.length > 0 ? audioFiles : undefined,
