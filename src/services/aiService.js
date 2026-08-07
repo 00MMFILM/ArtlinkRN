@@ -870,6 +870,7 @@ function streamAnalyze(requestBody, onToken) {
       if (xhr.responseText) onToken?.(xhr.responseText);
     };
     xhr.onload = () => {
+      if (xhr.status === 429) return reject(new Error("AI_QUOTA"));
       if (xhr.status >= 200 && xhr.status < 300) {
         const text = xhr.responseText || "";
         if (text.trim().length < 10) reject(new Error("AI_EMPTY_RESPONSE"));
@@ -982,7 +983,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
 
     if (!response.ok) {
       console.log("[analyzeNote] Server error:", response.status);
-      throw new Error("AI_SERVER_ERROR");
+      throw new Error(response.status === 429 ? "AI_QUOTA" : "AI_SERVER_ERROR");
     }
     const data = await response.json();
     if (!data.analysis && !data.content) {

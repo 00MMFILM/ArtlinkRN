@@ -326,7 +326,10 @@ export default function NoteCreateScreen({ navigation, route }) {
         t("noteCreate.ai_failed"),
         quota ? t("common.video_quota_exceeded") : t("common.video_ai_retry_msg"),
         quota
-          ? [{ text: t("common.confirm") }]
+          ? [
+              { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+              { text: t("common.confirm"), style: "cancel" },
+            ]
           : [
               { text: t("common.cancel"), style: "cancel" },
               { text: t("common.retry"), onPress: () => startVideoAnalysisRef.current?.() },

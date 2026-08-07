@@ -260,11 +260,19 @@ export default function NoteDetailScreen({ route, navigation }) {
         }, 500);
       }
     } catch (e) {
-      showToast(t("noteDetail.ai_failed"), "error");
+      if (e?.message === "AI_QUOTA") {
+        // 쿼터 소진 = 프리미엄 전환의 최적 순간
+        Alert.alert(t("common.video_quota_exceeded"), "", [
+          { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+          { text: t("common.cancel") || "OK", style: "cancel" },
+        ]);
+      } else {
+        showToast(t("noteDetail.ai_failed"), "error");
+      }
     } finally {
       setAiLoading(false);
     }
-  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, t]);
+  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, t, navigation]);
 
   const handleRequestAI = useCallback(async () => {
     if (!note) return;
@@ -306,7 +314,10 @@ export default function NoteDetailScreen({ route, navigation }) {
         t("noteDetail.video_ai_failed"),
         quota ? t("common.video_quota_exceeded") : t("common.video_ai_retry_msg"),
         quota
-          ? [{ text: t("common.confirm") }]
+          ? [
+              { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+              { text: t("common.confirm"), style: "cancel" },
+            ]
           : [
               { text: t("common.cancel"), style: "cancel" },
               { text: t("common.retry"), onPress: () => startVideoAIRef.current?.() },
