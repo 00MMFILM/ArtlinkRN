@@ -11,16 +11,24 @@ platform :ios do
     deliver(
       api_key: api_key,
       app_identifier: "com.00MM.artlink",
-      app_version: "1.10.14",
+      app_version: "1.10.15",
       submit_for_review: true,
       automatic_release: true,
       force: true,
       skip_binary_upload: true,
       skip_screenshots: true,
       skip_metadata: false,
+      # ⚠️ App Store 등록 8개 언어 모두 채워야 whatsNew required 에러 방지 (1.10.14 사고 재발 방지)
       release_notes: {
-        "ko" => "- 영상 AI 분석이 실패해도 작성 중이던 노트 내용이 그대로 보존되도록 개선\n- 영상 분석 실패·무료 체험 한도 안내 문구를 명확하게 정리\n- 안정성 개선 및 버그 수정",
-        "default" => "- Your note content is now kept even if video AI analysis fails\n- Clearer messages for analysis failures and free trial limits\n- Stability improvements and bug fixes"
+        "ko" => "프리미엄 구독이 추가되었습니다. AI 피드백을 더 깊이 있게, 제한 없이 받아보세요.\n- AI 코칭 품질을 대폭 개선했습니다\n- 영상 분석이 한층 정교해졌습니다\n- 로그인 없이 바로 둘러볼 수 있습니다",
+        "en-US" => "Premium subscription is here. Get deeper, near-unlimited AI feedback.\n- Significantly improved AI coaching quality\n- More refined video analysis\n- Browse instantly without signing in",
+        "ja" => "プレミアムサブスクリプションが登場。より深く、ほぼ無制限のAIフィードバックを。\n- AIコーチングの品質を大幅に改善\n- 動画分析がより精密に\n- ログインなしですぐに閲覧可能",
+        "zh-Hans" => "高级订阅现已推出。获得更深入、近乎无限的AI反馈。\n- 大幅提升AI辅导质量\n- 视频分析更加精准\n- 无需登录即可浏览",
+        "zh-Hant" => "進階訂閱現已推出。獲得更深入、近乎無限的AI回饋。\n- 大幅提升AI指導品質\n- 影片分析更加精準\n- 無需登入即可瀏覽",
+        "th" => "มาแล้ว! สมัครสมาชิกพรีเมียม รับฟีดแบ็ก AI ที่ลึกและแทบไม่จำกัด\n- ปรับปรุงคุณภาพการโค้ช AI อย่างมาก\n- วิเคราะห์วิดีโอละเอียดยิ่งขึ้น\n- เรียกดูได้ทันทีโดยไม่ต้องเข้าสู่ระบบ",
+        "vi" => "Đã có gói Premium. Nhận phản hồi AI sâu hơn, gần như không giới hạn.\n- Cải thiện đáng kể chất lượng huấn luyện AI\n- Phân tích video tinh tế hơn\n- Duyệt ngay mà không cần đăng nhập",
+        "id" => "Langganan Premium hadir. Dapatkan masukan AI yang lebih mendalam dan hampir tanpa batas.\n- Kualitas pelatihan AI ditingkatkan secara signifikan\n- Analisis video lebih detail\n- Jelajahi langsung tanpa masuk",
+        "default" => "Premium subscription is here. Get deeper, near-unlimited AI feedback.\n- Significantly improved AI coaching quality\n- More refined video analysis\n- Browse instantly without signing in"
       },
       submission_information: {
         add_id_info_uses_idfa: false
