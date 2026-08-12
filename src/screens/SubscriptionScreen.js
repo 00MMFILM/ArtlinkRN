@@ -84,7 +84,6 @@ export default function SubscriptionScreen({ navigation }) {
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
 
-        <Text style={styles.badge}>{t("premium.trial_badge")}</Text>
         <Text style={[T.h1, styles.title]}>{t("premium.title")}</Text>
         <Text style={[T.body, styles.subtitle]}>{t("premium.subtitle")}</Text>
 
@@ -137,7 +136,7 @@ export default function SubscriptionScreen({ navigation }) {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={[T.bodyBold, { color: "#FFFFFF" }]}>
-              {selected === "yearly" ? t("premium.cta_trial") : t("premium.cta_subscribe")}
+              {t("premium.cta_subscribe")}
             </Text>
           )}
         </TouchableOpacity>
@@ -146,7 +145,12 @@ export default function SubscriptionScreen({ navigation }) {
           <Text style={[T.small, { color: CLight.gray500 }]}>{t("premium.restore")}</Text>
         </TouchableOpacity>
 
-        <Text style={[T.caption, styles.note]}>{t("premium.auto_renew_note")}</Text>
+        <Text style={[T.caption, styles.note]}>
+          {t("premium.renew_notice", {
+            plan: selected === "yearly" ? t("premium.yearly") : t("premium.monthly"),
+            price: selectedPkg?.product?.priceString || (selected === "yearly" ? "₩49,000" : "₩6,900"),
+          })}
+        </Text>
 
         <View style={styles.links}>
           <TouchableOpacity onPress={() => Linking.openURL(APPLE_EULA_URL)}>
