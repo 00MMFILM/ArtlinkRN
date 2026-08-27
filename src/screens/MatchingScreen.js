@@ -16,7 +16,7 @@ import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import { FIELDS } from "../utils/helpers";
 import { computeMatchPercent } from "../services/analyticsService";
-import { fetchMatchingFeed } from "../services/matchingService";
+import { fetchMatchingFeed, fetchUserMatchingPosts, mergeUserMatchingPosts } from "../services/matchingService";
 import TopBar from "../components/TopBar";
 import EmptyState from "../components/EmptyState";
 
@@ -41,7 +41,7 @@ export default function MatchingScreen({ navigation }) {
   const { t } = useTranslation();
   const {
     artistProfile, userProfile, savedNotes, portfolioItems,
-    matchingPosts, handleDeleteMatchingPost,
+    matchingPosts, matchingDeletedIds, handleDeleteMatchingPost,
     blockedUsers, handleBlockUser, handleReportContent,
   } = useApp();
 
@@ -67,7 +67,22 @@ export default function MatchingScreen({ navigation }) {
     return () => { mounted = false; };
   }, [userProfile.fields]);
 
-  const dataSource = sourceTab === "ai" ? aiPostings : matchingPosts;
+  // 서버 사용자 공고(다른 사용자 글 포함) — 진입 시 1회, 실패 시 [] → 로컬만 표시
+  const [serverUserPosts, setServerUserPosts] = useState([]);
+  useEffect(() => {
+    let mounted = true;
+    fetchUserMatchingPosts().then((data) => {
+      if (mounted) setServerUserPosts(data);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  const userPosts = useMemo(
+    () => mergeUserMatchingPosts(matchingPosts, serverUserPosts, matchingDeletedIds),
+    [matchingPosts, serverUserPosts, matchingDeletedIds]
+  );
+
+  const dataSource = sourceTab === "ai" ? aiPostings : userPosts;
 
   const filtered = useMemo(() => {
     let items = dataSource
@@ -85,8 +100,8 @@ export default function MatchingScreen({ navigation }) {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       items = items.filter((item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
+        (item.title || "").toLowerCase().includes(q) ||
+        (item.description || "").toLowerCase().includes(q) ||
         (item.tags || []).some((t) => t.toLowerCase().includes(q))
       );
     }

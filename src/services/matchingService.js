@@ -45,6 +45,77 @@ export async function createMatchingPost(post) {
   return data;
 }
 
+/**
+ * 서버 row(matching_posts) → 매칭 화면/상세가 기대하는 형태.
+ * title/description은 화면에서 미보호 접근(toLowerCase 등)하므로 빈 문자열 기본값 보장.
+ */
+export function normalizeServerMatchingPost(row) {
+  return {
+    id: row.local_id ?? row.id,
+    serverId: row.id,
+    source: "user",
+    tab: row.tab || "프로젝트",
+    title: row.title || "",
+    field: row.field || "etc",
+    description: row.description || "",
+    deadline: row.deadline || null,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    contact: row.contact || null,
+    requirements: row.requirements || {},
+    authorName: row.author_name || null,
+    authorField: row.author_field || null,
+    createdAt: row.created_at || null,
+    authUserId: row.auth_user_id || null,
+  };
+}
+
+/**
+ * 서버 공고 + 내 로컬 공고 병합.
+ * 서버 목록이 기본이고, 서버에 없는(=local_id 매칭 실패) 내 로컬 공고만 덧붙인다.
+ * (서버 저장이 실패했던 내 글 보존 — createMatchingPost는 실패해도 삼켜진다)
+ * deletedIds: 내가 지운 공고의 local id 툼스톤. 서버 삭제가 실패해도(익명 공고·네트워크)
+ * 병합 결과에서 걸러내 다시 나타나지 않게 한다.
+ */
+export function mergeUserMatchingPosts(localPosts = [], serverPosts = [], deletedIds = []) {
+  const server = Array.isArray(serverPosts) ? serverPosts : [];
+  const local = Array.isArray(localPosts) ? localPosts : [];
+  const deleted = new Set((Array.isArray(deletedIds) ? deletedIds : []).map(Number));
+  const serverLocalIds = new Set(
+    server.map((p) => Number(p.id)).filter((n) => Number.isFinite(n))
+  );
+  const localOnly = local.filter((p) => !serverLocalIds.has(Number(p.id)));
+  return [...server, ...localOnly]
+    .filter((p) => !deleted.has(Number(p.id)))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+/**
+ * 내 매칭 공고를 서버에서 삭제(local_id 기준). RLS가 auth_user_id = auth.uid() 작성자만
+ * 허용하므로 추가 필터는 불필요. 익명 공고·네트워크 실패는 베스트에포트 — 호출부에서 삼킨다.
+ */
+export async function deleteMatchingPost(localId) {
+  const { error } = await supabase.from("matching_posts").delete().eq("local_id", localId);
+  if (error) throw error;
+}
+
+/**
+ * 다른 사용자가 올린 공고까지 포함해 서버 공고를 읽어온다.
+ * 실패(테이블 미존재·RLS·네트워크)해도 절대 throw 하지 않고 빈 배열 → 로컬만 표시(회귀 없음).
+ */
+export async function fetchUserMatchingPosts() {
+  try {
+    const { data, error } = await supabase
+      .from("matching_posts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error || !Array.isArray(data)) return [];
+    return data.map(normalizeServerMatchingPost);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchMatchingFeed(userFields = []) {
   // Return cache if valid
   if (_cache.data && Date.now() - _cache.ts < CACHE_TTL) {

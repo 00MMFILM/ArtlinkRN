@@ -8,7 +8,7 @@ import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
 import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, deleteNoteFromServer } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
-import { createMatchingPost } from "../services/matchingService";
+import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
 import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
 
 const AppContext = createContext();
@@ -31,6 +31,7 @@ export function AppProvider({ children }) {
   const [portfolioItems, setPortfolioItems] = useState([]);
   const [portfolioSummary, setPortfolioSummary] = useState(null);
   const [matchingPosts, setMatchingPosts] = useState([]);
+  const [matchingDeletedIds, setMatchingDeletedIds] = useState([]);
   const [fieldOrder, setFieldOrder] = useState(DEFAULT_FIELD_ORDER);
   const [storageReady, setStorageReady] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
@@ -61,7 +62,7 @@ export function AppProvider({ children }) {
   // Load all persisted data on mount
   useEffect(() => {
     (async () => {
-      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, eula, blocked, reported, consent, consentAsked, aiDisclosure] = await Promise.all([
+      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, mDeleted, eula, blocked, reported, consent, consentAsked, aiDisclosure] = await Promise.all([
         safeStorageGet(STORAGE_KEYS.NOTES),
         safeStorageGet(STORAGE_KEYS.PROFILE),
         safeStorageGet(STORAGE_KEYS.DARK_MODE),
@@ -72,6 +73,7 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.PORTFOLIO_ITEMS),
         safeStorageGet(STORAGE_KEYS.PORTFOLIO_SUMMARY),
         safeStorageGet(STORAGE_KEYS.MATCHING_POSTS),
+        safeStorageGet(STORAGE_KEYS.MATCHING_DELETED),
         safeStorageGet(STORAGE_KEYS.EULA_ACCEPTED),
         safeStorageGet(STORAGE_KEYS.BLOCKED_USERS),
         safeStorageGet(STORAGE_KEYS.REPORTED_CONTENT),
@@ -99,6 +101,7 @@ export function AppProvider({ children }) {
       if (pItems) setPortfolioItems(pItems);
       if (pSummary) setPortfolioSummary(pSummary);
       if (mPosts) setMatchingPosts(mPosts);
+      if (mDeleted) setMatchingDeletedIds(mDeleted);
       if (eula) setEulaAccepted(eula);
       if (blocked) setBlockedUsers(blocked);
       if (reported) setReportedContent(reported);
@@ -236,6 +239,12 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.MATCHING_POSTS, matchingPosts);
   }, [matchingPosts, storageReady]);
 
+  // Persist matching post 삭제 툼스톤 (서버 병합 시 되살아남 방지)
+  useEffect(() => {
+    if (!storageReady) return;
+    safeStorageSet(STORAGE_KEYS.MATCHING_DELETED, matchingDeletedIds);
+  }, [matchingDeletedIds, storageReady]);
+
   // ─── Note CRUD ───
   const handleSaveNote = useCallback((noteData) => {
     const now = new Date().toISOString();
@@ -323,7 +332,10 @@ export function AppProvider({ children }) {
 
   const handleDeleteMatchingPost = useCallback((postId) => {
     setMatchingPosts((prev) => prev.filter((p) => p.id !== postId));
+    // 툼스톤: 서버 삭제가 실패해도(익명 공고·네트워크) 병합 시 다시 나타나지 않게 최대 200개 유지
+    setMatchingDeletedIds((prev) => [postId, ...prev.filter((id) => id !== postId)].slice(0, 200));
     showToast(i18n.t("toast.matching_deleted"), "delete");
+    deleteMatchingPost(postId).catch(() => {});
   }, [showToast]);
 
   // ─── Portfolio CRUD ───
@@ -491,13 +503,14 @@ export function AppProvider({ children }) {
     setPortfolioItems([]);
     setPortfolioSummary(null);
     setMatchingPosts([]);
+    setMatchingDeletedIds([]);
     setAuthState("auth");
   }, []);
 
   const value = useMemo(() => ({
     savedNotes, userProfile, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
-    portfolioItems, portfolioSummary, matchingPosts,
+    portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
     showToast, hideToast,
@@ -512,7 +525,7 @@ export function AppProvider({ children }) {
   }), [
     savedNotes, userProfile, goals, feedbacks,
     showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
-    portfolioItems, portfolioSummary, matchingPosts,
+    portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
     showToast, hideToast,

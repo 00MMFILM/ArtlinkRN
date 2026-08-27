@@ -30,6 +30,7 @@ export const STORAGE_KEYS = {
   PORTFOLIO_ITEMS: "artlink-portfolio-items",
   PORTFOLIO_SUMMARY: "artlink-portfolio-summary",
   MATCHING_POSTS: "artlink-matching-posts",
+  MATCHING_DELETED: "artlink-matching-deleted",
   EULA_ACCEPTED: "artlink-eula-accepted",
   BLOCKED_USERS: "artlink-blocked-users",
   REPORTED_CONTENT: "artlink-reported-content",

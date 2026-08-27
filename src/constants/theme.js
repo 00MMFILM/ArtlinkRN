@@ -62,5 +62,5 @@ export const FIELD_EMOJIS = {
   etc: "💼",
 };
 
-export const APP_VERSION = "1.10.2";
+export const APP_VERSION = require("../../app.json").expo.version;
 export const APP_BUILD = "20260408";
