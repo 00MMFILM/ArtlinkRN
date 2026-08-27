@@ -31,7 +31,22 @@ import { useTranslation } from "react-i18next";
 
 export default function NoteCreateScreen({ navigation, route }) {
   const { t } = useTranslation();
-  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale } = useApp();
+  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState } = useApp();
+
+  // AI 쿼터 소진: 게스트→로그인 유도, 로그인 유저→프리미엄 안내
+  const promptQuotaExceeded = useCallback(() => {
+    if (!userProfile?.authUserId) {
+      Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
+        { text: t("premium.guest_trial_cta"), onPress: () => setAuthState("auth") },
+        { text: t("common.cancel") || "OK", style: "cancel" },
+      ]);
+    } else {
+      Alert.alert(t("common.video_quota_exceeded"), "", [
+        { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+        { text: t("common.cancel") || "OK", style: "cancel" },
+      ]);
+    }
+  }, [userProfile?.authUserId, setAuthState, navigation, t]);
 
   // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
   const prefill = route?.params?.prefill || null;
@@ -52,6 +67,12 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [seriesName, setSeriesName] = useState("");
   const [aiComment, setAiComment] = useState("");
   const [aiScores, setAiScores] = useState(null);
+  // 스트리밍 실패 시 잘린 부분 텍스트가 aiComment에 남지 않도록,
+  // 분석 시작 전 확정값을 기억해뒀다가 실패 시 복원한다.
+  const aiCommentRef = useRef(aiComment);
+  useEffect(() => {
+    aiCommentRef.current = aiComment;
+  }, [aiComment]);
   const [aiLoading, setAiLoading] = useState(false);
   const [videoAnalysis, setVideoAnalysis] = useState("");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
@@ -180,6 +201,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   // AI Analysis
   const runAnalyze = useCallback(async () => {
     setAiLoading(true);
+    const previousComment = aiCommentRef.current;
     try {
       // Foreign users: show interstitial ad from 2nd AI use per day
       if (!isKoreanLocale) {
@@ -199,11 +221,14 @@ export default function NoteCreateScreen({ navigation, route }) {
       if (result.scores) setAiScores(result.scores);
       maybeOfferReminder();
     } catch (e) {
-      Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
+      // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
+      setAiComment(previousComment);
+      if (e?.message === "AI_QUOTA") promptQuotaExceeded();
+      else Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
     } finally {
       setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t, promptQuotaExceeded]);
 
   // 첫 AI 피드백 직후 딱 한 번: 매일 이 시간에 연습 알림 제안 (Calm 패턴)
   const maybeOfferReminder = useCallback(async () => {
@@ -322,24 +347,23 @@ export default function NoteCreateScreen({ navigation, route }) {
     } catch (e) {
       // 실패는 결과로 채우지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
-      Alert.alert(
-        t("noteCreate.ai_failed"),
-        quota ? t("common.video_quota_exceeded") : t("common.video_ai_retry_msg"),
-        quota
-          ? [
-              { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
-              { text: t("common.confirm"), style: "cancel" },
-            ]
-          : [
-              { text: t("common.cancel"), style: "cancel" },
-              { text: t("common.retry"), onPress: () => startVideoAnalysisRef.current?.() },
-            ]
-      );
+      if (quota) {
+        promptQuotaExceeded(); // 게스트→로그인, 로그인유저→프리미엄
+      } else {
+        Alert.alert(
+          t("noteCreate.ai_failed"),
+          t("common.video_ai_retry_msg"),
+          [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("common.retry"), onPress: () => startVideoAnalysisRef.current?.() },
+          ]
+        );
+      }
     } finally {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [noteVideos, field, content, title, userProfile, t]);
+  }, [noteVideos, field, content, title, userProfile, t, promptQuotaExceeded]);
 
   useEffect(() => {
     startVideoAnalysisRef.current = startVideoAnalysis;

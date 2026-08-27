@@ -48,11 +48,13 @@ export async function fetchSentProposals(userId) {
 }
 
 // ─── Update proposal status (accept/decline) ────────────────
-export async function updateProposalStatus(proposalId, status) {
+// 수신자만 상태 변경 가능 (클라이언트 방어강화 — TODO: Supabase RLS로 실제 방어선 필요, 이번 범위 밖)
+export async function updateProposalStatus(proposalId, status, recipientId) {
   const { data, error } = await supabase
     .from("proposals")
     .update({ status })
     .eq("id", proposalId)
+    .eq("recipient_id", recipientId)
     .select()
     .single();
 
@@ -73,11 +75,13 @@ export async function fetchReplies(proposalId) {
 }
 
 // ─── Delete a proposal ──────────────────────────────────────
-export async function deleteProposal(proposalId) {
+// 발신자/수신자 본인만 삭제 가능 (클라이언트 방어강화 — TODO: Supabase RLS로 실제 방어선 필요, 이번 범위 밖)
+export async function deleteProposal(proposalId, userId) {
   const { error } = await supabase
     .from("proposals")
     .delete()
-    .eq("id", proposalId);
+    .eq("id", proposalId)
+    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`);
 
   if (error) throw error;
 }

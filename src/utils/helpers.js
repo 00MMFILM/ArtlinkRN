@@ -140,3 +140,12 @@ export function getWeekStart(date) {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+
+// 기기 로컬 타임존 기준 YYYY-MM-DD (toISOString은 UTC라 자정~오전9시 KST에 하루 밀림 — 사용 금지)
+export function toLocalDateKey(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}

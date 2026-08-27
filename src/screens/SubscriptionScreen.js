@@ -8,6 +8,7 @@ import {
   Alert,
   Linking,
   ScrollView,
+  Platform,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
@@ -18,8 +19,11 @@ import {
   restorePurchases,
 } from "../services/purchasesService";
 
-// Apple 심사 필수: 이용약관(표준 EULA)·개인정보 링크 + 자동갱신 고지
+// 이용약관·개인정보 링크 + 자동갱신 고지
+// iOS: Apple 심사 필수 표준 EULA / Android: Google Play 이용약관
 const APPLE_EULA_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+const GOOGLE_PLAY_TERMS_URL = "https://play.google.com/intl/ko/about/play-terms/index.html";
+const TERMS_URL = Platform.OS === "ios" ? APPLE_EULA_URL : GOOGLE_PLAY_TERMS_URL;
 const PRIVACY_URL = "https://art-link.kr/privacy/";
 
 export default function SubscriptionScreen({ navigation }) {
@@ -153,7 +157,7 @@ export default function SubscriptionScreen({ navigation }) {
         </Text>
 
         <View style={styles.links}>
-          <TouchableOpacity onPress={() => Linking.openURL(APPLE_EULA_URL)}>
+          <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
             <Text style={[T.caption, styles.linkText]}>{t("premium.terms")}</Text>
           </TouchableOpacity>
           <Text style={[T.caption, { color: CLight.gray300 }]}> · </Text>

@@ -34,6 +34,13 @@ const TYPE_COLORS = {
   콜라보: CLight.pink,
 };
 
+// 데모 판정은 네트워크 성공/실패가 아니라 글 자체의 출처로만 한다.
+// 데모 글은 communityService의 DEMO_POSTS(id: "demo-1"~"demo-4")가 유일하고,
+// 실제 글의 id는 Supabase uuid이므로 "demo-" 접두사로 정확히 구분된다.
+export function isDemoPost(post) {
+  return String(post?.id ?? "").startsWith("demo-");
+}
+
 function formatTimeAgo(dateStr, t) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -71,7 +78,7 @@ function CommentItem({ comment }) {
 
 export default function CommunityPostDetailScreen({ route, navigation }) {
   const { t } = useTranslation();
-  const { post, isDemo: routeIsDemo } = route.params;
+  const { post } = route.params;
   const { handleBlockUser, handleReportContent, deviceUserId, userProfile, showToast } = useApp();
   const [commentText, setCommentText] = useState("");
   const [liked, setLiked] = useState(false);
@@ -80,7 +87,8 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
   const [commentsCount, setCommentsCount] = useState(post.comments_count ?? post.comments ?? 0);
   const [loadingComments, setLoadingComments] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [isDemo, setIsDemo] = useState(!!routeIsDemo);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const isDemo = isDemoPost(post);
 
   const field = post.author_field || post.field;
   const emoji = FIELD_EMOJIS[field] || "";
@@ -89,30 +97,35 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
   const timeAgo = post.created_at ? formatTimeAgo(post.created_at, t) : post.timeAgo;
 
   // Load comments and like status
+  const loadDetail = useCallback(async () => {
+    if (isDemo) {
+      setComments(getDemoComments(post.id));
+      setLoadFailed(false);
+      setLoadingComments(false);
+      return;
+    }
+    setLoadingComments(true);
+    try {
+      const [commentsData, likedStatus] = await Promise.all([
+        fetchComments(post.id),
+        deviceUserId ? checkLiked(post.id, deviceUserId) : false,
+      ]);
+      setComments(commentsData);
+      setLiked(likedStatus);
+      setLoadFailed(false);
+    } catch (_) {
+      // 로드 실패는 "데모 글"이 아니다 — 실제 글은 실제 글로 유지하고
+      // 댓글은 비운 채 재시도 가능 상태로, 좋아요는 미확정(false)으로 둔다.
+      setComments([]);
+      setLoadFailed(true);
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [post.id, deviceUserId, isDemo]);
+
   useEffect(() => {
-    (async () => {
-      try {
-        if (isDemo || String(post.id).startsWith("demo-")) {
-          setComments(getDemoComments(post.id));
-          setIsDemo(true);
-          setLoadingComments(false);
-          return;
-        }
-        const [commentsData, likedStatus] = await Promise.all([
-          fetchComments(post.id),
-          deviceUserId ? checkLiked(post.id, deviceUserId) : false,
-        ]);
-        setComments(commentsData);
-        setLiked(likedStatus);
-      } catch (_) {
-        // Fallback to demo comments
-        setComments(getDemoComments(post.id));
-        setIsDemo(true);
-      } finally {
-        setLoadingComments(false);
-      }
-    })();
-  }, [post.id, deviceUserId]);
+    loadDetail();
+  }, [loadDetail]);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -137,15 +150,21 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
                 text: t("common.delete"),
                 style: "destructive",
                 onPress: async () => {
-                  try {
-                    if (!isDemo) {
-                      await deletePost(post.id, deviceUserId);
-                    }
+                  if (isDemo) {
+                    // 데모 글은 서버에 존재하지 않으므로 화면만 닫는다.
                     showToast(t("communityDetail.delete_success"), "success");
                     navigation.goBack();
+                    return;
+                  }
+                  try {
+                    // 실제 글은 서버 삭제가 성공한 뒤에만 성공 UI를 보여준다.
+                    await deletePost(post.id, deviceUserId);
                   } catch (_) {
                     Alert.alert(t("common.error"), t("communityDetail.delete_failed"));
+                    return;
                   }
+                  showToast(t("communityDetail.delete_success"), "success");
+                  navigation.goBack();
                 },
               },
             ]
@@ -209,10 +228,15 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
   }, [post, author, isMyPost, isDemo, deviceUserId, handleBlockUser, handleReportContent, navigation, showToast, t]);
 
   const handleToggleLike = useCallback(async () => {
-    if (isDemo || !deviceUserId) {
+    if (isDemo) {
       // Local-only toggle for demo
       setLiked((prev) => !prev);
       setLikesCount((prev) => prev + (liked ? -1 : 1));
+      return;
+    }
+    if (!deviceUserId) {
+      // 실제 글은 서버 저장 없이 로컬 반영하지 않는다 (조용한 유실 방지).
+      Alert.alert(t("community.wait_title"), t("community.wait_msg"));
       return;
     }
     try {
@@ -222,7 +246,7 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
     } catch (_) {
       // Silent fail
     }
-  }, [post.id, deviceUserId, liked, isDemo]);
+  }, [post.id, deviceUserId, liked, isDemo, t]);
 
   const scrollRef = React.useRef(null);
 
@@ -237,7 +261,13 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
       return;
     }
 
-    if (isDemo || !deviceUserId) {
+    if (!isDemo && !deviceUserId) {
+      // 실제 글은 서버 저장 없이 로컬에만 추가하지 않는다 (조용한 유실 방지).
+      Alert.alert(t("community.wait_title"), t("community.wait_msg"));
+      return;
+    }
+
+    if (isDemo) {
       // Local-only comment for demo
       const newComment = {
         id: `local_${Date.now()}`,
@@ -392,6 +422,12 @@ export default function CommunityPostDetailScreen({ route, navigation }) {
                 color={CLight.pink}
                 style={{ marginVertical: 20 }}
               />
+            ) : loadFailed ? (
+              <TouchableOpacity style={styles.emptyComments} onPress={loadDetail}>
+                <Text style={[T.body, { color: CLight.pink, textAlign: "center" }]}>
+                  {t("common.retry")}
+                </Text>
+              </TouchableOpacity>
             ) : comments.length === 0 ? (
               <View style={styles.emptyComments}>
                 <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>

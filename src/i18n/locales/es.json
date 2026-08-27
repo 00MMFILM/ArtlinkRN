@@ -299,8 +299,8 @@
     "medium_related": "Relacionada",
     "low_related": "Poco relacionada",
     "other_field": "Otro",
-    "data_consent_title": "¿Quieres contribuir a mejorar la IA?",
-    "data_consent_msg": "Recopilaremos de forma anónima tus notas de práctica y los comentarios de la IA para mejorar la calidad del análisis. No se incluye información personal.",
+    "data_consent_title": "Cuanto más practiques, más precisa será tu retroalimentación",
+    "data_consent_msg": "Si aceptas, tus notas de práctica y tu voz y vídeo se usarán para hacer que la IA de Artlink sea más inteligente, lo que hará que la retroalimentación que recibes sea más precisa. Tus datos se almacenan de forma privada y segura, y solo se usan para mejorar la retroalimentación, nunca para otro fin. Todas las funciones siguen disponibles aunque no participes. Puedes desactivarlo y eliminar tus datos cuando quieras desde Configuración.",
     "data_consent_later": "Más tarde",
     "data_consent_join": "Participar",
     "voice_label": "Voz {{index}}"

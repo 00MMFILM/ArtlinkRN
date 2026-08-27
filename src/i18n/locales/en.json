@@ -278,6 +278,12 @@
     "ai_analyzing": "AI is analyzing your note...",
     "ai_result": "AI analysis result",
     "ai_reanalyze": "🔄 Request re-analysis",
+    "share_cta": "Share",
+    "share_title": "Share feedback",
+    "share_msg": "Where to post?",
+    "share_feed": "Feed · Threads (portrait)",
+    "share_story": "Story · TikTok (full)",
+    "share_failed": "Couldn't create the share image. Please try again.",
     "ai_feedback_question": "Was this analysis helpful?",
     "ai_feedback_prompt": "AI analysis feedback",
     "ai_feedback_ask": "What could be improved?",
@@ -302,8 +308,8 @@
     "medium_related": "Related",
     "low_related": "Loosely related",
     "other_field": "Other",
-    "data_consent_title": "Help improve AI quality?",
-    "data_consent_msg": "Practice notes and AI feedback are collected anonymously to improve feedback quality. No personal information is included.",
+    "data_consent_title": "The more you practice, the more accurate your feedback gets",
+    "data_consent_msg": "If you agree, your practice notes, voice, and video help make Artlink AI smarter — so the feedback you get becomes more accurate. Your data is stored privately and securely, and used only to improve feedback, never for anything else. All features work the same even if you don't participate. You can turn this off and delete your data anytime in Settings.",
     "data_consent_later": "Later",
     "data_consent_join": "Participate",
     "voice_label": "Voice {{index}}"
@@ -849,6 +855,9 @@
     "terms": "Terms of Use",
     "privacy": "Privacy Policy",
     "not_ready": "Payments are being set up. Please try again soon.",
-    "quota_cta": "See Premium"
+    "quota_cta": "See Premium",
+    "guest_trial_title": "You've used your free trial",
+    "guest_trial_msg": "Sign up to keep getting AI feedback. It's free to join.",
+    "guest_trial_cta": "Sign up"
   }
 }

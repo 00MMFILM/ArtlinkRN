@@ -80,9 +80,20 @@ const DEMO_COMMENTS = {
 // ─── User (서버 경유: users 접근을 서버로 이전, device_id 노출 차단) ──
 // 반환: { userId, profileToken } — 토큰은 이후 프로필 쓰기의 소유권 증명에 사용.
 export async function ensureDeviceUser(deviceId, displayName, field, authUserId) {
+  const headers = getApiHeaders();
+  // 서버는 authUserId를 body가 아니라 Authorization 토큰으로 검증한다.
+  // getApiHeaders()의 동기 토큰 캐시가 아직 안 채워진 콜드스타트에서도 반드시 싣도록
+  // 세션에서 직접 한 번 더 읽는다 (토큰이 없으면 auth 연결 없이 device 등록으로 처리됨).
+  if (authUserId && !headers["Authorization"]) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    } catch (_) {}
+  }
   const res = await fetch(`${SERVER_URL}/api/user-register`, {
     method: "POST",
-    headers: getApiHeaders(),
+    headers,
     body: JSON.stringify({ deviceId, displayName, field, authUserId }),
   });
   if (!res.ok) throw new Error("user register failed");
@@ -134,13 +145,15 @@ export async function createPost({ userId, authorName, authorField, type, title,
 }
 
 export async function deletePost(postId, userId) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("community_posts")
     .delete()
     .eq("id", postId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select();
 
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("delete_no_rows");
   invalidatePostsCache();
 }
 

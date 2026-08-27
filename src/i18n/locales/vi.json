@@ -299,8 +299,8 @@
     "medium_related": "Liên quan",
     "low_related": "Ít liên quan",
     "other_field": "Khác",
-    "data_consent_title": "Bạn có muốn tham gia cải thiện chất lượng AI không?",
-    "data_consent_msg": "Ghi chú luyện tập và phản hồi AI được thu thập ẩn danh để cải thiện chất lượng phản hồi. Không bao gồm thông tin cá nhân.",
+    "data_consent_title": "Càng luyện tập nhiều, phản hồi càng chính xác",
+    "data_consent_msg": "Nếu bạn đồng ý, ghi chú luyện tập cùng giọng nói và video của bạn sẽ được dùng để giúp AI của Artlink thông minh hơn, nhờ đó phản hồi bạn nhận được cũng chính xác hơn. Dữ liệu được lưu trữ riêng tư và an toàn, chỉ dùng để cải thiện phản hồi, không dùng cho mục đích nào khác. Dù không tham gia, bạn vẫn có thể sử dụng đầy đủ mọi tính năng. Bạn có thể tắt và xóa dữ liệu này bất cứ lúc nào trong phần Cài đặt.",
     "data_consent_later": "Để sau",
     "data_consent_join": "Tham gia",
     "voice_label": "Giọng nói {{index}}"

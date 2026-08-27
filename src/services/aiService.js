@@ -852,6 +852,24 @@ async function transcribeAllAudio(voiceRecordings = [], audioFiles = []) {
   return results.filter(Boolean).join("\n\n");
 }
 
+// 피드백 끝의 [[SCORES]] 한 줄을 파싱해 5축 점수를 뽑고, 표시용 본문에선 제거한다.
+// (성장 궤적 분석은 노트별 aiScores가 있어야 동작 — 이 파싱이 그 데이터를 만든다)
+const SCORE_RE = /\[\[SCORES\]\]\s*technique=(\d+)\s+expression=(\d+)\s+creativity=(\d+)\s+consistency=(\d+)\s+growth=(\d+)/i;
+export function parseScores(raw) {
+  if (!raw) return { analysis: raw, scores: null };
+  const m = raw.match(SCORE_RE);
+  if (!m) return { analysis: raw.trim(), scores: null };
+  const clamp = (n) => Math.max(0, Math.min(10, parseInt(n, 10)));
+  const scores = {
+    technique: clamp(m[1]),
+    expression: clamp(m[2]),
+    creativity: clamp(m[3]),
+    consistency: clamp(m[4]),
+    growth: clamp(m[5]),
+  };
+  return { analysis: raw.slice(0, m.index).trim(), scores };
+}
+
 /**
  * 서버 스트리밍 엔드포인트를 XHR로 소비 (React Native fetch는 스트리밍 미지원).
  * onToken(누적텍스트)를 청크마다 호출하여 화면에 실시간 표시.
@@ -866,8 +884,11 @@ function streamAnalyze(requestBody, onToken) {
     xhr.timeout = 90000;
 
     xhr.onprogress = () => {
-      // responseText는 지금까지 도착한 전체 텍스트 (누적)
-      if (xhr.responseText) onToken?.(xhr.responseText);
+      // 429 등 에러 응답의 JSON 본문을 화면에 흘리지 않음 (쿼터 초과 시 raw JSON 깜빡임 방지)
+      if (xhr.status && xhr.status !== 200) return;
+      // responseText는 지금까지 도착한 전체 텍스트 (누적).
+      // 끝의 [[SCORES]] 마커(+부분수신)는 화면에 안 보이게 잘라서 표시 ("[[" 이후 절단)
+      if (xhr.responseText) onToken?.(xhr.responseText.split("[[")[0]);
     };
     xhr.onload = () => {
       if (xhr.status === 429) return reject(new Error("AI_QUOTA"));
@@ -959,6 +980,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
       prompt,
       field,
       noteTitle: currentNote?.title || "",
+      wantScores: true, // 서버가 끝에 [[SCORES]] 붙여줌 → parseScores로 aiScores 저장 (성장 분석용)
     };
     if (imageFrames.length > 0) {
       requestBody.frames = imageFrames;
@@ -967,7 +989,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     // onToken 콜백이 있으면 스트리밍 (실시간 표시), 없으면 기존 방식
     if (typeof onToken === "function") {
       const fullText = await streamAnalyze(requestBody, onToken);
-      return { analysis: fullText, scores: null };
+      return parseScores(fullText); // 끝의 [[SCORES]] → aiScores, 본문은 제거
     }
 
     const controller = new AbortController();
@@ -994,7 +1016,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     lastAiMeta.promptVersion = data.meta?.promptVersion || null;
     lastAiMeta.pipeline = null;
     lastAiMeta.transcript = null;
-    return { analysis: data.analysis || data.content, scores: data.scores || null };
+    return parseScores(data.analysis || data.content || ""); // 끝의 [[SCORES]] → aiScores
   } catch (e) {
     console.log("[analyzeNote] AI failed:", e.message);
     // Throw so caller can show error instead of silent heuristic

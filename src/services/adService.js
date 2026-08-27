@@ -61,15 +61,25 @@ export function shouldShowInterstitial(isKoreanLocale, count) {
 
 // ─── Interstitial Ad ───
 
+const AD_TIMEOUT_MS = 20000;
+
 export function showInterstitialAd() {
   return new Promise((resolve) => {
     const ad = InterstitialAd.createForAdRequest(AD_UNITS.INTERSTITIAL);
+
+    const timeoutId = setTimeout(() => {
+      unsubLoaded();
+      unsubClosed();
+      unsubError();
+      resolve(false);
+    }, AD_TIMEOUT_MS);
 
     const unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
       ad.show();
     });
 
     const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      clearTimeout(timeoutId);
       unsubLoaded();
       unsubClosed();
       unsubError();
@@ -77,6 +87,7 @@ export function showInterstitialAd() {
     });
 
     const unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
+      clearTimeout(timeoutId);
       unsubLoaded();
       unsubClosed();
       unsubError();
@@ -94,6 +105,14 @@ export function showRewardedAd() {
     const ad = RewardedAd.createForAdRequest(AD_UNITS.REWARDED);
     let rewarded = false;
 
+    const timeoutId = setTimeout(() => {
+      unsubLoaded();
+      unsubEarned();
+      unsubClosed();
+      unsubError();
+      resolve(false);
+    }, AD_TIMEOUT_MS);
+
     const unsubLoaded = ad.addAdEventListener(
       RewardedAdEventType.LOADED,
       () => {
@@ -109,6 +128,7 @@ export function showRewardedAd() {
     );
 
     const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      clearTimeout(timeoutId);
       unsubLoaded();
       unsubEarned();
       unsubClosed();
@@ -117,6 +137,7 @@ export function showRewardedAd() {
     });
 
     const unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
+      clearTimeout(timeoutId);
       unsubLoaded();
       unsubEarned();
       unsubClosed();

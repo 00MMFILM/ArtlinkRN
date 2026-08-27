@@ -13,3 +13,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: false,
   },
 });
+
+// 로그인 유저의 액세스 토큰을 동기적으로 읽기 위한 캐시.
+// 서버 AI/쿼터 API는 Authorization: Bearer <access token>으로 유저를 식별하는데,
+// getApiHeaders()가 동기 함수라 매 호출마다 await 할 수 없어 여기에 캐시한다.
+// 초기 세션 + 갱신(TOKEN_REFRESHED)·로그인·로그아웃을 onAuthStateChange가 모두 커버.
+let _accessToken = null;
+supabase.auth.getSession().then(({ data }) => {
+  _accessToken = data?.session?.access_token || null;
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  _accessToken = session?.access_token || null;
+});
+
+/** 현재 로그인 유저의 Supabase 액세스 토큰 (비로그인/게스트면 null) */
+export function getAuthToken() {
+  return _accessToken;
+}

@@ -1,4 +1,5 @@
 import { MATCHING_SERVER_URL, getApiHeaders } from "./apiConfig";
+import { supabase } from "./supabaseClient";
 
 // In-memory cache (10 min TTL)
 let _cache = { data: null, ts: 0 };
@@ -12,6 +13,37 @@ const FALLBACK_SAMPLE_PROJECTS = [
   { id: "fb-5", source: "ai", sourcePlatform: "AI수집", tab: "오디션", title: "장편영화 배우 캐스팅", field: "film", description: "심리 스릴러 장편영화. 20-30대 남녀 배우 오디션.", deadline: "2026-03-25", tags: ["장편영화", "캐스팅"], requirements: { ageRange: [20, 39] } },
   { id: "fb-6", source: "ai", sourcePlatform: "AI수집", tab: "콜라보", title: "무용 x 영상 콜라보 프로젝트", field: "dance", description: "무용 퍼포먼스를 영상으로 기록하는 콜라보.", deadline: "2026-04-20", tags: ["무용", "영상", "퍼포먼스"] },
 ];
+
+/**
+ * 사용자가 작성한 매칭 공고를 서버(matching_posts)에 저장.
+ * 스키마 정본은 작성화면(MatchingPostCreateScreen)이 넘기는 키 — requirements.
+ * 테이블/RLS 미적용 환경에서는 throw 되므로 호출부에서 삼켜야 한다(로컬 저장은 유지).
+ * 마이그레이션: sql/matching_posts.sql
+ */
+export async function createMatchingPost(post) {
+  const { data, error } = await supabase
+    .from("matching_posts")
+    .insert({
+      user_id: post.userId || null,
+      auth_user_id: post.authUserId || null,
+      local_id: post.localId ?? null,
+      author_name: post.authorName || null,
+      author_field: post.authorField || null,
+      tab: post.tab || "프로젝트",
+      title: post.title,
+      field: post.field || null,
+      description: post.description || "",
+      deadline: post.deadline || null,
+      tags: post.tags || [],
+      contact: post.contact || null,
+      requirements: post.requirements || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
 
 export async function fetchMatchingFeed(userFields = []) {
   // Return cache if valid

@@ -8,7 +8,8 @@ import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
 import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, deleteNoteFromServer } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
-import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
+import { createMatchingPost } from "../services/matchingService";
+import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
 
 const AppContext = createContext();
 
@@ -101,7 +102,7 @@ export function AppProvider({ children }) {
       if (eula) setEulaAccepted(eula);
       if (blocked) setBlockedUsers(blocked);
       if (reported) setReportedContent(reported);
-      if (consent) setDataConsent(consent);
+      if (consent) { setDataConsent(consent); setDataConsentCache(consent); }
       if (consentAsked) setDataConsentAsked(consentAsked);
       if (aiDisclosure) setAiDisclosureAccepted(aiDisclosure);
       setStorageReady(true);
@@ -141,6 +142,7 @@ export function AppProvider({ children }) {
           deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           await safeStorageSet(STORAGE_KEYS.DEVICE_ID, deviceId);
         }
+        setApiDeviceId(deviceId); // 게스트 체험 판정용 — API 헤더에 X-Device-Id로 실림
         // 익명 모드(authUserId 없음): 캐시된 userId+토큰이 둘 다 있으면 재사용
         // 인증 모드(authUserId 있음): 캐시 무시하고 항상 재호출하여 auth 연결 보장
         const cachedUserId = await safeStorageGet(STORAGE_KEYS.DEVICE_USER_ID);
@@ -176,10 +178,13 @@ export function AppProvider({ children }) {
           }
           return;
         }
-        const merged = mergeNotes(savedNotes, serverRows);
-        setSavedNotes(merged);
-        // 로컬에만 있던 노트를 서버에도 push
-        syncNotesToServer(userProfile.authUserId, merged).catch(() => {});
+        // fetch 대기 중 새로 저장된 노트가 유실되지 않도록 최신 상태(prev) 기준으로 병합
+        setSavedNotes((prev) => {
+          const merged = mergeNotes(prev, serverRows);
+          // 로컬에만 있던 노트를 서버에도 push (local_id 기준 upsert라 중복 호출도 안전)
+          syncNotesToServer(userProfile.authUserId, merged).catch(() => {});
+          return merged;
+        });
       } catch (_) {
         // Silent fail — 로컬 데이터 유지
       }
@@ -296,7 +301,20 @@ export function AppProvider({ children }) {
     const newPost = { id: Date.now(), source: "user", createdAt: new Date().toISOString(), ...postData };
     setMatchingPosts((prev) => [newPost, ...prev]);
     showToast(i18n.t("toast.matching_added"), "success");
-  }, [showToast]);
+    // 서버 저장(다른 사용자에게 노출)은 부가 경로 — 실패해도 로컬 저장은 그대로 유지
+    try {
+      createMatchingPost({
+        ...postData,
+        localId: newPost.id,
+        userId: deviceUserId,
+        authUserId: userProfile.authUserId,
+        authorName: userProfile.name,
+        authorField: userProfile.fields?.[0],
+      }).catch(() => {});
+    } catch (_) {
+      // Silent fail — 로컬 공고는 이미 저장됨
+    }
+  }, [showToast, deviceUserId, userProfile.authUserId, userProfile.name, userProfile.fields]);
 
   const handleUpdateMatchingPost = useCallback((updatedPost) => {
     setMatchingPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)));
@@ -396,6 +414,7 @@ export function AppProvider({ children }) {
   // ─── Data Consent ───
   const handleSetDataConsent = useCallback((value) => {
     setDataConsent(value);
+    setDataConsentCache(value);
     safeStorageSet(STORAGE_KEYS.DATA_CONSENT, value);
   }, []);
 

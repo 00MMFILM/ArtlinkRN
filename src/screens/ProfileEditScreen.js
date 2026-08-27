@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 import { useApp } from "../context/AppContext";
+import { withdrawMediaConsent } from "../services/dataCollectionService";
 import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
 import {
   FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES,
@@ -47,6 +48,17 @@ export default function ProfileEditScreen({ navigation }) {
   const [selectedFields, setSelectedFields] = useState(userProfile.fields || []);
   const [profilePublic, setProfilePublic] = useState(userProfile.profilePublic || false);
   const [photos, setPhotos] = useState(userProfile.photos || []);
+
+  const handleDataConsentChange = useCallback(async (value) => {
+    handleSetDataConsent(value);
+    if (value) return;
+    try {
+      await withdrawMediaConsent();
+      Alert.alert("알림", "보관된 학습자료가 삭제되었습니다.");
+    } catch (e) {
+      Alert.alert("알림", "학습자료 삭제 요청이 실패했습니다. 잠시 후 다시 시도해주세요.");
+    }
+  }, [handleSetDataConsent]);
 
   const handleAddPhoto = async () => {
     if (photos.length >= 6) return;
@@ -343,7 +355,7 @@ export default function ProfileEditScreen({ navigation }) {
             </View>
             <Switch
               value={dataConsent}
-              onValueChange={handleSetDataConsent}
+              onValueChange={handleDataConsentChange}
               trackColor={{ false: CLight.gray200, true: CLight.pink }}
               thumbColor={CLight.white}
             />

@@ -299,8 +299,8 @@
     "medium_related": "Relevan",
     "low_related": "Sedikit Relevan",
     "other_field": "Lainnya",
-    "data_consent_title": "Mau ikut meningkatkan kualitas AI?",
-    "data_consent_msg": "Catatan latihan dan umpan balik AI dikumpulkan secara anonim untuk meningkatkan kualitas umpan balik. Tidak ada informasi pribadi yang disertakan.",
+    "data_consent_title": "Makin banyak berlatih, makin akurat masukannya",
+    "data_consent_msg": "Jika kamu setuju, catatan latihan serta suara dan videomu akan digunakan untuk membuat AI Artlink makin cerdas, sehingga masukan yang kamu terima juga makin akurat. Data disimpan secara pribadi dan aman, serta hanya digunakan untuk meningkatkan kualitas masukan, tidak untuk tujuan lain. Semua fitur tetap bisa digunakan meski kamu tidak ikut serta. Kamu bisa menonaktifkan dan menghapus data ini kapan saja di Pengaturan.",
     "data_consent_later": "Nanti",
     "data_consent_join": "Ikut Serta",
     "voice_label": "Suara {{index}}"

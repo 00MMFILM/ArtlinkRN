@@ -2,6 +2,7 @@ import {
   isActor,
   postMatchesField,
   visibleCommunityPosts,
+  toLocalDateKey,
 } from "../helpers";
 
 describe("isActor (배우 게이팅)", () => {
@@ -65,5 +66,36 @@ describe("visibleCommunityPosts (피드 최종 필터)", () => {
     expect(visibleCommunityPosts(undefined, {})).toEqual([]);
     expect(visibleCommunityPosts([], {})).toEqual([]);
     expect(visibleCommunityPosts(posts).map((p) => p.id)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("toLocalDateKey (KST 자정~오전9시 UTC 이월 버그 재현/검증)", () => {
+  const originalTZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Asia/Seoul";
+  });
+  afterAll(() => {
+    process.env.TZ = originalTZ;
+  });
+
+  it("KST 2026-08-27 오전 2시(=UTC 08-26 17시)는 로컬 기준 08-27", () => {
+    const d = new Date("2026-08-26T17:00:00.000Z");
+    expect(toLocalDateKey(d)).toBe("2026-08-27");
+    // 버그였던 UTC 기준 구현(toISOString)이면 08-26으로 잘못 나왔음을 대조
+    expect(d.toISOString().split("T")[0]).toBe("2026-08-26");
+  });
+
+  it("KST 자정 직후(00:30)도 당일로 인식", () => {
+    const d = new Date("2026-08-26T15:30:00.000Z"); // KST 08-27 00:30
+    expect(toLocalDateKey(d)).toBe("2026-08-27");
+  });
+
+  it("문자열 ISO 입력도 동일하게 동작", () => {
+    expect(toLocalDateKey("2026-08-26T17:00:00.000Z")).toBe("2026-08-27");
+  });
+
+  it("KST 낮 시간은 UTC와 로컬 날짜가 같음", () => {
+    const d = new Date("2026-08-27T05:00:00.000Z"); // KST 08-27 14:00
+    expect(toLocalDateKey(d)).toBe("2026-08-27");
   });
 });

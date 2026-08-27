@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { safeStorageGet, STORAGE_KEYS } from "../utils/storage";
+import { SERVER_URL, getApiHeaders } from "./apiConfig";
 
 function simpleHash(str) {
   let hash = 0;
@@ -66,4 +67,17 @@ export async function submitAnonymousMetadata({ field, noteTitle, aiFeedback, ta
   } catch (e) {
     // Silent fail — anonymous tracking is best-effort
   }
+}
+
+/**
+ * 학습자산 동의 철회 — 서버에 보관된 자료 삭제 요청.
+ * 응답: { ok, deleted }. 실패해도 앱은 죽지 않도록 호출부에서 처리.
+ */
+export async function withdrawMediaConsent() {
+  const res = await fetch(`${SERVER_URL}/api/media-consent-withdraw`, {
+    method: "POST",
+    headers: getApiHeaders(),
+  });
+  if (!res.ok) throw new Error(`withdraw failed: ${res.status}`);
+  return res.json();
 }

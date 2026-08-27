@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
-import { timeAgo, truncate, FIELDS } from "../utils/helpers";
+import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -61,8 +61,8 @@ export default function HomeScreen({ navigation }) {
     for (let i = 0; i < 365; i++) {
       const day = new Date(today);
       day.setDate(day.getDate() - i);
-      const dayStr = day.toISOString().split("T")[0];
-      const hasNote = savedNotes.some((n) => n.createdAt && n.createdAt.startsWith(dayStr));
+      const dayStr = toLocalDateKey(day);
+      const hasNote = savedNotes.some((n) => n.createdAt && toLocalDateKey(n.createdAt) === dayStr);
       if (hasNote) {
         streak++;
       } else if (i > 0) {
@@ -85,13 +85,13 @@ export default function HomeScreen({ navigation }) {
   const userName = userProfile?.name || t("common.artist");
 
   // ---- Quick check-in ----
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = toLocalDateKey(new Date());
   const orderedFields = fieldOrder && fieldOrder.length > 0 ? fieldOrder : FIELDS;
 
   const todayCheckins = useMemo(() => {
     const set = new Set();
     savedNotes.forEach((n) => {
-      if (n.type === "checkin" && n.createdAt && n.createdAt.slice(0, 10) === todayKey) {
+      if (n.type === "checkin" && n.createdAt && toLocalDateKey(n.createdAt) === todayKey) {
         set.add(n.field);
       }
     });

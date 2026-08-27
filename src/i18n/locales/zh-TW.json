@@ -299,8 +299,8 @@
     "medium_related": "相關",
     "low_related": "略有相關",
     "other_field": "其他",
-    "data_consent_title": "是否願意參與改善 AI 品質？",
-    "data_consent_msg": "我們將匿名收集練習筆記和 AI 意見回饋，以改善回饋品質。不包含個人資料。",
+    "data_consent_title": "練習累積得越多，回饋就越精準",
+    "data_consent_msg": "同意後，您的練習筆記與語音、影片將用於讓 Artlink AI 更聰明，您收到的回饋也會因此更精準。資料將以不公開的方式安全保存，僅用於改善回饋，不做其他用途。即使不參與，所有功能仍可照常使用。您可以隨時在設定中關閉並刪除資料。",
     "data_consent_later": "稍後",
     "data_consent_join": "參與",
     "voice_label": "語音 {{index}}"

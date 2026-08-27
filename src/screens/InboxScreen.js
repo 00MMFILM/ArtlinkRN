@@ -206,13 +206,13 @@ export default function InboxScreen({ navigation }) {
 
   const handleAccept = useCallback(async (proposalId) => {
     try {
-      await updateProposalStatus(proposalId, "accepted");
+      await updateProposalStatus(proposalId, "accepted", deviceUserId);
       setReceived((prev) => prev.map((p) => p.id === proposalId ? { ...p, status: "accepted" } : p));
       showToast(t("inbox.accepted_toast"), "success");
     } catch (_) {
       Alert.alert(t("common.error"), t("inbox.status_error"));
     }
-  }, [showToast]);
+  }, [showToast, deviceUserId]);
 
   const handleReply = useCallback(async (proposalId, content) => {
     try {
@@ -232,7 +232,7 @@ export default function InboxScreen({ navigation }) {
         style: "destructive",
         onPress: async () => {
           try {
-            await updateProposalStatus(proposalId, "declined");
+            await updateProposalStatus(proposalId, "declined", deviceUserId);
             setReceived((prev) => prev.map((p) => p.id === proposalId ? { ...p, status: "declined" } : p));
             showToast(t("inbox.declined_toast"), "success");
           } catch (_) {
@@ -241,7 +241,7 @@ export default function InboxScreen({ navigation }) {
         },
       },
     ]);
-  }, [showToast]);
+  }, [showToast, deviceUserId]);
 
   const handleDelete = useCallback(async (proposalId) => {
     Alert.alert(t("inbox.delete_title"), t("inbox.delete_msg"), [
@@ -251,7 +251,7 @@ export default function InboxScreen({ navigation }) {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteProposal(proposalId);
+            await deleteProposal(proposalId, deviceUserId);
             setReceived((prev) => prev.filter((p) => p.id !== proposalId));
             setSent((prev) => prev.filter((p) => p.id !== proposalId));
             showToast(t("inbox.deleted_toast"), "success");
@@ -261,7 +261,7 @@ export default function InboxScreen({ navigation }) {
         },
       },
     ]);
-  }, [showToast]);
+  }, [showToast, deviceUserId]);
 
   const currentList = activeTab === "received" ? received : sent;
 

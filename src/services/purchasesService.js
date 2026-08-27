@@ -2,9 +2,8 @@ import { Platform } from "react-native";
 import Purchases from "react-native-purchases";
 
 // RevenueCat Public API Keys (공개 키 — 클라이언트 임베드가 정상 사용법)
-// TODO(RC): Android 키는 Play Store 앱 등록(service account) 후 교체
 const RC_API_KEY_IOS = "appl_MZBJMVgQlttdZdEhGxfYmpVppIN";
-const RC_API_KEY_ANDROID = "RC_ANDROID_KEY_PLACEHOLDER";
+const RC_API_KEY_ANDROID = "goog_uagvXcHGyCpxcaSKdMcDacratqJ";
 
 // RevenueCat 대시보드의 Entitlement 식별자
 export const ENTITLEMENT_ID = "premium";

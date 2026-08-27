@@ -278,6 +278,12 @@
     "ai_analyzing": "AI가 노트를 분석하고 있습니다...",
     "ai_result": "AI 분석 결과",
     "ai_reanalyze": "🔄 재분석 요청",
+    "share_cta": "공유",
+    "share_title": "피드백 공유",
+    "share_msg": "어디에 올릴까요?",
+    "share_feed": "피드·스레드 (세로)",
+    "share_story": "스토리·틱톡 (풀세로)",
+    "share_failed": "공유 이미지를 만들지 못했어요. 다시 시도해주세요.",
     "ai_feedback_question": "이 분석이 도움이 됐나요?",
     "ai_feedback_prompt": "AI 분석 피드백",
     "ai_feedback_ask": "어떤 점이 아쉬웠나요?",
@@ -302,8 +308,8 @@
     "medium_related": "관련",
     "low_related": "약한 관련",
     "other_field": "기타",
-    "data_consent_title": "AI 품질 개선에 참여하시겠어요?",
-    "data_consent_msg": "연습 노트와 AI 피드백을 익명으로 수집하여 피드백 품질을 개선합니다. 개인정보는 포함되지 않습니다.",
+    "data_consent_title": "연습이 쌓일수록, 피드백이 더 정확해져요",
+    "data_consent_msg": "동의하면 회원님의 연습 노트와 음성·영상이 아트링크 AI를 더 똑똑하게 만드는 데 쓰여요. 그만큼 회원님이 받는 피드백도 정확해집니다. 자료는 비공개로 안전하게 보관하고, 피드백 개선 말고 다른 데엔 쓰지 않아요. 참여 안 해도 모든 기능 그대로예요. 언제든 설정에서 끄고 지울 수 있어요.",
     "data_consent_later": "나중에",
     "data_consent_join": "참여하기",
     "voice_label": "음성 {{index}}"
@@ -849,6 +855,9 @@
     "terms": "이용약관",
     "privacy": "개인정보처리방침",
     "not_ready": "결제 준비 중입니다. 잠시 후 다시 시도해주세요.",
-    "quota_cta": "프리미엄 보기"
+    "quota_cta": "프리미엄 보기",
+    "guest_trial_title": "무료 체험을 모두 사용했어요",
+    "guest_trial_msg": "회원가입하면 AI 피드백을 계속 받을 수 있어요. 가입은 무료입니다.",
+    "guest_trial_cta": "회원가입하기"
   }
 }

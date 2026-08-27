@@ -239,25 +239,25 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         </View>
 
         {/* Casting Requirements */}
-        {post.casting && (
+        {post.requirements && Object.keys(post.requirements).length > 0 && (
           <View style={styles.card}>
             <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
               {t("matchingDetail.casting_requirements")}
             </Text>
-            {post.casting.gender && (
-              <InfoRow label={t("matchingDetail.gender")} value={post.casting.gender} />
+            {post.requirements.gender && (
+              <InfoRow label={t("matchingDetail.gender")} value={post.requirements.gender} />
             )}
-            {post.casting.ageRange && (
-              <InfoRow label={t("matchingDetail.age")} value={post.casting.ageRange} />
+            {post.requirements.ageRange?.length === 2 && (
+              <InfoRow label={t("matchingDetail.age")} value={`${post.requirements.ageRange[0]}~${post.requirements.ageRange[1]}`} />
             )}
-            {post.casting.heightRange && (
-              <InfoRow label={t("matchingDetail.height")} value={post.casting.heightRange} />
+            {post.requirements.heightRange?.length === 2 && (
+              <InfoRow label={t("matchingDetail.height")} value={`${post.requirements.heightRange[0]}~${post.requirements.heightRange[1]}`} />
             )}
-            {post.casting.specialties?.length > 0 && (
-              <InfoRow label={t("matchingDetail.skills")} value={post.casting.specialties.join(", ")} />
+            {post.requirements.specialties?.length > 0 && (
+              <InfoRow label={t("matchingDetail.skills")} value={post.requirements.specialties.join(", ")} />
             )}
-            {post.casting.location && (
-              <InfoRow label={t("matchingDetail.region")} value={post.casting.location} />
+            {post.requirements.location && (
+              <InfoRow label={t("matchingDetail.region")} value={post.requirements.location} />
             )}
           </View>
         )}

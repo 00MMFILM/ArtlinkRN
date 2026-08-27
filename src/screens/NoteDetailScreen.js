@@ -23,6 +23,8 @@ import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCol
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { formatDate, timeAgo } from "../utils/helpers";
+import FeedbackShareCard from "../components/FeedbackShareCard";
+import { buildCardProps, shareCardImage } from "../utils/shareCard";
 import { useTranslation } from "react-i18next";
 
 export default function NoteDetailScreen({ route, navigation }) {
@@ -42,12 +44,37 @@ export default function NoteDetailScreen({ route, navigation }) {
     aiDisclosureAccepted,
     handleAcceptAIDisclosure,
     isKoreanLocale,
+    setAuthState,
   } = useApp();
+
+  // 게스트(비로그인)면 로그인 유도, 로그인 유저면 프리미엄 안내. AI 쿼터 소진 공통 처리.
+  const promptQuotaExceeded = useCallback(() => {
+    if (!userProfile?.authUserId) {
+      Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
+        { text: t("premium.guest_trial_cta"), onPress: () => setAuthState("auth") },
+        { text: t("common.cancel") || "OK", style: "cancel" },
+      ]);
+    } else {
+      Alert.alert(t("common.video_quota_exceeded"), "", [
+        { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+        { text: t("common.cancel") || "OK", style: "cancel" },
+      ]);
+    }
+  }, [userProfile?.authUserId, setAuthState, navigation, t]);
 
   const note = useMemo(
     () => savedNotes.find((n) => n.id === noteId),
     [savedNotes, noteId]
   );
+
+  // AI 응답이 도착했을 때 저장 대상은 항상 "최신" note여야 한다.
+  // runRequestAI/startVideoAI는 호출 시점의 note를 클로저로 캡처하는데,
+  // 분석이 진행되는 수십 초 동안 사용자가 제목/본문을 편집·저장하면
+  // 그 캡처가 낡아져 AI 저장 시 편집분을 덮어쓴다. ref로 최신값을 따라간다.
+  const noteRef = useRef(note);
+  useEffect(() => {
+    noteRef.current = note;
+  }, [note]);
 
   const TABS = [
     { key: "content", label: t("noteDetail.tab_content") },
@@ -66,6 +93,36 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackKind, setFeedbackKind] = useState("text"); // 'text' | 'video' — 어느 피드백에 대한 평가인지
+  const [sharing, setSharing] = useState(false);
+  const feedCardRef = useRef(null);
+  const storyCardRef = useRef(null);
+
+  // AI 피드백을 카드 이미지로 공유 (인스타/스레드/틱톡). variant 선택 → 캡처 → 공유 시트
+  const handleShareFeedback = useCallback(() => {
+    Alert.alert(
+      t("noteDetail.share_title"),
+      t("noteDetail.share_msg"),
+      [
+        { text: t("noteDetail.share_feed"), onPress: () => doShare("feed") },
+        { text: t("noteDetail.share_story"), onPress: () => doShare("story") },
+        { text: t("common.cancel"), style: "cancel" },
+      ]
+    );
+  }, [t]);
+
+  const doShare = useCallback(async (variant) => {
+    const ref = variant === "story" ? storyCardRef : feedCardRef;
+    setSharing(true);
+    try {
+      // 오프스크린 카드가 레이아웃될 시간을 잠깐 준다
+      await new Promise((r) => setTimeout(r, 60));
+      await shareCardImage(ref, variant);
+    } catch (e) {
+      showToast(t("noteDetail.share_failed"), "error");
+    } finally {
+      setSharing(false);
+    }
+  }, [showToast, t]);
 
   const noteVideos = useMemo(
     () => (note?.images || []).filter((i) => i.type === "video"),
@@ -207,7 +264,8 @@ export default function NoteDetailScreen({ route, navigation }) {
       const analysis = result.analysis || result;
       const scores = result.scores || null;
       setStreamingText("");
-      handleUpdateNote({ ...note, aiComment: analysis, aiScores: scores, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
+      // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
+      handleUpdateNote({ ...(noteRef.current || note), aiComment: analysis, aiScores: scores, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
       showToast(t("noteDetail.ai_complete"), "success");
 
       // Submit anonymous metadata for ALL users (no personal content)
@@ -250,7 +308,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                   submitTrainingData({
                     field: note.field,
                     noteContent: note.content,
-                    aiFeedback: result,
+                    aiFeedback: analysis,
                     noteTitle: note.title,
                   }).catch(() => {});
                 },
@@ -261,11 +319,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       }
     } catch (e) {
       if (e?.message === "AI_QUOTA") {
-        // 쿼터 소진 = 프리미엄 전환의 최적 순간
-        Alert.alert(t("common.video_quota_exceeded"), "", [
-          { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
-          { text: t("common.cancel") || "OK", style: "cancel" },
-        ]);
+        promptQuotaExceeded(); // 게스트→로그인, 로그인유저→프리미엄
       } else {
         showToast(t("noteDetail.ai_failed"), "error");
       }
@@ -305,29 +359,30 @@ export default function NoteDetailScreen({ route, navigation }) {
         userProfile,
         (progress) => setVideoAiProgress(progress)
       );
-      handleUpdateNote({ ...note, videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || note.transcript });
+      // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
+      const latestNote = noteRef.current || note;
+      handleUpdateNote({ ...latestNote, videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
       showToast(t("noteDetail.video_ai_complete"), "success");
     } catch (e) {
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
-      Alert.alert(
-        t("noteDetail.video_ai_failed"),
-        quota ? t("common.video_quota_exceeded") : t("common.video_ai_retry_msg"),
-        quota
-          ? [
-              { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
-              { text: t("common.confirm"), style: "cancel" },
-            ]
-          : [
-              { text: t("common.cancel"), style: "cancel" },
-              { text: t("common.retry"), onPress: () => startVideoAIRef.current?.() },
-            ]
-      );
+      if (quota) {
+        promptQuotaExceeded(); // 게스트→로그인, 로그인유저→프리미엄
+      } else {
+        Alert.alert(
+          t("noteDetail.video_ai_failed"),
+          t("common.video_ai_retry_msg"),
+          [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("common.retry"), onPress: () => startVideoAIRef.current?.() },
+          ]
+        );
+      }
     } finally {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t]);
+  }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t, promptQuotaExceeded]);
 
   useEffect(() => {
     startVideoAIRef.current = startVideoAI;
@@ -573,6 +628,14 @@ export default function NoteDetailScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* 공유 카드 — 화면 밖에서 렌더(캡처용). aiComment 있을 때만 */}
+      {note.aiComment ? (
+        <View style={styles.offscreen} pointerEvents="none">
+          <FeedbackShareCard ref={feedCardRef} {...buildCardProps(note, "feed")} />
+          <FeedbackShareCard ref={storyCardRef} {...buildCardProps(note, "story")} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 
@@ -741,9 +804,18 @@ export default function NoteDetailScreen({ route, navigation }) {
             </View>
             <View style={styles.aiDivider} />
             <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text>
-            <TouchableOpacity style={styles.reAnalyzeBtn} onPress={handleRequestAI}>
-              <Text style={[T.smallBold, { color: CLight.pink }]}>{t("noteDetail.ai_reanalyze")}</Text>
-            </TouchableOpacity>
+            <View style={styles.aiActionRow}>
+              <TouchableOpacity style={styles.shareBtn} onPress={handleShareFeedback} disabled={sharing}>
+                {sharing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[T.smallBold, { color: "#fff" }]}>{t("noteDetail.share_cta")}</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.reAnalyzeBtn} onPress={handleRequestAI}>
+                <Text style={[T.smallBold, { color: CLight.pink }]}>{t("noteDetail.ai_reanalyze")}</Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.aiFeedbackRow}>
               <Text style={[T.small, { color: CLight.gray500 }]}>{t("noteDetail.ai_feedback_question")}</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
@@ -1088,13 +1160,32 @@ const styles = StyleSheet.create({
     backgroundColor: CLight.gray200,
     marginVertical: 14,
   },
-  reAnalyzeBtn: {
+  aiActionRow: {
     marginTop: 16,
-    alignSelf: "flex-end",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 8,
+  },
+  shareBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: CLight.pink,
+    minWidth: 84,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reAnalyzeBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 14,
     backgroundColor: CLight.pinkSoft,
+  },
+  offscreen: {
+    position: "absolute",
+    left: -10000,
+    top: 0,
   },
   aiFeedbackRow: {
     flexDirection: "row",
