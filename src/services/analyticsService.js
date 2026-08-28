@@ -69,13 +69,22 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
   const noteScore = Math.min(100, savedNotes.length * 5);
   const aiScore = Math.min(100, aiAnalyzedCount * 10);
   const diversityScore = Math.min(100, Object.keys(fieldCounts).length * 20);
+  // 전문성 — 한 분야만 파는 사용자가 구조적으로 불리하던 문제 수정(2026-08-27 실사용자 제보).
+  // 예전 종합점수는 '다양성(분야수×20)'을 썼는데, 연기만 하는 성실한 학생일수록 3~4주 만에
+  // 다른 축이 다 포화되고 다양성 20점에 막혀 60점대 초반에서 영구 정지했다(실데이터 4명 검증).
+  // 분야 수와 태그 다양성(같은 분야 안에서 기법·감정을 얼마나 폭넓게 다뤘나) 중 큰 쪽을 쓴다 —
+  // max()라 어떤 기존 사용자도 점수가 내려가지 않고, 태그는 연습할수록 쌓여 점수가 계속 움직인다.
+  const specializationScore = Math.min(100, Math.max(
+    Object.keys(fieldCounts).length * 20,
+    Object.keys(tagCounts).length * 8,
+  ));
   const depthScore = Math.min(100, Math.round(totalContentLength / 100));
   const consistencyScore = (() => {
     if (savedNotes.length < 2) return 0;
     const dates = savedNotes.map((n) => new Date(n.createdAt).toDateString());
     return Math.min(100, [...new Set(dates)].length * 8);
   })();
-  const overallScore = Math.round((noteScore + aiScore + diversityScore + depthScore + consistencyScore) / 5);
+  const overallScore = Math.round((noteScore + aiScore + specializationScore + depthScore + consistencyScore) / 5);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
