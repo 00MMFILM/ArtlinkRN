@@ -561,7 +561,11 @@
     "empty_fields": "添加笔记后可查看领域分布。",
     "empty_tags": "尝试在笔记中添加标签。",
     "view_portfolio": "查看作品集",
-    "month_suffix": "{{month}}月"
+    "month_suffix": "{{month}}月",
+    "level": "等级",
+    "level_value": "Lv {{level}}",
+    "mileage": "练习积分",
+    "next_level": "距下一等级还需{{n}}"
   },
   "portfolio": {
     "title": "作品集",
@@ -621,7 +625,8 @@
     "started_today": "今天开始",
     "recording_days": "已记录{{days}}天",
     "recording_weeks": "已记录{{weeks}}周",
-    "recording_months": "已记录{{months}}个月"
+    "recording_months": "已记录{{months}}个月",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "B2B仪表板",
@@ -663,7 +668,9 @@
     "own_profile": "这是您自己的资料。",
     "demo_no_proposal": "示例数据无法发送提案。",
     "min": "最小",
-    "max": "最大"
+    "max": "最大",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · 积分{{mileage}}"
   },
   "inbox": {
     "title": "提案箱",

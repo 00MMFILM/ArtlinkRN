@@ -570,7 +570,11 @@
     "empty_fields": "Add notes to see your field distribution.",
     "empty_tags": "Try adding tags to your notes.",
     "view_portfolio": "View portfolio",
-    "month_suffix": "{{month}}"
+    "month_suffix": "{{month}}",
+    "level": "Level",
+    "level_value": "Lv {{level}}",
+    "mileage": "Practice Mileage",
+    "next_level": "{{n}} to next level"
   },
   "portfolio": {
     "title": "Portfolio",
@@ -637,7 +641,8 @@
     "started_today": "Started today",
     "recording_days": "Recording for {{days}} days",
     "recording_weeks": "Recording for {{weeks}} weeks",
-    "recording_months": "Recording for {{months}} months"
+    "recording_months": "Recording for {{months}} months",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "B2B Dashboard",
@@ -680,7 +685,9 @@
     "own_profile": "This is your own profile.",
     "demo_no_proposal": "Cannot send proposals to sample data.",
     "min": "Min",
-    "max": "Max"
+    "max": "Max",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · {{mileage}} mileage"
   },
   "inbox": {
     "title": "Inbox",

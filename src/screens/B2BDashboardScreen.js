@@ -63,6 +63,8 @@ function transformProfile(p) {
     location: p.location,
     agency: p.agency,
     score: p.score || 0,
+    mileage: p.mileage || 0,
+    level: p.level || 1,
     bio: p.bio,
     photoUrl: p.photo_url || null,
     photos: p.photos || [],
@@ -179,8 +181,15 @@ export default function B2BDashboardScreen({ navigation }) {
               {(actor.fields || []).map((f) => t("fields." + f)).join(", ")}
             </Text>
           </View>
-          <View style={styles.scoreCircle}>
-            <Text style={[T.captionBold, { color: CLight.pink }]}>{actor.score}</Text>
+          <View style={{ alignItems: "center" }}>
+            <View style={styles.scoreCircle}>
+              <Text style={[T.captionBold, { color: CLight.pink }]}>{actor.score}</Text>
+            </View>
+            <View style={styles.levelPill}>
+              <Text style={[T.tinyBold, { color: CLight.pink }]}>
+                {t("b2b.level_value", { level: actor.level ?? 1 })}
+              </Text>
+            </View>
           </View>
         </View>
         {/* Specialties pills */}
@@ -402,6 +411,12 @@ export default function B2BDashboardScreen({ navigation }) {
                   <Text style={[T.micro, { color: CLight.gray500 }]}>{t("b2b.streak_days", { count: actor.streak })}</Text>
                   {actor.location ? <Text style={[T.micro, { color: CLight.gray500 }]}>{actor.location}</Text> : null}
                 </View>
+                <Text style={[T.micro, { color: CLight.gray500, marginTop: 6 }]}>
+                  {t("b2b.level_mileage", {
+                    level: actor.level ?? 1,
+                    mileage: (actor.mileage ?? 0).toLocaleString(),
+                  })}
+                </Text>
 
                 {/* Proposal buttons */}
                 {actor.userId && actor.userId !== deviceUserId && (
@@ -617,6 +632,7 @@ const styles = StyleSheet.create({
   actorAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   actorAvatarImg: { width: 44, height: 44, borderRadius: 22 },
   scoreCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: CLight.pinkSoft, alignItems: "center", justifyContent: "center" },
+  levelPill: { marginTop: 4, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: CLight.pinkSoft },
   specRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   specPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CLight.gray50, borderWidth: 1, borderColor: CLight.gray200 },
   specPillText: { ...T.tiny, color: CLight.gray600 || CLight.gray500 },

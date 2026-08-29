@@ -183,6 +183,11 @@ export default function ShareCardScreen({ navigation }) {
             <View style={[styles.levelBadge, { backgroundColor: getScoreBg() }]}>
               <Text style={[T.microBold, { color: getStatValueColor() }]}>{level.label}</Text>
               <Text style={[T.tiny, { color: getCardSub() }]}>{t(level.labelKey)}</Text>
+              {typeof artistProfile.level === "number" ? (
+                <Text style={[T.tiny, { color: getCardSub(), marginTop: 2 }]}>
+                  {t("shareCard.level_value", { level: artistProfile.level })}
+                </Text>
+              ) : null}
             </View>
           </View>
 

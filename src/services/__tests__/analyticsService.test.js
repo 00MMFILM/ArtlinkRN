@@ -1,4 +1,4 @@
-import { computeArtistProfile } from "../analyticsService";
+import { computeArtistProfile, levelForMileage, thresholdForLevel } from "../analyticsService";
 
 // 2026-08-29 실사용자 제보: 한 분야만 성실히 파는 사용자의 종합점수가 고정되던 버그.
 // 실데이터(엄성욱: 노트 33개·AI 30개·26일 기록)로 재현하고, 고쳐진 상태를 고정한다.
@@ -66,5 +66,96 @@ describe("computeArtistProfile — 깊이(영상·음성 기록 미반영 버그
     const p = computeArtistProfile([], {});
     expect(p.overallScore).toBe(0);
     expect(p.specializationScore).toBe(0);
+  });
+});
+
+// 2026-08-29 연습 마일리지·레벨 — 서버(artlink-server)와 동일한 공식.
+// mileage = 노트수*10 + AI분석수*15 + 기록한날수*20 + 미디어수*15 + floor(총글자수/100)
+// level(L) threshold = 25*L*(L+1), 상한 없음.
+describe("levelForMileage — 검증 오라클", () => {
+  it.each([
+    [1333, 6],
+    [1406, 7],
+    [1487, 7],
+    [1140, 6],
+    [971, 5],
+    [536, 4],
+    [45, 1],
+    [0, 1],
+  ])("mileage %i -> level %i", (mileage, expectedLevel) => {
+    expect(levelForMileage(mileage)).toBe(expectedLevel);
+  });
+
+  it("threshold(L) = 25*L*(L+1) — Lv1~Lv10", () => {
+    expect(thresholdForLevel(1)).toBe(50);
+    expect(thresholdForLevel(2)).toBe(150);
+    expect(thresholdForLevel(3)).toBe(300);
+    expect(thresholdForLevel(4)).toBe(500);
+    expect(thresholdForLevel(5)).toBe(750);
+    expect(thresholdForLevel(6)).toBe(1050);
+    expect(thresholdForLevel(7)).toBe(1400);
+    expect(thresholdForLevel(10)).toBe(2750);
+  });
+});
+
+// 엄성욱 실데이터 재현: 노트 33개·AI 30개·기록 26일·영상분석 2개·타이핑 총 345자, 사진/음성 없음
+// -> mileage 1333, level 6 (서버 실측값과 일치해야 함)
+function makeSeongwookNotes({ withPhotosAndVoice = false } = {}) {
+  const notes = [];
+  for (let i = 0; i < 33; i++) {
+    notes.push({
+      id: i + 1,
+      field: "acting",
+      title: `노트 ${i + 1}`,
+      content: i === 0 ? "가".repeat(345) : "",
+      tags: [],
+      createdAt: new Date(2026, 7, 1 + (i % 26)).toISOString(),
+      aiComment: i < 30 ? "AI 피드백" : undefined,
+      videoAnalysis: i < 2 ? "영상 분석 결과" : undefined,
+      ...(withPhotosAndVoice && i === 0
+        ? { images: ["a.jpg", "b.jpg"], voiceRecordings: ["c.m4a"] }
+        : {}),
+    });
+  }
+  return notes;
+}
+
+describe("computeArtistProfile — 마일리지·레벨", () => {
+  it("엄성욱 실데이터 재현: mileage 1333, level 6", () => {
+    const p = computeArtistProfile(makeSeongwookNotes(), {});
+    expect(p.mileage).toBe(1333);
+    expect(p.level).toBe(6);
+  });
+
+  it("사진·음성이 있으면 마일리지가 더 오른다", () => {
+    const base = computeArtistProfile(makeSeongwookNotes(), {});
+    const withMedia = computeArtistProfile(makeSeongwookNotes({ withPhotosAndVoice: true }), {});
+    expect(withMedia.mileage).toBeGreaterThan(base.mileage);
+  });
+
+  it("노트 0개 -> mileage 0, level 1", () => {
+    const p = computeArtistProfile([], {});
+    expect(p.mileage).toBe(0);
+    expect(p.level).toBe(1);
+  });
+
+  it("mileageProgress는 0~1 범위 안에 있다", () => {
+    const seongwook = computeArtistProfile(makeSeongwookNotes(), {});
+    expect(seongwook.mileageProgress).toBeGreaterThanOrEqual(0);
+    expect(seongwook.mileageProgress).toBeLessThanOrEqual(1);
+
+    const empty = computeArtistProfile([], {});
+    expect(empty.mileageProgress).toBeGreaterThanOrEqual(0);
+    expect(empty.mileageProgress).toBeLessThanOrEqual(1);
+
+    // 오라클 mileage 값들도 computeArtistProfile 없이 직접 검산
+    [0, 45, 536, 971, 1140, 1333, 1406, 1487].forEach((mileage) => {
+      const level = levelForMileage(mileage);
+      const nextAt = thresholdForLevel(level + 1);
+      const start = level === 1 ? 0 : thresholdForLevel(level);
+      const progress = (mileage - start) / (nextAt - start);
+      expect(progress).toBeGreaterThanOrEqual(0);
+      expect(progress).toBeLessThanOrEqual(1);
+    });
   });
 });

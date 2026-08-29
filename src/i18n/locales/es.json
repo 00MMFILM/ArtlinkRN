@@ -561,7 +561,11 @@
     "empty_fields": "Agrega notas para ver la distribución por disciplina.",
     "empty_tags": "Prueba a agregar etiquetas a tus notas.",
     "view_portfolio": "Ver portafolio",
-    "month_suffix": "{{month}}"
+    "month_suffix": "{{month}}",
+    "level": "Nivel",
+    "level_value": "Lv {{level}}",
+    "mileage": "Puntos de práctica",
+    "next_level": "{{n}} para el siguiente nivel"
   },
   "portfolio": {
     "title": "Portafolio",
@@ -621,7 +625,8 @@
     "started_today": "Comenzó hoy",
     "recording_days": "{{days}} días de registros",
     "recording_weeks": "{{weeks}} semanas de registros",
-    "recording_months": "{{months}} meses de registros"
+    "recording_months": "{{months}} meses de registros",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "Panel B2B",
@@ -663,7 +668,9 @@
     "own_profile": "Este es tu propio perfil.",
     "demo_no_proposal": "No se pueden enviar propuestas a datos de ejemplo.",
     "min": "Mín.",
-    "max": "Máx."
+    "max": "Máx.",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · {{mileage}} puntos"
   },
   "inbox": {
     "title": "Bandeja de propuestas",

@@ -1,4 +1,18 @@
 import { FIELD_LABELS, FIELD_EMOJIS } from "../constants/theme";
+import { toLocalDateKey } from "../utils/helpers";
+
+// 마일리지 레벨 임계값(서버 artlink-server와 반드시 동일한 공식 — 임의 변경 금지)
+export function thresholdForLevel(level) {
+  return 25 * level * (level + 1);
+}
+
+// 레벨 상한 없음. threshold(L) <= mileage 인 가장 큰 L, 최소 1.
+export function levelForMileage(mileage) {
+  const xp = Math.max(0, mileage || 0);
+  let level = 0;
+  while (thresholdForLevel(level + 1) <= xp) level++;
+  return Math.max(1, level);
+}
 
 export function getRelatedNotes(note, allNotes, maxResults = 5) {
   if (!note || allNotes.length < 2) return [];
@@ -53,6 +67,7 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
   const monthlyActivity = {};
   let totalContentLength = 0;
   let mediaRecordCount = 0;
+  const recordedLocalDates = new Set();
 
   savedNotes.forEach((n) => {
     fieldCounts[n.field] = (fieldCounts[n.field] || 0) + 1;
@@ -66,6 +81,8 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
       (n.voiceRecordings?.length || 0) +
       (n.audioFiles?.length || 0) +
       (n.videoAnalysis ? 1 : 0);
+    // 마일리지의 '기록한 날수'는 로컬 날짜 기준(UTC면 KST 새벽에 어긋난다).
+    recordedLocalDates.add(toLocalDateKey(n.createdAt));
   });
 
   const topFields = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1]);
@@ -136,12 +153,30 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
   const radarValues = [noteScore, aiScore, diversityScore, depthScore, consistencyScore, specializationScore];
   const radarLabels = ["기록량", "AI활용", "다양성", "깊이", "꾸준함", "전문성"];
 
+  // 연습 마일리지 — 서버(artlink-server)와 동일한 공식. 화면 즉시 표시용 로컬 계산.
+  // mileage = 노트수*10 + AI분석수*15 + 기록한날수*20 + 미디어수*15 + floor(총글자수/100)
+  const recordedDaysCount = recordedLocalDates.size;
+  const mileage =
+    savedNotes.length * 10 +
+    aiAnalyzedCount * 15 +
+    recordedDaysCount * 20 +
+    mediaRecordCount * 15 +
+    Math.floor(totalContentLength / 100);
+  const level = levelForMileage(mileage);
+  const nextLevelAt = thresholdForLevel(level + 1);
+  // 레벨1은 threshold(1)=50이 아니라 0에서 시작한다(모두가 0마일리지로 레벨1에서 출발).
+  const levelSegmentStart = level === 1 ? 0 : thresholdForLevel(level);
+  const mileageProgress = nextLevelAt > levelSegmentStart
+    ? Math.min(1, Math.max(0, (mileage - levelSegmentStart) / (nextLevelAt - levelSegmentStart)))
+    : 0;
+
   return {
     fieldCounts, tagCounts, topFields, topTags, monthlyActivity,
     totalContentLength, aiAnalyzedCount, primaryField,
     noteScore, aiScore, diversityScore, specializationScore, depthScore, consistencyScore, overallScore,
     streak, hasNoteToday,
     weekNotes, weekGrowth,
+    mileage, level, nextLevelAt, mileageProgress,
     featuredNotes, radarValues, radarLabels,
     fieldLabels: FIELD_LABELS, fieldEmojis: FIELD_EMOJIS,
     displayName: userProfile.name || "아티스트",

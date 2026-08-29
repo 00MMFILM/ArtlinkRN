@@ -35,6 +35,43 @@ function ScoreRing({ score }) {
   );
 }
 
+// ─── Level & Mileage ─────────────────────────────────────────
+function MileageBar({ level, mileage, nextLevelAt, mileageProgress }) {
+  const { t } = useTranslation();
+  const safeLevel = level ?? 1;
+  const safeMileage = mileage ?? 0;
+  const pct = Math.max(0, Math.min(1, mileageProgress ?? 0)) * 100;
+  const remaining =
+    typeof nextLevelAt === "number" ? Math.max(0, nextLevelAt - safeMileage) : null;
+
+  return (
+    <View style={styles.mileageCard}>
+      <View style={styles.mileageTopRow}>
+        <View style={styles.levelBadge}>
+          <Text style={[T.micro, { color: CLight.white, opacity: 0.85 }]}>
+            {t("growth.level")}
+          </Text>
+          <Text style={[T.h3, { color: CLight.white }]}>
+            {t("growth.level_value", { level: safeLevel })}
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[T.small, { color: CLight.gray700 }]}>{t("growth.mileage")}</Text>
+          <Text style={[T.h3, { color: CLight.gray900 }]}>{safeMileage.toLocaleString()}</Text>
+        </View>
+      </View>
+      <View style={styles.mileageTrack}>
+        <View style={[styles.mileageFill, { width: `${pct}%` }]} />
+      </View>
+      {remaining !== null ? (
+        <Text style={[T.micro, { color: CLight.gray400, marginTop: 6 }]}>
+          {t("growth.next_level", { n: remaining.toLocaleString() })}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 // ─── Progress Bar ────────────────────────────────────────────
 function ProgressBar({ label, value, color = CLight.pink }) {
   return (
@@ -203,6 +240,10 @@ export default function GrowthScreen({ navigation }) {
     weekNotes,
     weekGrowth,
     displayName,
+    level,
+    mileage,
+    nextLevelAt,
+    mileageProgress,
   } = artistProfile;
 
   const growthLabel =
@@ -238,6 +279,14 @@ export default function GrowthScreen({ navigation }) {
           </Text>
           <ScoreRing score={overallScore} />
         </View>
+
+        {/* ── Level & Mileage ── */}
+        <MileageBar
+          level={level}
+          mileage={mileage}
+          nextLevelAt={nextLevelAt}
+          mileageProgress={mileageProgress}
+        />
 
         {/* ── Score Breakdown ── */}
         <View style={styles.card}>
@@ -385,6 +434,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: CLight.white,
+  },
+
+  // Level & Mileage
+  mileageCard: {
+    backgroundColor: CLight.cardBg,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: CLight.cardBorder,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  mileageTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 12,
+  },
+  levelBadge: {
+    backgroundColor: CLight.pink,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  mileageTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: CLight.gray100,
+    overflow: "hidden",
+  },
+  mileageFill: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: CLight.pink,
   },
 
   // Progress Bar

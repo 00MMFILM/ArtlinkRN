@@ -570,7 +570,11 @@
     "empty_fields": "노트를 추가하면 분야별 분포를 확인할 수 있어요.",
     "empty_tags": "노트에 태그를 추가해보세요.",
     "view_portfolio": "포트폴리오 보기",
-    "month_suffix": "{{month}}월"
+    "month_suffix": "{{month}}월",
+    "level": "레벨",
+    "level_value": "Lv {{level}}",
+    "mileage": "연습 마일리지",
+    "next_level": "다음 레벨까지 {{n}}"
   },
   "portfolio": {
     "title": "포트폴리오",
@@ -637,7 +641,8 @@
     "started_today": "오늘 시작",
     "recording_days": "{{days}}일째 기록 중",
     "recording_weeks": "{{weeks}}주째 기록 중",
-    "recording_months": "{{months}}개월째 기록 중"
+    "recording_months": "{{months}}개월째 기록 중",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "B2B 대시보드",
@@ -680,7 +685,9 @@
     "own_profile": "본인 프로필입니다.",
     "demo_no_proposal": "예시 데이터에는 제안을 보낼 수 없습니다.",
     "min": "최소",
-    "max": "최대"
+    "max": "최대",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · 마일리지 {{mileage}}"
   },
   "inbox": {
     "title": "제안함",

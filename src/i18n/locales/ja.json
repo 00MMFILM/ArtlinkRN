@@ -561,7 +561,11 @@
     "empty_fields": "ノートを追加すると分野別分布を確認できます。",
     "empty_tags": "ノートにタグを追加してみましょう。",
     "view_portfolio": "ポートフォリオを見る",
-    "month_suffix": "{{month}}月"
+    "month_suffix": "{{month}}月",
+    "level": "レベル",
+    "level_value": "Lv {{level}}",
+    "mileage": "練習マイレージ",
+    "next_level": "次のレベルまで{{n}}"
   },
   "portfolio": {
     "title": "ポートフォリオ",
@@ -621,7 +625,8 @@
     "started_today": "今日スタート",
     "recording_days": "{{days}}日目記録中",
     "recording_weeks": "{{weeks}}週目記録中",
-    "recording_months": "{{months}}ヶ月目記録中"
+    "recording_months": "{{months}}ヶ月目記録中",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "B2Bダッシュボード",
@@ -663,7 +668,9 @@
     "own_profile": "ご自身のプロフィールです。",
     "demo_no_proposal": "サンプルデータには提案を送ることができません。",
     "min": "最小",
-    "max": "最大"
+    "max": "最大",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}}・マイレージ{{mileage}}"
   },
   "inbox": {
     "title": "提案ボックス",

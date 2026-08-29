@@ -561,7 +561,11 @@
     "empty_fields": "新增筆記後即可查看領域分布。",
     "empty_tags": "請在筆記中新增標籤。",
     "view_portfolio": "查看作品集",
-    "month_suffix": "{{month}} 月"
+    "month_suffix": "{{month}} 月",
+    "level": "等級",
+    "level_value": "Lv {{level}}",
+    "mileage": "練習積分",
+    "next_level": "距下一等級還需{{n}}"
   },
   "portfolio": {
     "title": "作品集",
@@ -621,7 +625,8 @@
     "started_today": "今天開始",
     "recording_days": "第 {{days}} 天記錄中",
     "recording_weeks": "第 {{weeks}} 週記錄中",
-    "recording_months": "第 {{months}} 個月記錄中"
+    "recording_months": "第 {{months}} 個月記錄中",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "B2B 儀表板",
@@ -663,7 +668,9 @@
     "own_profile": "這是您自己的個人檔案。",
     "demo_no_proposal": "無法向範例資料傳送提案。",
     "min": "最小",
-    "max": "最大"
+    "max": "最大",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · 積分{{mileage}}"
   },
   "inbox": {
     "title": "提案箱",

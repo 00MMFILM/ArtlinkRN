@@ -561,7 +561,11 @@
     "empty_fields": "أضف ملاحظات لعرض التوزيع حسب المجال.",
     "empty_tags": "أضف وسوماً إلى ملاحظاتك.",
     "view_portfolio": "عرض ملف الأعمال",
-    "month_suffix": "{{month}}"
+    "month_suffix": "{{month}}",
+    "level": "المستوى",
+    "level_value": "Lv {{level}}",
+    "mileage": "نقاط التدريب",
+    "next_level": "{{n}} حتى المستوى التالي"
   },
   "portfolio": {
     "title": "ملف الأعمال",
@@ -621,7 +625,8 @@
     "started_today": "بدأ اليوم",
     "recording_days": "يسجّل منذ {{days}} يوم",
     "recording_weeks": "يسجّل منذ {{weeks}} أسبوع",
-    "recording_months": "يسجّل منذ {{months}} شهر"
+    "recording_months": "يسجّل منذ {{months}} شهر",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "لوحة تحكم B2B",
@@ -663,7 +668,9 @@
     "own_profile": "هذا ملفك الشخصي.",
     "demo_no_proposal": "لا يمكن إرسال عروض على البيانات التجريبية.",
     "min": "الحد الأدنى",
-    "max": "الحد الأقصى"
+    "max": "الحد الأقصى",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · {{mileage}} نقطة"
   },
   "inbox": {
     "title": "صندوق العروض",

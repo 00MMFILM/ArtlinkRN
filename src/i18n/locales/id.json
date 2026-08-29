@@ -561,7 +561,11 @@
     "empty_fields": "Tambahkan catatan untuk melihat distribusi bidang.",
     "empty_tags": "Coba tambahkan tag ke catatan Anda.",
     "view_portfolio": "Lihat Portofolio",
-    "month_suffix": "Bulan {{month}}"
+    "month_suffix": "Bulan {{month}}",
+    "level": "Level",
+    "level_value": "Lv {{level}}",
+    "mileage": "Poin Latihan",
+    "next_level": "{{n}} lagi ke level berikutnya"
   },
   "portfolio": {
     "title": "Portofolio",
@@ -621,7 +625,8 @@
     "started_today": "Mulai hari ini",
     "recording_days": "Mencatat selama {{days}} hari",
     "recording_weeks": "Mencatat selama {{weeks}} minggu",
-    "recording_months": "Mencatat selama {{months}} bulan"
+    "recording_months": "Mencatat selama {{months}} bulan",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "Dasbor B2B",
@@ -663,7 +668,9 @@
     "own_profile": "Ini adalah profil Anda sendiri.",
     "demo_no_proposal": "Tidak dapat mengirim proposal ke data contoh.",
     "min": "Min",
-    "max": "Maks"
+    "max": "Maks",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · {{mileage}} poin"
   },
   "inbox": {
     "title": "Kotak Masuk Proposal",

@@ -561,7 +561,11 @@
     "empty_fields": "เพิ่มบันทึกเพื่อดูการกระจายตามสาขา",
     "empty_tags": "ลองเพิ่มแท็กในบันทึก",
     "view_portfolio": "ดูผลงาน",
-    "month_suffix": "เดือน {{month}}"
+    "month_suffix": "เดือน {{month}}",
+    "level": "ระดับ",
+    "level_value": "Lv {{level}}",
+    "mileage": "แต้มฝึกฝน",
+    "next_level": "อีก {{n}} ถึงเลเวลถัดไป"
   },
   "portfolio": {
     "title": "ผลงาน",
@@ -621,7 +625,8 @@
     "started_today": "เริ่มวันนี้",
     "recording_days": "บันทึกมาแล้ว {{days}} วัน",
     "recording_weeks": "บันทึกมาแล้ว {{weeks}} สัปดาห์",
-    "recording_months": "บันทึกมาแล้ว {{months}} เดือน"
+    "recording_months": "บันทึกมาแล้ว {{months}} เดือน",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "แดชบอร์ด B2B",
@@ -663,7 +668,9 @@
     "own_profile": "นี่คือโปรไฟล์ของคุณเอง",
     "demo_no_proposal": "ไม่สามารถส่งข้อเสนอในข้อมูลตัวอย่างได้",
     "min": "ต่ำสุด",
-    "max": "สูงสุด"
+    "max": "สูงสุด",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · แต้ม {{mileage}}"
   },
   "inbox": {
     "title": "กล่องข้อเสนอ",

@@ -202,6 +202,7 @@ export function AppProvider({ children }) {
       score: artistProfile.overallScore || 0,
       notesCount: savedNotes.length,
       streakDays: artistProfile.streak || 0,
+      mileage: artistProfile.mileage || 0,
     };
     upsertArtistProfile(deviceUserId, profileWithStats).catch(() => {});
 

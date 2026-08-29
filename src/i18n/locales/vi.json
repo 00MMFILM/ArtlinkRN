@@ -561,7 +561,11 @@
     "empty_fields": "Thêm ghi chú để xem phân bố theo lĩnh vực.",
     "empty_tags": "Hãy thêm thẻ vào ghi chú của bạn.",
     "view_portfolio": "Xem danh mục đầu tư",
-    "month_suffix": "Tháng {{month}}"
+    "month_suffix": "Tháng {{month}}",
+    "level": "Cấp độ",
+    "level_value": "Lv {{level}}",
+    "mileage": "Điểm luyện tập",
+    "next_level": "Còn {{n}} để lên cấp tiếp theo"
   },
   "portfolio": {
     "title": "Danh mục đầu tư",
@@ -621,7 +625,8 @@
     "started_today": "Bắt đầu hôm nay",
     "recording_days": "Đang ghi chép ngày thứ {{days}}",
     "recording_weeks": "Đang ghi chép tuần thứ {{weeks}}",
-    "recording_months": "Đang ghi chép tháng thứ {{months}}"
+    "recording_months": "Đang ghi chép tháng thứ {{months}}",
+    "level_value": "Lv {{level}}"
   },
   "b2b": {
     "title": "Bảng điều khiển B2B",
@@ -663,7 +668,9 @@
     "own_profile": "Đây là hồ sơ của bạn.",
     "demo_no_proposal": "Không thể gửi đề xuất cho dữ liệu mẫu.",
     "min": "Tối thiểu",
-    "max": "Tối đa"
+    "max": "Tối đa",
+    "level_value": "Lv {{level}}",
+    "level_mileage": "Lv {{level}} · {{mileage}} điểm"
   },
   "inbox": {
     "title": "Hộp thư đề xuất",
