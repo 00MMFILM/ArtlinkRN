@@ -52,13 +52,20 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
   const tagCounts = {};
   const monthlyActivity = {};
   let totalContentLength = 0;
+  let mediaRecordCount = 0;
 
   savedNotes.forEach((n) => {
     fieldCounts[n.field] = (fieldCounts[n.field] || 0) + 1;
     (n.tags || []).forEach((t) => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
     const mk = new Date(n.createdAt).toISOString().slice(0, 7);
     monthlyActivity[mk] = (monthlyActivity[mk] || 0) + 1;
-    totalContentLength += (n.content || "").length;
+    // 말로 남긴 기록(전사)도 쓴 기록과 동등하게 분량으로 센다.
+    totalContentLength += (n.content || "").length + (n.transcript || "").length;
+    mediaRecordCount +=
+      (n.images?.length || 0) +
+      (n.voiceRecordings?.length || 0) +
+      (n.audioFiles?.length || 0) +
+      (n.videoAnalysis ? 1 : 0);
   });
 
   const topFields = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1]);
@@ -74,11 +81,19 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
   // 다른 축이 다 포화되고 다양성 20점에 막혀 60점대 초반에서 영구 정지했다(실데이터 4명 검증).
   // 분야 수와 태그 다양성(같은 분야 안에서 기법·감정을 얼마나 폭넓게 다뤘나) 중 큰 쪽을 쓴다 —
   // max()라 어떤 기존 사용자도 점수가 내려가지 않고, 태그는 연습할수록 쌓여 점수가 계속 움직인다.
+  // 2026-08-29 추가: 태그 보정은 실사용자에게 작동하지 않았다(실사용자 22명 중 태그 사용 4명,
+  // 최대 5개). 한 분야를 깊게 판 기록량 자체를 전문성으로 인정한다 — 연기만 33개 쌓은 사용자가
+  // 분야 수 1개라는 이유로 20점에 묶이던 것이 실제 원인이었다(실데이터 확인).
+  const primaryFieldCount = Object.values(fieldCounts).reduce((m, v) => Math.max(m, v), 0);
   const specializationScore = Math.min(100, Math.max(
     Object.keys(fieldCounts).length * 20,
     Object.keys(tagCounts).length * 8,
+    primaryFieldCount * 8,
   ));
-  const depthScore = Math.min(100, Math.round(totalContentLength / 100));
+  // 깊이 — 타이핑한 글자 수만 세면 영상·음성으로 연습을 남기는 사용자가 구조적으로 0점이 된다
+  // (실데이터: 노트 33개에 타이핑 345자, 영상 기록은 점수에 전혀 반영 안 됨).
+  // 전사는 위에서 글자 수로 합산하고, 첨부한 영상·음성·사진 기록은 건당 가중치로 인정한다.
+  const depthScore = Math.min(100, Math.round(totalContentLength / 100) + mediaRecordCount * 5);
   const consistencyScore = (() => {
     if (savedNotes.length < 2) return 0;
     const dates = savedNotes.map((n) => new Date(n.createdAt).toDateString());
@@ -116,13 +131,15 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
     .sort((a, b) => (b.content || "").length - (a.content || "").length)
     .slice(0, 5);
 
-  const radarValues = [noteScore, aiScore, diversityScore, depthScore, consistencyScore, Math.min(100, topTags.length * 10)];
+  // 레이더의 '전문성'이 태그 개수 기반이라, 태그를 안 쓰는 사용자는 종합점수에 반영된 전문성과
+  // 무관하게 0으로 보였다(2026-08-29). 종합점수와 같은 값을 쓰도록 정합시킨다.
+  const radarValues = [noteScore, aiScore, diversityScore, depthScore, consistencyScore, specializationScore];
   const radarLabels = ["기록량", "AI활용", "다양성", "깊이", "꾸준함", "전문성"];
 
   return {
     fieldCounts, tagCounts, topFields, topTags, monthlyActivity,
     totalContentLength, aiAnalyzedCount, primaryField,
-    noteScore, aiScore, diversityScore, depthScore, consistencyScore, overallScore,
+    noteScore, aiScore, diversityScore, specializationScore, depthScore, consistencyScore, overallScore,
     streak, hasNoteToday,
     weekNotes, weekGrowth,
     featuredNotes, radarValues, radarLabels,
