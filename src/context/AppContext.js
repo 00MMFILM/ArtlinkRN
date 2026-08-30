@@ -5,7 +5,7 @@ import { supabase } from "../services/supabaseClient";
 import i18n from "i18next";
 import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
-import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos } from "../services/profileService";
+import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats } from "../services/profileService";
 import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, deleteNoteFromServer } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
 import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
@@ -49,6 +49,17 @@ export function AppProvider({ children }) {
   const artistProfile = useMemo(
     () => computeArtistProfile(savedNotes, userProfile),
     [savedNotes, userProfile]
+  );
+
+  // B2B 대시보드(서버 계산값)와 앱 화면 표시 점수가 어긋나는 문제 방지용:
+  // profile-sync 응답의 정답 score/mileage/level을 받아 여기 저장한다.
+  const [serverStats, setServerStats] = useState(null);
+
+  // 화면에는 서버 값이 있으면 그것으로 덮되(overallScore/mileage/level만),
+  // radarValues·streak 등 나머지는 항상 로컬 계산값을 유지한다.
+  const displayProfile = useMemo(
+    () => mergeServerStats(artistProfile, serverStats),
+    [artistProfile, serverStats]
   );
 
   const showToast = useCallback((message, type = "success") => {
@@ -204,7 +215,13 @@ export function AppProvider({ children }) {
       streakDays: artistProfile.streak || 0,
       mileage: artistProfile.mileage || 0,
     };
-    upsertArtistProfile(deviceUserId, profileWithStats).catch(() => {});
+    upsertArtistProfile(deviceUserId, profileWithStats)
+      .then((res) => {
+        if (res && res.ok) {
+          setServerStats({ score: res.score, mileage: res.mileage, level: res.level });
+        }
+      })
+      .catch(() => {});
 
     // Upload pending local photos
     const pendingUris = (userProfile.pendingPhotoUris || []);
@@ -510,7 +527,7 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     savedNotes, userProfile, goals, feedbacks,
-    showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
+    showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile: displayProfile,
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
@@ -525,7 +542,7 @@ export function AppProvider({ children }) {
     handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
     savedNotes, userProfile, goals, feedbacks,
-    showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile,
+    showBetaGuide, fieldOrder, storageReady, toast, authState, displayProfile,
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,

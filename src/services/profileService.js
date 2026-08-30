@@ -23,7 +23,21 @@ export async function upsertArtistProfile(userId, profileData) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "profile sync failed");
   }
-  return { user_id: userId, ...profileData };
+  return res.json().catch(() => ({}));
+}
+
+// ─── 서버가 돌려준 정답 통계로 로컬 표시값을 병합 (순수 함수, 테스트용) ─
+// local: computeArtistProfile()이 만든 artistProfile (radarValues/streak 등 포함)
+// server: profile-sync 응답 { score, mileage, level } 또는 null/undefined
+export function mergeServerStats(local, server) {
+  if (!local) return local;
+  if (!server) return local;
+  return {
+    ...local,
+    overallScore: server.score ?? local.overallScore,
+    mileage: server.mileage ?? local.mileage,
+    level: server.level ?? local.level,
+  };
 }
 
 // ─── Fetch public profiles for B2B (서버 경유: 이메일 제거) ─────

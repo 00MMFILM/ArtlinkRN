@@ -1,0 +1,56 @@
+// supabase 클라이언트/AsyncStorage 기반 유틸은 mergeServerStats 테스트에서 쓰지 않으므로 mock (네이티브 모듈 의존 제거)
+jest.mock("../supabaseClient", () => ({ supabase: {}, getAuthToken: () => null }));
+jest.mock("../../utils/storage", () => ({
+  safeStorageGet: async () => null,
+  safeStorageSet: async () => {},
+  STORAGE_KEYS: {},
+}));
+
+import { mergeServerStats } from "../profileService";
+
+describe("mergeServerStats — 앱 표시값과 B2B 대시보드 값 불일치 방지", () => {
+  const local = {
+    overallScore: 60,
+    mileage: 500,
+    level: 3,
+    radarValues: [1, 2, 3, 4, 5, 6],
+    streak: 7,
+    topTags: [["연기", 5]],
+  };
+
+  it("서버 score가 있으면 그 값으로 덮어써 표시한다", () => {
+    const merged = mergeServerStats(local, { score: 83, mileage: 1333, level: 6 });
+    expect(merged.overallScore).toBe(83);
+    expect(merged.mileage).toBe(1333);
+    expect(merged.level).toBe(6);
+  });
+
+  it("서버 mileage/level이 undefined면 로컬 값을 유지한다", () => {
+    const merged = mergeServerStats(local, { score: 83, mileage: undefined, level: undefined });
+    expect(merged.overallScore).toBe(83);
+    expect(merged.mileage).toBe(500);
+    expect(merged.level).toBe(3);
+  });
+
+  it("서버 응답이 null이면 로컬 값을 그대로 반환한다", () => {
+    const merged = mergeServerStats(local, null);
+    expect(merged).toBe(local);
+  });
+
+  it("서버 응답이 undefined여도 로컬 값을 그대로 반환한다", () => {
+    const merged = mergeServerStats(local, undefined);
+    expect(merged).toBe(local);
+  });
+
+  it("radarValues·streak·topTags 등 나머지 필드는 절대 변형하지 않는다", () => {
+    const merged = mergeServerStats(local, { score: 83, mileage: 1333, level: 6 });
+    expect(merged.radarValues).toBe(local.radarValues);
+    expect(merged.streak).toBe(local.streak);
+    expect(merged.topTags).toBe(local.topTags);
+  });
+
+  it("local이 null/undefined면 그대로 반환한다 (초기 로딩 방어)", () => {
+    expect(mergeServerStats(null, { score: 1 })).toBeNull();
+    expect(mergeServerStats(undefined, { score: 1 })).toBeUndefined();
+  });
+});
