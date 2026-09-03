@@ -25,7 +25,32 @@ export default function HomeScreen({ navigation }) {
     userProfile,
     artistProfile,
     fieldOrder,
+    isKoreanLocale,
   } = useApp();
+
+  // 2인 대사 연습 — 한국어 콘텐츠라 KR 로케일만 노출.
+  // 연기·영화 유저: 상단 전폭 카드 / 그 외: 오늘의 연습 퀵 노트 안 한 줄 링크 (2026-09-02 대표 지시)
+  const isActingUser = (userProfile?.fields || []).some((f) => /acting|film/i.test(String(f)));
+  const duetCard = isKoreanLocale ? (
+    <TouchableOpacity
+      style={{
+        backgroundColor: CLight.surface, borderRadius: 16, padding: 16, marginBottom: 16,
+        flexDirection: "row", alignItems: "center",
+        borderWidth: 1, borderColor: isActingUser ? CLight.pinkGlow : CLight.cardBorder,
+      }}
+      onPress={() => navigation.navigate("DuetPractice")}
+      activeOpacity={0.8}
+    >
+      <Text style={{ fontSize: 28, marginRight: 12 }}>🎭</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[T.titleBold, { color: CLight.gray900 }]}>2인 대사 연습</Text>
+        <Text style={[T.small, { color: CLight.gray500, marginTop: 2 }]}>
+          상대역이 대사를 쳐줘요 — 고전 씬 30개, 혼자서도 호흡 연습
+        </Text>
+      </View>
+      <Text style={[T.title, { color: CLight.gray400 }]}>›</Text>
+    </TouchableOpacity>
+  ) : null;
 
   const [expandedField, setExpandedField] = useState(null);
   const [checkinMemo, setCheckinMemo] = useState("");
@@ -207,6 +232,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
 
+        {isActingUser && duetCard}
         {/* ---- Quick actions ---- */}
         <View style={styles.quickActionsContainer}>
           {quickActions.map((action) => (
@@ -286,6 +312,20 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.checkinSaveBtnText}>{t("common.save")}</Text>
               </TouchableOpacity>
             </View>
+          )}
+          {isKoreanLocale && !isActingUser && (
+            <TouchableOpacity
+              style={{
+                flexDirection: "row", alignItems: "center", marginTop: 12,
+                paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: CLight.gray200,
+              }}
+              onPress={() => navigation.navigate("DuetPractice")}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 15, marginRight: 8 }}>🎭</Text>
+              <Text style={[T.small, { color: CLight.gray500, flex: 1 }]}>2인 대사 연습 — 상대역이 대사를 쳐줘요</Text>
+              <Text style={[T.small, { color: CLight.gray400 }]}>›</Text>
+            </TouchableOpacity>
           )}
         </View>
 

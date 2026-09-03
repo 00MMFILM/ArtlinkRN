@@ -25,6 +25,7 @@ import NoteDetailScreen from "./src/screens/NoteDetailScreen";
 import CommunityScreen from "./src/screens/CommunityScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import GrowthScreen from "./src/screens/GrowthScreen";
+import DuetPracticeScreen from "./src/screens/DuetPracticeScreen";
 import MatchingScreen from "./src/screens/MatchingScreen";
 import ShareCardScreen from "./src/screens/ShareCardScreen";
 import PortfolioScreen from "./src/screens/PortfolioScreen";
@@ -374,6 +375,7 @@ function AppNavigator() {
               />
               <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
               <Stack.Screen name="Growth" component={GrowthScreen} />
+              <Stack.Screen name="DuetPractice" component={DuetPracticeScreen} />
               <Stack.Screen name="Matching" component={MatchingScreen} />
               <Stack.Screen
                 name="MatchingPostCreate"

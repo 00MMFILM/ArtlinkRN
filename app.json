@@ -3,7 +3,7 @@
     "name": "Artlink",
     "slug": "ArtlinkRN",
     "scheme": "artlink",
-    "version": "1.10.21",
+    "version": "1.11.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.00MM.artlink",
-      "buildNumber": "76",
+      "buildNumber": "77",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "프로필 사진과 노트에 이미지를 첨부하기 위해 사진 접근 권한이 필요합니다.",
         "NSCameraUsageDescription": "프로필 사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
@@ -29,10 +29,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "versionCode": 78,
+      "versionCode": 79,
       "edgeToEdgeEnabled": true,
       "package": "com.mm00.artlink",
       "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS",
         "CAMERA",
         "POST_NOTIFICATIONS"
       ]
@@ -68,6 +70,12 @@
       "id": "./locales/id.json",
       "ar": "./locales/ar.json",
       "es": "./locales/es.json"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e5ad74b9-85ad-4a41-9155-75217c126393"
     }
   }
 }

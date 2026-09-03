@@ -1,0 +1,313 @@
+// 2인 대사 연습 — 상대역 대사를 쳐주는 연습 상대 (ACT RAW 씬 제공)
+// 모드: 큐 연습(무음 기본·음성 토글) / 대본 보기(내 대사 가림). 음성은 expo-speech —
+// 네이티브 모듈이라 스토어 빌드에 실려야 켜지고, 구버전 바이너리에선 토글 자체가 숨는다.
+// 씬 데이터: 번들 JSON + actraw.kr/duet-scenes.json 원격 갱신 (전부 저작권 만료 고전).
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CLight, T } from "../constants/theme";
+import bundledData from "../data/duet-scenes.json";
+
+// expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
+let Speech = null;
+try { Speech = require("expo-speech"); } catch (e) { Speech = null; }
+
+const REMOTE_URL = "https://actraw.kr/duet-scenes.json";
+
+export default function DuetPracticeScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const [data, setData] = useState(bundledData);
+  const [scene, setScene] = useState(null);
+  const [myRole, setMyRole] = useState(0);
+  const [mode, setMode] = useState(null); // null=설정, 'cue', 'script'
+  const [idx, setIdx] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [hideMine, setHideMine] = useState(true);
+  const [peeked, setPeeked] = useState({}); // 대본 모드에서 개별로 연 내 대사
+  const [voiceOn, setVoiceOn] = useState(false); // 기본 무음 — 낭독 톤이라 원하는 사람만 켠다
+  const [rate, setRate] = useState(1.0);
+  const canSpeak = !!(Speech && Speech.speak);
+
+  const speakLine = (text, onDone) => {
+    if (!canSpeak || !voiceOn) { onDone && onDone(); return; }
+    try {
+      Speech.stop();
+      Speech.speak(text.replace(/\([^)]*\)/g, ""), {
+        language: "ko-KR", rate,
+        onDone: () => onDone && onDone(),
+        onError: () => onDone && onDone(),
+      });
+    } catch (e) { onDone && onDone(); }
+  };
+  const stopSpeak = () => { try { canSpeak && Speech.stop(); } catch (e) {} };
+
+  // 원격 갱신 — 실패해도 번들 데이터로 동작
+  useEffect(() => {
+    let alive = true;
+    fetch(REMOTE_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j?.scenes?.length && j.version >= bundledData.version) setData(j);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const scenes = data.scenes || [];
+  const lines = scene?.lines || [];
+  const line = lines[idx];
+  const partnerName = scene ? scene.roles[1 - myRole]?.name : "";
+
+  const openScene = (s) => { setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
+  const advance = (d) => {
+    stopSpeak();
+    const n = Math.min(Math.max(idx + d, 0), lines.length - 1);
+    setIdx(n); setRevealed(false);
+    const L = lines[n];
+    if (d > 0 && L && L.r !== myRole) speakLine(L.t);
+  };
+
+  useEffect(() => stopSpeak, []); // 화면 이탈 시 음성 정지
+
+  // ---- 헤더 ----
+  const Header = ({ title, onBack }) => (
+    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Text style={[T.title, { color: CLight.gray700 }]}>‹ 뒤로</Text>
+      </TouchableOpacity>
+      <Text style={[T.titleBold, { color: CLight.gray900 }]} numberOfLines={1}>{title}</Text>
+      <View style={{ width: 44 }} />
+    </View>
+  );
+
+  // ================= 씬 목록 =================
+  if (!scene) {
+    return (
+      <View style={[styles.container, { backgroundColor: CLight.bg }]}>
+        <Header title="2인 대사 연습" onBack={() => navigation.goBack()} />
+        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+          <Text style={[T.caption, { color: CLight.gray500, marginBottom: 14 }]}>
+            씬을 고르고 내 배역을 정하면, 상대 배역이 대사를 쳐줍니다.{"\n"}전부 저작권 만료 고전 — 연습·시험에 자유롭게 쓸 수 있어요.
+          </Text>
+          {scenes.map((s) => (
+            <TouchableOpacity key={s.id} style={styles.sceneCard} onPress={() => openScene(s)} activeOpacity={0.7}>
+              <Text style={[T.titleBold, { color: CLight.gray900 }]}>{s.play}</Text>
+              <Text style={[T.small, { color: CLight.pink, marginTop: 2 }]}>
+                {s.roles.map((r) => r.name).join(" · ")}
+              </Text>
+              <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]} numberOfLines={2}>{s.label}</Text>
+              <Text style={[T.micro, { color: CLight.gray400, marginTop: 6 }]}>
+                {s.author} · {s.genre} · {s.lines.length}줄
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 18 }]}>
+            연습 씬 제공 — ACT RAW (actraw.kr)
+          </Text>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ================= 설정 (배역·모드 선택) =================
+  if (!mode) {
+    return (
+      <View style={[styles.container, { backgroundColor: CLight.bg }]}>
+        <Header title={scene.play} onBack={() => setScene(null)} />
+        <ScrollView contentContainerStyle={styles.listContent}>
+          <View style={styles.setupCard}>
+            <Text style={[T.smallBold, { color: CLight.gray500, marginBottom: 8 }]}>내 배역</Text>
+            <View style={styles.chipRow}>
+              {scene.roles.map((r, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.chip, myRole === i && styles.chipOn]}
+                  onPress={() => setMyRole(i)}
+                >
+                  <Text style={[T.bodyBold, { color: myRole === i ? CLight.white : CLight.gray700 }]}>
+                    {r.name} <Text style={T.micro}>{r.gender}</Text>
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {scene.point ? (
+              <Text style={[T.small, { color: CLight.gray500, marginTop: 12 }]}>연기 포인트 — {scene.point}</Text>
+            ) : null}
+          </View>
+
+          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("cue"); setIdx(0); }} activeOpacity={0.8}>
+            <Text style={[T.titleBold, { color: CLight.gray900 }]}>🎬 큐 연습</Text>
+            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
+              상대 대사가 한 줄씩 나오고, 내 차례에 멈춰요. 내 대사는 가려져서 암기 확인이 됩니다.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.modeCard} onPress={() => setMode("script")} activeOpacity={0.8}>
+            <Text style={[T.titleBold, { color: CLight.gray900 }]}>📜 대본 보기</Text>
+            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
+              전체 대사를 순서대로 읽어요. 내 대사만 가리고 훑는 것도 가능해요.
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ================= 큐 연습 모드 =================
+  if (mode === "cue") {
+    const mine = line && line.r === myRole;
+    const prev = idx > 0 ? lines[idx - 1] : null;
+    return (
+      <View style={[styles.container, { backgroundColor: CLight.bg }]}>
+        <Header title={`${scene.play} · ${scene.roles[myRole].name} 역`} onBack={() => setMode(null)} />
+        <View style={styles.stageWrap}>
+          <Text style={[T.micro, { color: CLight.gray400, letterSpacing: 1 }]}>
+            {idx + 1} / {lines.length}
+          </Text>
+          <ScrollView style={{ flex: 1, marginTop: 10 }} showsVerticalScrollIndicator={false}>
+            {prev ? (
+              <Text style={[T.small, { color: CLight.gray400, marginBottom: 14 }]}>
+                {scene.roles[prev.r].name} — {prev.t}
+              </Text>
+            ) : null}
+            <Text style={[T.smallBold, { color: mine ? CLight.pink : CLight.gray500, letterSpacing: 1 }]}>
+              {scene.roles[line.r].name}{mine ? " (나)" : ""}
+            </Text>
+            {mine && !revealed ? (
+              <TouchableOpacity onPress={() => setRevealed(true)} activeOpacity={0.8}>
+                <View style={styles.hiddenBox}>
+                  <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
+                    내 차례예요. 기억나는 대로 말해보고,{"\n"}탭하면 대사를 확인할 수 있어요.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[T.h3, { color: CLight.gray900, marginTop: 8, lineHeight: 32 }]}>{line.t}</Text>
+            )}
+            {line.d ? (
+              <Text style={[T.small, { color: CLight.gray500, marginTop: 10, fontStyle: "italic" }]}>({line.d})</Text>
+            ) : null}
+          </ScrollView>
+          {canSpeak ? (
+            <View style={[styles.chipRow, { paddingTop: 8 }]}>
+              <TouchableOpacity style={[styles.chip, voiceOn && styles.chipOn]} onPress={() => { if (voiceOn) stopSpeak(); setVoiceOn(!voiceOn); }}>
+                <Text style={[T.smallBold, { color: voiceOn ? CLight.white : CLight.gray700 }]}>🔊 상대 대사 음성</Text>
+              </TouchableOpacity>
+              {voiceOn ? [0.8, 1.0, 1.2].map((r) => (
+                <TouchableOpacity key={r} style={[styles.chip, rate === r && styles.chipOn]} onPress={() => setRate(r)}>
+                  <Text style={[T.smallBold, { color: rate === r ? CLight.white : CLight.gray700 }]}>{r}x</Text>
+                </TouchableOpacity>
+              )) : null}
+            </View>
+          ) : null}
+          <View style={styles.controls}>
+            <TouchableOpacity style={styles.ctlBtn} onPress={() => advance(-1)} disabled={idx === 0}>
+              <Text style={[T.bodyBold, { color: idx === 0 ? CLight.gray300 : CLight.gray700 }]}>이전</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctlBtn, styles.ctlMain]} onPress={() => advance(1)} disabled={idx >= lines.length - 1}>
+              <Text style={[T.bodyBold, { color: CLight.white }]}>
+                {idx >= lines.length - 1 ? "끝" : mine && !revealed ? "건너뛰고 다음" : "다음"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.ctlBtn} onPress={() => { setIdx(0); setRevealed(false); }}>
+              <Text style={[T.bodyBold, { color: CLight.gray700 }]}>처음부터</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ================= 대본 보기 모드 =================
+  return (
+    <View style={[styles.container, { backgroundColor: CLight.bg }]}>
+      <Header title={`${scene.play} · 대본`} onBack={() => setMode(null)} />
+      <View style={styles.scriptTools}>
+        <TouchableOpacity
+          style={[styles.chip, hideMine && styles.chipOn]}
+          onPress={() => { setHideMine(!hideMine); setPeeked({}); }}
+        >
+          <Text style={[T.smallBold, { color: hideMine ? CLight.white : CLight.gray700 }]}>
+            내 대사 가리기 ({scene.roles[myRole].name})
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {lines.map((L, i) => {
+          const mine = L.r === myRole;
+          const masked = mine && hideMine && !peeked[i];
+          return (
+            <TouchableOpacity
+              key={i}
+              activeOpacity={masked ? 0.7 : 1}
+              onPress={() => masked && setPeeked({ ...peeked, [i]: true })}
+            >
+              <View style={[styles.lineRow, mine && styles.lineMine]}>
+                <Text style={[T.smallBold, { color: mine ? CLight.pink : CLight.gray500 }]}>
+                  {scene.roles[L.r].name}{mine ? " (나)" : ""}
+                </Text>
+                <Text style={[T.body, { color: masked ? CLight.gray300 : CLight.gray900, marginTop: 2 }]}>
+                  {masked ? "● ● ●  (탭해서 확인)" : L.t}
+                </Text>
+                {L.d && !masked ? (
+                  <Text style={[T.micro, { color: CLight.gray400, marginTop: 3, fontStyle: "italic" }]}>({L.d})</Text>
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+        <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 18 }]}>
+          연습 씬 제공 — ACT RAW (actraw.kr)
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingBottom: 12, backgroundColor: CLight.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: CLight.gray200,
+  },
+  listContent: { padding: 16 },
+  sceneCard: {
+    backgroundColor: CLight.surface, borderRadius: 14, padding: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: CLight.cardBorder,
+  },
+  setupCard: {
+    backgroundColor: CLight.surface, borderRadius: 14, padding: 16, marginBottom: 12,
+  },
+  chipRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  chip: {
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
+    backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200,
+  },
+  chipOn: { backgroundColor: CLight.pink, borderColor: CLight.pink },
+  modeCard: {
+    backgroundColor: CLight.surface, borderRadius: 14, padding: 18, marginBottom: 10,
+    borderWidth: 1, borderColor: CLight.cardBorder,
+  },
+  stageWrap: { flex: 1, padding: 20 },
+  hiddenBox: {
+    marginTop: 12, paddingVertical: 34, paddingHorizontal: 16, borderRadius: 14,
+    backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200, borderStyle: "dashed",
+  },
+  controls: { flexDirection: "row", gap: 8, paddingTop: 10 },
+  ctlBtn: {
+    flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center",
+    backgroundColor: CLight.gray100,
+  },
+  ctlMain: { flex: 1.6, backgroundColor: CLight.pink },
+  scriptTools: { paddingHorizontal: 16, paddingTop: 12, flexDirection: "row" },
+  lineRow: {
+    backgroundColor: CLight.surface, borderRadius: 12, padding: 13, marginBottom: 8,
+  },
+  lineMine: { borderLeftWidth: 3, borderLeftColor: CLight.pink },
+});
