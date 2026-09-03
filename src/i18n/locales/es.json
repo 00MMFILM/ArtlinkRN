@@ -188,7 +188,10 @@
     "view_all": "Ver todo",
     "empty_title": "¡Escribe tu primera nota!",
     "empty_desc": "Registra tus actividades artísticas:\npráctica, actuaciones, inspiración...\ny la IA las analizará por ti.",
-    "write_note": "Escribir una nota"
+    "write_note": "Escribir una nota",
+    "hero_title": "Registra tu primera práctica",
+    "hero_desc": "Con una sola línea sobre un diálogo, una canción o un ensayo,\nla IA te da su comentario al instante. Gratis y sin registro.",
+    "hero_cta": "Registrar y recibir comentario de IA"
   },
   "notes": {
     "search_placeholder": "Buscar notas...",
@@ -816,5 +819,11 @@
     "message": "Al usar el análisis de IA, los siguientes datos se envían a través del servidor de Artlink a OpenAI para generar retroalimentación.\n\nDatos enviados:\n• Título y contenido de la nota\n• Imágenes y videos adjuntos\n• Grabaciones de voz (convertidas a texto antes del envío)\n• Documentos adjuntos (texto PDF)\n• Información del campo (actuación, música, etc.)\n• Información del perfil (experiencia, referentes, intereses, habilidades especiales)\n• Historial de análisis de IA de notas anteriores (hasta 10 resúmenes recientes)\n\nDespués del análisis de IA, se almacenan estadísticas de uso anónimas (identificador del dispositivo, campo, etiquetas, etc.) en Supabase para la mejora del servicio.\n\nLos datos se utilizan únicamente para generar retroalimentación de IA y mejorar el servicio. OpenAI y Supabase proporcionan niveles equivalentes de protección de datos.\n\nConsulte nuestra Política de Privacidad para más detalles.",
     "accept": "Aceptar y analizar",
     "cancel": "Cancelar"
+  },
+  "signupNudge": {
+    "title": "¿Quieres conservar este comentario?",
+    "msg": "Al registrarte, esta nota y su comentario se guardan en tu cuenta y aumentan tus comentarios de IA gratuitos. Registrarse es gratis.",
+    "later": "Más tarde",
+    "cta": "Registrarme gratis"
   }
 }

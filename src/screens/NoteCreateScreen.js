@@ -13,6 +13,7 @@ import {
   Platform,
   Image,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
@@ -29,8 +30,23 @@ import { trackFunnelEvent } from "../services/mauService";
 import TopBar from "../components/TopBar";
 import { useTranslation } from "react-i18next";
 
+// 게스트 가입 유도는 기기당 딱 1회 (리마인더 플래그와 같은 방식)
+const SIGNUP_NUDGE_KEY = "artlink-signup-nudge-asked";
+async function hasAskedSignupNudge() {
+  try {
+    return (await AsyncStorage.getItem(SIGNUP_NUDGE_KEY)) === "true";
+  } catch {
+    return false;
+  }
+}
+async function markSignupNudgeAsked() {
+  try {
+    await AsyncStorage.setItem(SIGNUP_NUDGE_KEY, "true");
+  } catch {}
+}
+
 export default function NoteCreateScreen({ navigation, route }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState } = useApp();
 
   // AI 쿼터 소진: 게스트→로그인 유도, 로그인 유저→프리미엄 안내
@@ -219,6 +235,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       );
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
+      trackFunnelEvent("ai_feedback_done", i18n.language);
       maybeOfferReminder();
     } catch (e) {
       // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
@@ -228,11 +245,31 @@ export default function NoteCreateScreen({ navigation, route }) {
     } finally {
       setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t, promptQuotaExceeded]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t, i18n.language, promptQuotaExceeded]);
 
-  // 첫 AI 피드백 직후 딱 한 번: 매일 이 시간에 연습 알림 제안 (Calm 패턴)
+  // 첫 AI 피드백 직후 딱 한 번 — 게스트는 가입 유도, 로그인 유저는 연습 알림 제안 (Calm 패턴)
   const maybeOfferReminder = useCallback(async () => {
     try {
+      if (!userProfile?.authUserId) {
+        if (await hasAskedSignupNudge()) return;
+        await markSignupNudgeAsked();
+        trackFunnelEvent("signup_nudge_shown", i18n.language);
+        Alert.alert(
+          t("signupNudge.title"),
+          t("signupNudge.msg"),
+          [
+            { text: t("signupNudge.later"), style: "cancel" },
+            {
+              text: t("signupNudge.cta"),
+              onPress: () => {
+                trackFunnelEvent("signup_nudge_tapped", i18n.language);
+                setAuthState("auth");
+              },
+            },
+          ]
+        );
+        return;
+      }
       if (await hasAskedReminder()) return;
       await markReminderAsked();
       const now = new Date();
@@ -259,7 +296,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         ]
       );
     } catch {}
-  }, [t]);
+  }, [t, i18n.language, userProfile?.authUserId, setAuthState]);
 
   const handleAnalyze = useCallback(async () => {
     if (!content.trim()) {
@@ -661,8 +698,9 @@ export default function NoteCreateScreen({ navigation, route }) {
     };
     hasUnsavedChangesRef.current = false;
     handleSaveNote(noteData);
+    trackFunnelEvent("note_saved", i18n.language);
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation, t]);
+  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation, t, i18n.language]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({

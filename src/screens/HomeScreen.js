@@ -57,6 +57,8 @@ export default function HomeScreen({ navigation }) {
 
   // ---- Computed data ----
   const recentNotes = useMemo(() => savedNotes.slice(0, 5), [savedNotes]);
+  // 노트가 하나도 없으면 빈 통계 대신 핵심 가치(AI 피드백)를 먼저 보여준다
+  const hasNotes = savedNotes.length > 0;
 
   const weeklySummary = useMemo(() => {
     const now = new Date();
@@ -189,7 +191,24 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ---- Weekly summary card ---- */}
+        {/* ---- Weekly summary (노트 0개면 첫 기록 히어로 카드) ---- */}
+        {!hasNotes ? (
+          <View style={[styles.summaryCard, { backgroundColor: CLight.surface, alignItems: "center" }]}>
+            <Text style={[T.h3, { color: CLight.gray900, textAlign: "center" }]}>
+              {t("home.hero_title")}
+            </Text>
+            <Text style={[T.caption, { color: CLight.gray500, marginTop: 8, textAlign: "center" }]}>
+              {t("home.hero_desc")}
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => navigation.navigate("NoteCreate")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.emptyButtonText}>{t("home.hero_cta")}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={[styles.summaryCard, { backgroundColor: CLight.surface }]}>
           <Text style={[T.captionBold, { color: CLight.gray500, marginBottom: 12 }]}>
             {t("home.weekly_summary")}
@@ -231,6 +250,7 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
         </View>
+        )}
 
         {isActingUser && duetCard}
         {/* ---- Quick actions ---- */}
@@ -330,6 +350,8 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* ---- Recent notes ---- */}
+        {hasNotes && (
+        <>
         <View style={styles.sectionHeader}>
           <Text style={[T.title, { color: CLight.gray900 }]}>{t("home.recent_notes")}</Text>
           {savedNotes.length > 5 && (
@@ -339,7 +361,7 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        {recentNotes.length > 0 ? (
+        {recentNotes.length > 0 && (
           <View style={styles.notesContainer}>
             {recentNotes.map((note) => {
               const fieldColor = note.field ? FIELD_COLORS[note.field] || CLight.gray500 : CLight.gray500;
@@ -391,24 +413,8 @@ export default function HomeScreen({ navigation }) {
               );
             })}
           </View>
-        ) : (
-          /* ---- Empty state ---- */
-          <View style={[styles.emptyCard, { backgroundColor: CLight.surface }]}>
-            <Text style={styles.emptyEmoji}>{"\uD83C\uDFB5"}</Text>
-            <Text style={[T.title, { color: CLight.gray900, marginTop: 12 }]}>
-              {t("home.empty_title")}
-            </Text>
-            <Text style={[T.caption, { color: CLight.gray500, marginTop: 6, textAlign: "center" }]}>
-              {t("home.empty_desc")}
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => navigation.navigate("NoteCreate")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.emptyButtonText}>{t("home.write_note")}</Text>
-            </TouchableOpacity>
-          </View>
+        )}
+        </>
         )}
 
         {/* Bottom spacer for tab bar */}
@@ -625,20 +631,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
 
-  // ---- Empty state ----
-  emptyCard: {
-    borderRadius: 20,
-    padding: 32,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-  },
+  // ---- 첫 기록 히어로 CTA ----
   emptyButton: {
     marginTop: 20,
     backgroundColor: CLight.pink,

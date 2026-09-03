@@ -188,7 +188,10 @@
     "view_all": "모두 보기",
     "empty_title": "첫 번째 노트를 작성해보세요!",
     "empty_desc": "연습, 공연, 영감 등\n예술 활동을 기록하면 AI가 분석해드려요.",
-    "write_note": "노트 작성하기"
+    "write_note": "노트 작성하기",
+    "hero_title": "첫 연습을 기록해보세요",
+    "hero_desc": "대사·노래·연습 한 줄만 적어도\nAI가 바로 피드백을 드려요. 가입 없이 무료.",
+    "hero_cta": "기록하고 AI 피드백 받기"
   },
   "notes": {
     "search_placeholder": "노트 검색...",
@@ -866,5 +869,11 @@
     "guest_trial_title": "무료 체험을 모두 사용했어요",
     "guest_trial_msg": "회원가입하면 AI 피드백을 계속 받을 수 있어요. 가입은 무료입니다.",
     "guest_trial_cta": "회원가입하기"
+  },
+  "signupNudge": {
+    "title": "피드백을 남겨둘까요?",
+    "msg": "가입하면 이 기록과 피드백이 계정에 저장되고, 무료 AI 피드백 횟수도 늘어나요. 가입은 무료예요.",
+    "later": "나중에",
+    "cta": "무료 가입하기"
   }
 }

@@ -188,7 +188,10 @@
     "view_all": "Xem tất cả",
     "empty_title": "Hãy viết ghi chú đầu tiên của bạn!",
     "empty_desc": "Ghi lại các hoạt động nghệ thuật như\nluyện tập, biểu diễn, cảm hứng... AI sẽ phân tích cho bạn.",
-    "write_note": "Viết ghi chú"
+    "write_note": "Viết ghi chú",
+    "hero_title": "Ghi lại buổi tập đầu tiên",
+    "hero_desc": "Chỉ cần một dòng về lời thoại, bài hát hay buổi tập —\nAI sẽ phản hồi ngay. Miễn phí, không cần đăng ký.",
+    "hero_cta": "Ghi lại và nhận phản hồi AI"
   },
   "notes": {
     "search_placeholder": "Tìm kiếm ghi chú...",
@@ -816,5 +819,11 @@
     "message": "Khi sử dụng phân tích AI, các dữ liệu sau đây sẽ được gửi qua máy chủ của Artlink đến OpenAI để tạo phản hồi.\n\nDữ liệu được gửi:\n• Tiêu đề và nội dung ghi chú\n• Hình ảnh và video đính kèm\n• Bản ghi âm giọng nói (được chuyển đổi thành văn bản trước khi gửi)\n• Tài liệu đính kèm (văn bản PDF)\n• Thông tin lĩnh vực (diễn xuất, âm nhạc, v.v.)\n• Thông tin hồ sơ (kinh nghiệm, hình mẫu, sở thích, sở trường)\n• Lịch sử phân tích AI của các ghi chú trước đây (tối đa 10 bản tóm tắt gần nhất)\n\nSau khi phân tích AI, các thống kê sử dụng ẩn danh (mã định danh thiết bị, lĩnh vực, thẻ, v.v.) sẽ được lưu trữ trên Supabase để cải thiện dịch vụ.\n\nDữ liệu chỉ được sử dụng để tạo phản hồi AI và cải thiện dịch vụ. OpenAI và Supabase cung cấp mức độ bảo vệ dữ liệu tương đương.\n\nVui lòng tham khảo Chính sách Bảo mật của chúng tôi để biết chi tiết.",
     "accept": "Đồng ý và phân tích",
     "cancel": "Hủy"
+  },
+  "signupNudge": {
+    "title": "Bạn muốn giữ lại phản hồi này?",
+    "msg": "Đăng ký để ghi chú và phản hồi này được lưu vào tài khoản, đồng thời có thêm lượt phản hồi AI miễn phí. Đăng ký hoàn toàn miễn phí.",
+    "later": "Để sau",
+    "cta": "Đăng ký miễn phí"
   }
 }

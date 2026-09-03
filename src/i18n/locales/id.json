@@ -188,7 +188,10 @@
     "view_all": "Lihat Semua",
     "empty_title": "Tulis catatan pertama Anda!",
     "empty_desc": "Catat latihan, penampilan, inspirasi, dan aktivitas seni lainnya,\nlalu AI akan menganalisisnya untuk Anda.",
-    "write_note": "Tulis Catatan"
+    "write_note": "Tulis Catatan",
+    "hero_title": "Catat latihan pertama Anda",
+    "hero_desc": "Cukup satu baris tentang dialog, nyanyian, atau latihan —\nAI langsung memberi masukan. Gratis, tanpa daftar.",
+    "hero_cta": "Catat dan dapatkan masukan AI"
   },
   "notes": {
     "search_placeholder": "Cari catatan...",
@@ -816,5 +819,11 @@
     "message": "Saat menggunakan analisis AI, data berikut akan dikirim melalui server Artlink ke OpenAI untuk menghasilkan umpan balik.\n\nData yang dikirim:\n• Judul dan isi catatan\n• Gambar dan video terlampir\n• Rekaman suara (diubah menjadi teks sebelum dikirim)\n• Dokumen terlampir (teks PDF)\n• Informasi bidang (akting, musik, dll.)\n• Informasi profil (pengalaman, panutan, minat, keahlian)\n• Riwayat analisis AI catatan sebelumnya (hingga 10 ringkasan terbaru)\n\nSetelah analisis AI, statistik penggunaan anonim (pengidentifikasi perangkat, bidang, tag, dll.) disimpan di Supabase untuk peningkatan layanan.\n\nData hanya digunakan untuk menghasilkan umpan balik AI dan meningkatkan layanan. OpenAI dan Supabase menyediakan tingkat perlindungan data yang setara.\n\nSilakan lihat Kebijakan Privasi kami untuk detail.",
     "accept": "Setuju dan analisis",
     "cancel": "Batal"
+  },
+  "signupNudge": {
+    "title": "Mau simpan masukan ini?",
+    "msg": "Daftar dan catatan serta masukan ini akan tersimpan di akun Anda, plus jatah masukan AI gratis bertambah. Pendaftaran gratis.",
+    "later": "Nanti saja",
+    "cta": "Daftar gratis"
   }
 }

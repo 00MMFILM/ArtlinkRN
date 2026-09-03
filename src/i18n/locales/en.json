@@ -188,7 +188,10 @@
     "view_all": "View all",
     "empty_title": "Write your first note!",
     "empty_desc": "Record your practice, performances, and inspirations,\nand AI will analyze them for you.",
-    "write_note": "Write a note"
+    "write_note": "Write a note",
+    "hero_title": "Record your first practice",
+    "hero_desc": "Just one line about a scene, a song, or a rehearsal —\nAI gives you feedback right away. Free, no sign-up.",
+    "hero_cta": "Write it and get AI feedback"
   },
   "notes": {
     "search_placeholder": "Search notes...",
@@ -866,5 +869,11 @@
     "guest_trial_title": "You've used your free trial",
     "guest_trial_msg": "Sign up to keep getting AI feedback. It's free to join.",
     "guest_trial_cta": "Sign up"
+  },
+  "signupNudge": {
+    "title": "Want to keep this feedback?",
+    "msg": "Sign up and this note and its feedback are saved to your account, plus you get more free AI feedback. Signing up is free.",
+    "later": "Later",
+    "cta": "Sign up free"
   }
 }

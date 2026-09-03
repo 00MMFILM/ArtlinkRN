@@ -11,22 +11,15 @@ import {
   Animated,
   Dimensions,
   Alert,
-  Switch,
   Image,
   ActivityIndicator,
 } from "react-native";
 import { supabase } from "../services/supabaseClient";
 import { trackFunnelEvent } from "../services/mauService";
-import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
-import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
-import {
-  ROLE_MODELS_BY_FIELD, INTERESTS_BY_FIELD, USER_TYPES,
-  GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES,
-} from "../utils/helpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -60,16 +53,15 @@ const artFields = [
   { id: "film", emoji: "\uD83C\uDFAC", labelKey: "auth.field_film" },
 ];
 
-const GENDER_EMOJIS = { male: "\uD83D\uDC68", female: "\uD83D\uDC69", other: "\uD83E\uDDD1" };
-
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 2;
 
 export default function AuthScreen({ navigation }) {
-  const { handleAuth, handleChangeLanguage, language } = useApp();
+  const { handleAuth, handleChangeLanguage, language, userProfile } = useApp();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
-  const [mode, setMode] = useState("login");
+  // 계정이 없는 기기는 가입이 기본 (첫 화면이 로그인 폼이라 이탈하던 문제)
+  const [mode, setMode] = useState(userProfile?.authUserId ? "login" : "signup");
 
   useEffect(() => {
     trackFunnelEvent("auth_reached", language);
@@ -86,64 +78,6 @@ export default function AuthScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedUserType, setSelectedUserType] = useState("");
   const [selectedFields, setSelectedFields] = useState([]);
-  // Step 3: Body info + photos
-  const [photoUris, setPhotoUris] = useState([]);
-  const [gender, setGender] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [height, setHeight] = useState("");
-  const [weight, setWeight] = useState("");
-  const [heightPrivate, setHeightPrivate] = useState(false);
-  const [weightPrivate, setWeightPrivate] = useState(false);
-  // Step 4: Specialties & career
-  const [specialties, setSpecialties] = useState([]);
-  const [customSpecialty, setCustomSpecialty] = useState("");
-  const [school, setSchool] = useState("");
-  const [location, setLocation] = useState("");
-  const [agency, setAgency] = useState("");
-  const [career, setCareer] = useState([]);
-  const [careerTitle, setCareerTitle] = useState("");
-  const [careerRole, setCareerRole] = useState("");
-  const [careerYear, setCareerYear] = useState("");
-  const [careerType, setCareerType] = useState("drama");
-  // Step 5,6: role models, interests
-  const [selectedRoleModels, setSelectedRoleModels] = useState([]);
-  const [roleQuery, setRoleQuery] = useState("");
-  const [roleResults, setRoleResults] = useState([]);
-  const [roleSearching, setRoleSearching] = useState(false);
-  const roleSearchTimer = useRef(null);
-
-  // 인물 검색 (위키백과 연동) — 입력 디바운스 후 서버 호출
-  useEffect(() => {
-    if (roleSearchTimer.current) clearTimeout(roleSearchTimer.current);
-    const q = roleQuery.trim();
-    if (q.length < 2) { setRoleResults([]); setRoleSearching(false); return; }
-    setRoleSearching(true);
-    roleSearchTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`${SERVER_URL}/api/person-search?q=${encodeURIComponent(q)}`, {
-          headers: getApiHeaders(),
-        });
-        const data = await res.json();
-        setRoleResults(data.results || []);
-      } catch (_) {
-        setRoleResults([]);
-      } finally {
-        setRoleSearching(false);
-      }
-    }, 400);
-    return () => roleSearchTimer.current && clearTimeout(roleSearchTimer.current);
-  }, [roleQuery]);
-
-  const addRoleModel = (nameToAdd) => {
-    const v = (nameToAdd || "").trim();
-    if (!v) return;
-    if (!selectedRoleModels.includes(v)) setSelectedRoleModels((prev) => [...prev, v]);
-    setRoleQuery("");
-    setRoleResults([]);
-  };
-  const [selectedInterests, setSelectedInterests] = useState([]);
-  // Profile public consent
-  const [profilePublic, setProfilePublic] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -166,18 +100,12 @@ export default function AuthScreen({ navigation }) {
     email.trim().includes("@") &&
     password.length >= 6 &&
     password === confirmPassword;
-  const isStep1Valid = () => selectedUserType !== "";
-  const isStep2Valid = () => selectedFields.length > 0;
+  const isStep1Valid = () => selectedUserType !== "" && selectedFields.length > 0;
 
   const canProceed = () => {
     switch (signupStep) {
       case 0: return isStep0Valid();
       case 1: return isStep1Valid();
-      case 2: return isStep2Valid();
-      case 3: return true; // body info optional
-      case 4: return true; // specialties optional
-      case 5: return true; // role models optional
-      case 6: return true; // interests optional
       default: return false;
     }
   };
@@ -197,31 +125,6 @@ export default function AuthScreen({ navigation }) {
     } else {
       animateTransition(() => setMode("login"));
     }
-  };
-
-  const handleAddPhoto = async () => {
-    if (photoUris.length >= 6) return;
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(t("common.permission_required"), t("common.photo_permission"));
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled && result.assets?.[0]) {
-        setPhotoUris((prev) => [...prev, result.assets[0].uri]);
-      }
-    } catch (e) {
-      Alert.alert(t("common.error"), t("common.photo_load_error"));
-    }
-  };
-
-  const handleRemovePhoto = (index) => {
-    setPhotoUris((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleComplete = async () => {
@@ -244,23 +147,24 @@ export default function AuthScreen({ navigation }) {
         email: email.trim(),
         userType: selectedUserType,
         fields: selectedFields,
-        gender,
-        birthDate: birthDate.trim(),
-        height: height ? Number(height) : null,
-        weight: weight ? Number(weight) : null,
-        heightPrivate,
-        weightPrivate,
-        specialties,
-        school: school.trim(),
-        location: location.trim(),
-        agency: agency.trim(),
-        career,
+        // 아래 항목은 가입 후 프로필 편집에서 채운다 (서버 스키마 호환용 빈값)
+        gender: "",
+        birthDate: "",
+        height: null,
+        weight: null,
+        heightPrivate: false,
+        weightPrivate: false,
+        specialties: [],
+        school: "",
+        location: "",
+        agency: "",
+        career: [],
         bio: "",
-        roleModels: selectedRoleModels,
-        interests: selectedInterests,
-        profilePublic,
-        photos: photoUris,
-        pendingPhotoUris: photoUris,
+        roleModels: [],
+        interests: [],
+        profilePublic: false,
+        photos: [],
+        pendingPhotoUris: [],
       };
       trackFunnelEvent("signup_completed", language);
       handleAuth(profileData);
@@ -326,36 +230,6 @@ export default function AuthScreen({ navigation }) {
       setLoading(false);
     }
   };
-
-  const handleAddCareer = () => {
-    if (!careerTitle.trim()) return;
-    setCareer((prev) => [...prev, {
-      title: careerTitle.trim(),
-      role: careerRole.trim(),
-      year: careerYear.trim(),
-      type: careerType,
-    }]);
-    setCareerTitle("");
-    setCareerRole("");
-    setCareerYear("");
-  };
-
-  const handleAddCustomSpecialty = () => {
-    const trimmed = customSpecialty.trim();
-    if (!trimmed || specialties.includes(trimmed)) { setCustomSpecialty(""); return; }
-    setSpecialties((prev) => [...prev, trimmed]);
-    setCustomSpecialty("");
-  };
-
-  const availableRoleModels = selectedFields.reduce((acc, field) => {
-    const models = ROLE_MODELS_BY_FIELD[field] || [];
-    return [...acc, ...models.filter((m) => !acc.includes(m))];
-  }, []);
-
-  const availableInterests = selectedFields.reduce((acc, field) => {
-    const items = INTERESTS_BY_FIELD[field] || [];
-    return [...acc, ...items.filter((i) => !acc.includes(i))];
-  }, []);
 
   // ===== RENDER: Login =====
   const renderLogin = () => (
@@ -474,6 +348,7 @@ export default function AuthScreen({ navigation }) {
     </View>
   );
 
+  // 단계 1: 사용자 유형 + 분야 (기존 2개 단계를 한 화면으로 합침)
   const renderStep1 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>{t("auth.step_usertype")}</Text>
@@ -487,12 +362,8 @@ export default function AuthScreen({ navigation }) {
           </TouchableOpacity>
         ))}
       </View>
-    </View>
-  );
 
-  const renderStep2 = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>{t("auth.step_fields")}</Text>
+      <Text style={[styles.stepTitle, { marginTop: 28 }]}>{t("auth.step_fields")}</Text>
       <Text style={styles.stepSubtitle}>{t("auth.step_fields_desc")}</Text>
       <View style={styles.fieldGrid}>
         {artFields.map((field) => {
@@ -508,279 +379,10 @@ export default function AuthScreen({ navigation }) {
     </View>
   );
 
-  // Step 3: Body info (NEW)
-  const renderStep3 = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>{t("auth.step_body")}</Text>
-      <Text style={styles.stepSubtitle}>{t("auth.step_body_desc")}</Text>
-
-      <Text style={styles.inputLabel}>{t("auth.profile_photos")}</Text>
-      <View style={styles.photoGrid}>
-        {photoUris.map((uri, i) => (
-          <View key={i} style={styles.photoGridItem}>
-            <Image source={{ uri }} style={styles.photoGridImg} />
-            <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => handleRemovePhoto(i)}>
-              <Text style={styles.photoRemoveText}>x</Text>
-            </TouchableOpacity>
-            {i === 0 && <View style={styles.mainBadge}><Text style={styles.mainBadgeText}>{t("auth.main_photo")}</Text></View>}
-          </View>
-        ))}
-        {photoUris.length < 6 && (
-          <TouchableOpacity style={styles.photoAddBtn} onPress={handleAddPhoto} activeOpacity={0.7}>
-            <Text style={{ fontSize: 28, color: CLight.gray400 }}>+</Text>
-            <Text style={[T.micro, { color: CLight.gray400 }]}>{t("auth.add_photo")}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <Text style={styles.inputLabel}>{t("auth.gender")}</Text>
-      <View style={styles.genderRow}>
-        {GENDER_OPTIONS.map((g) => (
-          <TouchableOpacity
-            key={g.key}
-            style={[styles.genderCard, gender === g.key && styles.genderCardActive]}
-            onPress={() => setGender(g.key)}
-          >
-            <Text style={styles.genderEmoji}>{GENDER_EMOJIS[g.key]}</Text>
-            <Text style={[styles.genderLabel, gender === g.key && styles.genderLabelActive]}>{t(g.labelKey)}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.inputGroup}>
-        <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>{t("auth.birth_date")}</Text>
-          <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={CLight.gray400} value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" maxLength={10} />
-        </View>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={styles.inputLabel}>{t("auth.height")}</Text>
-              <TouchableOpacity onPress={() => setHeightPrivate(!heightPrivate)} style={[styles.privacyToggle, heightPrivate && styles.privacyToggleActive]}>
-                <Text style={[styles.privacyToggleText, heightPrivate && styles.privacyToggleTextActive]}>{heightPrivate ? t("common.private") : t("common.public")}</Text>
-              </TouchableOpacity>
-            </View>
-            <TextInput style={styles.input} placeholder="170" placeholderTextColor={CLight.gray400} value={height} onChangeText={setHeight} keyboardType="number-pad" maxLength={3} />
-          </View>
-          <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={styles.inputLabel}>{t("auth.weight")}</Text>
-              <TouchableOpacity onPress={() => setWeightPrivate(!weightPrivate)} style={[styles.privacyToggle, weightPrivate && styles.privacyToggleActive]}>
-                <Text style={[styles.privacyToggleText, weightPrivate && styles.privacyToggleTextActive]}>{weightPrivate ? t("common.private") : t("common.public")}</Text>
-              </TouchableOpacity>
-            </View>
-            <TextInput style={styles.input} placeholder="60" placeholderTextColor={CLight.gray400} value={weight} onChangeText={setWeight} keyboardType="number-pad" maxLength={3} />
-          </View>
-        </View>
-        <Text style={[T.micro, { color: CLight.gray400, marginTop: 8, lineHeight: 18 }]}>
-          {t("auth.private_notice")}
-        </Text>
-      </View>
-    </View>
-  );
-
-  // Step 4: Specialties, school, career (NEW)
-  const renderStep4 = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>{t("auth.step_activity")}</Text>
-      <Text style={styles.stepSubtitle}>{t("auth.step_activity_desc")}</Text>
-
-      <Text style={styles.inputLabel}>{t("auth.specialty")}</Text>
-      <View style={styles.pillGrid}>
-        {SPECIALTY_SUGGESTIONS.map((s) => {
-          const isSelected = specialties.includes(s);
-          return (
-            <TouchableOpacity key={s} style={[styles.pill, isSelected && styles.pillActive]} onPress={() => setSpecialties(toggleInArray(specialties, s))}>
-              <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{s}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <View style={[styles.tagInputRow, { marginTop: 10 }]}>
-        <TextInput style={styles.tagInput} placeholder={t("auth.custom_input")} placeholderTextColor={CLight.gray400} value={customSpecialty} onChangeText={setCustomSpecialty} onSubmitEditing={handleAddCustomSpecialty} returnKeyType="done" maxLength={20} />
-        <TouchableOpacity style={[styles.tagAddBtn, !customSpecialty.trim() && styles.tagAddBtnDisabled]} onPress={handleAddCustomSpecialty} disabled={!customSpecialty.trim()}>
-          <Text style={[styles.tagAddText, !customSpecialty.trim() && styles.tagAddTextDisabled]}>{t("common.add")}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.inputGroup, { marginTop: 16 }]}>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <Text style={styles.inputLabel}>{t("auth.school")}</Text>
-            <TextInput style={styles.input} placeholder={t("auth.school_placeholder")} placeholderTextColor={CLight.gray400} value={school} onChangeText={setSchool} />
-          </View>
-          <View style={[styles.inputWrapper, { flex: 1 }]}>
-            <Text style={styles.inputLabel}>{t("auth.location")}</Text>
-            <TextInput style={styles.input} placeholder={t("auth.location_placeholder")} placeholderTextColor={CLight.gray400} value={location} onChangeText={setLocation} />
-          </View>
-        </View>
-        <View style={styles.inputWrapper}>
-          <Text style={styles.inputLabel}>{t("auth.agency")}</Text>
-          <TextInput style={styles.input} placeholder={t("auth.agency_placeholder")} placeholderTextColor={CLight.gray400} value={agency} onChangeText={setAgency} />
-        </View>
-      </View>
-
-      {/* Career section */}
-      <Text style={[styles.inputLabel, { marginTop: 16 }]}>{t("auth.career")}</Text>
-      {career.map((c, i) => (
-        <View key={i} style={styles.careerItem}>
-          <View style={{ flex: 1 }}>
-            <Text style={[T.captionBold, { color: CLight.gray900 }]}>{c.title}</Text>
-            <Text style={[T.micro, { color: CLight.gray500 }]}>{c.role} | {c.year} | {t("careerTypes." + c.type)}</Text>
-          </View>
-          <TouchableOpacity onPress={() => setCareer((prev) => prev.filter((_, idx) => idx !== i))}>
-            <Text style={{ color: CLight.red, fontSize: 18 }}>x</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-      <View style={styles.careerAddSection}>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput style={[styles.input, { flex: 2 }]} placeholder={t("auth.work_title")} placeholderTextColor={CLight.gray400} value={careerTitle} onChangeText={setCareerTitle} />
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder={t("auth.role")} placeholderTextColor={CLight.gray400} value={careerRole} onChangeText={setCareerRole} />
-        </View>
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder={t("auth.year")} placeholderTextColor={CLight.gray400} value={careerYear} onChangeText={setCareerYear} keyboardType="number-pad" maxLength={4} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, alignItems: "center" }} style={{ flex: 2 }}>
-            {CAREER_TYPES.slice(0, 5).map((ct) => (
-              <TouchableOpacity key={ct.key} style={[styles.miniPill, careerType === ct.key && styles.miniPillActive]} onPress={() => setCareerType(ct.key)}>
-                <Text style={[styles.miniPillText, careerType === ct.key && styles.miniPillTextActive]}>{t(ct.labelKey)}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-        <TouchableOpacity style={[styles.addCareerBtn, !careerTitle.trim() && styles.disabledButton]} onPress={handleAddCareer} disabled={!careerTitle.trim()}>
-          <Text style={[T.captionBold, { color: CLight.white }]}>{t("auth.add_career")}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  // Step 5: Role Models — 자유 입력 + 인물 검색(위키백과) + 추천
-  const renderStep5 = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>{t("auth.step_rolemodels")}</Text>
-      <Text style={styles.stepSubtitle}>{t("auth.step_rolemodels_desc")}</Text>
-
-      {/* 인물 검색 입력 */}
-      <View style={styles.roleSearchBox}>
-        <TextInput
-          style={styles.roleSearchInput}
-          placeholder={t("auth.rolemodel_search_placeholder", { defaultValue: "롤모델 이름을 검색하세요 (예: 송강호)" })}
-          placeholderTextColor={CLight.gray400}
-          value={roleQuery}
-          onChangeText={setRoleQuery}
-          autoCorrect={false}
-          returnKeyType="done"
-          onSubmitEditing={() => addRoleModel(roleQuery)}
-        />
-        {roleSearching && <ActivityIndicator size="small" color={CLight.pink} />}
-      </View>
-
-      {/* 검색 결과 */}
-      {roleResults.length > 0 && (
-        <View style={styles.roleResults}>
-          {roleResults.map((r) => (
-            <TouchableOpacity key={r.name} style={styles.roleResultRow} onPress={() => addRoleModel(r.name)}>
-              {r.thumbnail ? (
-                <Image source={{ uri: r.thumbnail }} style={styles.roleThumb} />
-              ) : (
-                <View style={[styles.roleThumb, { backgroundColor: CLight.gray100, alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ fontSize: 16 }}>👤</Text>
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={[T.captionBold, { color: CLight.gray900 }]} numberOfLines={1}>{r.name}</Text>
-                {!!r.description && <Text style={[T.micro, { color: CLight.gray500 }]} numberOfLines={1}>{r.description}</Text>}
-              </View>
-              <Text style={[T.captionBold, { color: CLight.pink }]}>+</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-      {/* 검색 결과 없을 때 직접 추가 */}
-      {roleQuery.trim().length >= 2 && !roleSearching && roleResults.length === 0 && (
-        <TouchableOpacity style={styles.roleAddCustom} onPress={() => addRoleModel(roleQuery)}>
-          <Text style={[T.caption, { color: CLight.pink }]}>{t("auth.rolemodel_add_custom", { defaultValue: `"${roleQuery.trim()}" 직접 추가` })}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* 선택된 롤모델 (칩) */}
-      {selectedRoleModels.length > 0 && (
-        <View style={[styles.pillGrid, { marginTop: 14 }]}>
-          {selectedRoleModels.map((model) => (
-            <TouchableOpacity key={model} style={[styles.pill, styles.pillActive]} onPress={() => setSelectedRoleModels((prev) => prev.filter((m) => m !== model))}>
-              <Text style={[styles.pillText, styles.pillTextActive]}>{model}  ×</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* 분야별 추천 (빠른 선택) */}
-      {availableRoleModels.length > 0 && (
-        <>
-          <Text style={[T.micro, { color: CLight.gray500, marginTop: 18, marginBottom: 8 }]}>
-            {t("auth.rolemodel_suggestions", { defaultValue: "추천" })}
-          </Text>
-          <View style={styles.pillGrid}>
-            {availableRoleModels.filter((m) => !selectedRoleModels.includes(m)).map((model) => (
-              <TouchableOpacity key={model} style={styles.pill} onPress={() => addRoleModel(model)}>
-                <Text style={styles.pillText}>{model}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </>
-      )}
-    </View>
-  );
-
-  // Step 6: Interests (was step 4)
-  const renderStep6 = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>{t("auth.step_interests")}</Text>
-      <Text style={styles.stepSubtitle}>{t("auth.step_interests_desc")}</Text>
-      <View style={styles.pillGrid}>
-        {availableInterests.map((interest) => {
-          const isSelected = selectedInterests.includes(interest);
-          return (
-            <TouchableOpacity key={interest} style={[styles.pill, isSelected && styles.pillActive]} onPress={() => setSelectedInterests(toggleInArray(selectedInterests, interest))}>
-              <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{interest}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      {availableInterests.length === 0 && (
-        <Text style={styles.emptyHint}>{t("auth.select_field_first")}</Text>
-      )}
-
-      {/* Profile Public Consent */}
-      <View style={styles.consentSection}>
-        <View style={styles.consentRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[T.captionBold, { color: CLight.gray900 }]}>{t("auth.profile_public")}</Text>
-            <Text style={[T.micro, { color: CLight.gray500, marginTop: 2, lineHeight: 18 }]}>
-              {t("auth.profile_public_desc")}
-            </Text>
-          </View>
-          <Switch
-            value={profilePublic}
-            onValueChange={setProfilePublic}
-            trackColor={{ false: CLight.gray200, true: CLight.pink }}
-            thumbColor={CLight.white}
-          />
-        </View>
-      </View>
-    </View>
-  );
-
   const renderSignupStep = () => {
     switch (signupStep) {
       case 0: return renderStep0();
       case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      case 5: return renderStep5();
-      case 6: return renderStep6();
       default: return null;
     }
   };
@@ -804,11 +406,12 @@ export default function AuthScreen({ navigation }) {
         <TouchableOpacity style={[styles.primaryButton, (!canProceed() || loading) && styles.disabledButton]} onPress={handleNext} disabled={!canProceed() || loading}>
           {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{signupStep === TOTAL_STEPS - 1 ? t("auth.start") : t("common.next")}</Text>}
         </TouchableOpacity>
-        {signupStep >= 3 && (
-          <TouchableOpacity style={styles.skipStepButton} onPress={handleNext}>
-            <Text style={styles.skipStepText}>{t("auth.skip_step")}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+          <Text style={styles.skipText}>{t("auth.browse")}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.skipStepButton} onPress={() => animateTransition(() => { setSignupStep(0); setMode("login"); })}>
+          <Text style={styles.skipStepText}>{t("auth.login")}</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -896,64 +499,6 @@ const styles = StyleSheet.create({
   fieldEmoji: { fontSize: 32 },
   fieldLabel: { ...T.captionBold, color: CLight.gray700 },
   fieldLabelActive: { color: CLight.pink },
-
-  roleSearchBox: { flexDirection: "row", alignItems: "center", gap: 8, height: 50, backgroundColor: CLight.gray100, borderRadius: 14, paddingHorizontal: 16, marginBottom: 6 },
-  roleSearchInput: { flex: 1, fontSize: 15, color: CLight.gray900 },
-  roleResults: { backgroundColor: CLight.white, borderRadius: 14, borderWidth: 1, borderColor: CLight.gray200, overflow: "hidden" },
-  roleResultRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: CLight.gray100 },
-  roleThumb: { width: 36, height: 36, borderRadius: 18 },
-  roleAddCustom: { paddingVertical: 12, paddingHorizontal: 4 },
-  pillGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: CLight.gray200, backgroundColor: CLight.white },
-  pillActive: { borderColor: CLight.pink, backgroundColor: CLight.pinkSoft },
-  pillText: { ...T.small, color: CLight.gray700 },
-  pillTextActive: { color: CLight.pink, fontWeight: "600" },
-  emptyHint: { ...T.caption, color: CLight.gray400, textAlign: "center", marginTop: 32 },
-
-  // Gender cards
-  genderRow: { flexDirection: "row", gap: 12, marginBottom: 16, marginTop: 8 },
-  genderCard: { flex: 1, backgroundColor: CLight.white, borderRadius: 16, borderWidth: 1.5, borderColor: CLight.gray200, paddingVertical: 18, alignItems: "center", gap: 6 },
-  genderCardActive: { borderColor: CLight.pink, backgroundColor: CLight.pinkSoft },
-  genderEmoji: { fontSize: 28 },
-  genderLabel: { ...T.captionBold, color: CLight.gray700 },
-  genderLabelActive: { color: CLight.pink },
-
-  // Tag input
-  tagInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  tagInput: { flex: 1, height: 44, backgroundColor: CLight.inputBg, borderWidth: 1, borderColor: CLight.inputBorder, borderRadius: 12, paddingHorizontal: 14, ...T.caption, color: CLight.gray900 },
-  tagAddBtn: { backgroundColor: CLight.pink, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 },
-  tagAddBtnDisabled: { backgroundColor: CLight.gray200 },
-  tagAddText: { ...T.captionBold, color: CLight.white },
-  tagAddTextDisabled: { color: CLight.gray400 },
-
-  // Career
-  careerItem: { flexDirection: "row", alignItems: "center", backgroundColor: CLight.white, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: CLight.gray200 },
-  careerAddSection: { marginTop: 8 },
-  addCareerBtn: { backgroundColor: CLight.pink, borderRadius: 12, paddingVertical: 10, alignItems: "center", marginTop: 8 },
-  miniPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: CLight.gray200, backgroundColor: CLight.white },
-  miniPillActive: { borderColor: CLight.pink, backgroundColor: CLight.pinkSoft },
-  miniPillText: { ...T.micro, color: CLight.gray500 },
-  miniPillTextActive: { color: CLight.pink, fontWeight: "600" },
-
-  // Photo gallery
-  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
-  photoGridItem: { width: (SCREEN_WIDTH - 48 - 20) / 3, aspectRatio: 3 / 4, borderRadius: 12, overflow: "hidden", position: "relative" },
-  photoGridImg: { width: "100%", height: "100%", borderRadius: 12 },
-  photoRemoveBtn: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
-  photoRemoveText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  mainBadge: { position: "absolute", bottom: 4, left: 4, backgroundColor: CLight.pink, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  mainBadgeText: { ...T.micro, color: "#fff", fontWeight: "700" },
-  photoAddBtn: { width: (SCREEN_WIDTH - 48 - 20) / 3, aspectRatio: 3 / 4, borderRadius: 12, borderWidth: 2, borderColor: CLight.gray200, borderStyle: "dashed", justifyContent: "center", alignItems: "center", backgroundColor: CLight.gray50 },
-
-  // Consent toggle
-  consentSection: { marginTop: 28, borderTopWidth: 1, borderTopColor: CLight.gray200, paddingTop: 20 },
-  consentRow: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: CLight.white, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: CLight.gray200 },
-
-  // Privacy toggle
-  privacyToggle: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200 },
-  privacyToggleActive: { backgroundColor: CLight.pinkSoft, borderColor: CLight.pink },
-  privacyToggleText: { ...T.micro, color: CLight.gray500 },
-  privacyToggleTextActive: { color: CLight.pink, fontWeight: "600" },
 
   // Language selector
   langSelector: { alignItems: "center", marginTop: 32, zIndex: 10 },
