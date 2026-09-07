@@ -1,12 +1,14 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { render, fireEvent } from "@testing-library/react-native";
 import HomeScreen from "../HomeScreen";
 import { useApp } from "../../context/AppContext";
+import { trackFunnelEvent } from "../../services/mauService";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
+jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -45,5 +47,24 @@ describe("HomeScreen — 0노트 히어로 카드", () => {
     expect(queryByText("첫 노트")).toBeTruthy();
     expect(queryByText("home.hero_title")).toBeNull();
     expect(queryByText("home.hero_cta")).toBeNull();
+  });
+});
+
+// 홈의 빠른 체크인도 노트 저장이다 — 계측이 빠져 있어 활성화 지표가 과소 집계되던 버그(2026-09-07)
+describe("HomeScreen — 빠른 체크인 계측", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("체크인 저장 시 노트 저장과 함께 note_saved 이벤트를 보낸다", () => {
+    const ctx = buildCtx([]);
+    useApp.mockReturnValue(ctx);
+    const { getByText } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music"));
+    fireEvent.press(getByText("common.save"));
+
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(
+      expect.objectContaining({ field: "music", type: "checkin" })
+    );
+    expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
   });
 });

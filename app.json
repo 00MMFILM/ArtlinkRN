@@ -3,7 +3,7 @@
     "name": "Artlink",
     "slug": "ArtlinkRN",
     "scheme": "artlink",
-    "version": "1.11.1",
+    "version": "1.11.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

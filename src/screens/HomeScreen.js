@@ -11,13 +11,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
+import { trackFunnelEvent } from "../services/mauService";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function HomeScreen({ navigation }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const {
     savedNotes,
@@ -133,9 +134,11 @@ export default function HomeScreen({ navigation }) {
   const handleCheckinSave = useCallback((field) => {
     const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
     handleSaveNote({ title, field, type: "checkin" });
+    // 홈 체크인도 노트 저장이다 — 계측이 빠져 있어 실사용 저장의 75%가 집계되지 않았다(2026-09-07)
+    trackFunnelEvent("note_saved", i18n.language);
     setExpandedField(null);
     setCheckinMemo("");
-  }, [checkinMemo, handleSaveNote, t]);
+  }, [checkinMemo, handleSaveNote, t, i18n.language]);
 
   // ---- Quick actions ----
   const quickActions = [
