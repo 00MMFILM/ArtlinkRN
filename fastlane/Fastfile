@@ -1,12 +1,14 @@
+require_relative "asc_env"
+
 default_platform(:ios)
 
 platform :ios do
   desc "Submit for App Store review"
   lane :submit_review do
     api_key = app_store_connect_api_key(
-      key_id: "3668ZJUQVP",
-      issuer_id: "a56a8823-d600-423b-88ba-15d0dc92a2a0",
-      key_filepath: "/Users/leechangyeop/.private_keys/AuthKey_3668ZJUQVP.p8"
+      key_id: KEY_ID,
+      issuer_id: ISSUER_ID,
+      key_filepath: KEY_PATH
     )
     deliver(
       api_key: api_key,

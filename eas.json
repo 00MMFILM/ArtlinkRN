@@ -31,10 +31,7 @@
     "production": {
       "ios": {
         "ascAppId": "6752890224",
-        "appleTeamId": "53D8SBYZ7V",
-        "ascApiKeyPath": "/Users/leechangyeop/.private_keys/AuthKey_3668ZJUQVP.p8",
-        "ascApiKeyId": "3668ZJUQVP",
-        "ascApiKeyIssuerId": "a56a8823-d600-423b-88ba-15d0dc92a2a0"
+        "appleTeamId": "53D8SBYZ7V"
       },
       "android": {
         "track": "production",

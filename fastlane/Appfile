@@ -1,3 +1,5 @@
+require_relative "asc_env"
+
 app_identifier("com.00MM.artlink")
-apple_id("lcy1152@naver.com")
-team_id("53D8SBYZ7V")
+apple_id(asc_env("APPLE_ID"))
+team_id(asc_env("APPLE_TEAM_ID"))

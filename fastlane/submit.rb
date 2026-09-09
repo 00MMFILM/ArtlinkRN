@@ -3,15 +3,13 @@ require "net/http"
 require "json"
 require "uri"
 require "openssl"
+require_relative "asc_env"
 
-key_id = "3668ZJUQVP"
-issuer_id = "a56a8823-d600-423b-88ba-15d0dc92a2a0"
-key_path = "/Users/leechangyeop/.private_keys/AuthKey_3668ZJUQVP.p8"
 old_sub = "0419931c-a49b-4d79-b55d-6d3ad13a42a0"
 
-key = OpenSSL::PKey::EC.new(File.read(key_path))
-payload = { iss: issuer_id, iat: Time.now.to_i, exp: Time.now.to_i + 1200, aud: "appstoreconnect-v1" }
-token = JWT.encode(payload, key, "ES256", { kid: key_id })
+key = OpenSSL::PKey::EC.new(File.read(KEY_PATH))
+payload = { iss: ISSUER_ID, iat: Time.now.to_i, exp: Time.now.to_i + 1200, aud: "appstoreconnect-v1" }
+token = JWT.encode(payload, key, "ES256", { kid: KEY_ID })
 
 def asc(method, path, token, body = nil)
   uri = URI("https://api.appstoreconnect.apple.com/v1/#{path}")
