@@ -53,7 +53,7 @@
     "private": "Privat",
     "retry": "Coba lagi",
     "video_ai_retry_msg": "Hasil analisis tidak diterima. Periksa koneksi Anda dan coba lagi — catatan Anda tetap utuh.",
-    "video_quota_exceeded": "Anda telah memakai semua uji coba analisis video gratis. Premium memberi akses tanpa batas."
+    "video_quota_exceeded": "Anda telah memakai semua uji coba analisis video gratis. Premium memberi 15 kali analisis per bulan."
   },
   "tabs": {
     "home": "Beranda",
@@ -208,6 +208,8 @@
     "no_notes_desc": "Tekan tombol + di kanan bawah\nuntuk mencatat latihan pertama Anda!"
   },
   "noteCreate": {
+    "draft_keep_failed": "Draf tidak tersimpan",
+    "draft_keep_failed_msg": "Kami tidak dapat menyimpan sementara tulisan Anda, jadi layar pendaftaran tidak dibuka. Simpan catatan terlebih dahulu.",
     "title": "Catatan Baru",
     "title_placeholder": "Masukkan judul",
     "content_placeholder": "Catat latihan hari ini...",
@@ -452,6 +454,9 @@
     "view_detail": "Lihat Detail",
     "result_count": "{{count}} Kecocokan",
     "loading": "Memuat lowongan...",
+    "load_error": "Gagal memuat lowongan",
+    "load_error_msg": "Periksa koneksi Anda dan coba lagi.",
+    "retry": "Coba lagi",
     "empty_user_title": "Belum ada postingan yang didaftarkan",
     "empty_user_msg": "Tekan tombol + untuk mendaftarkan.",
     "empty_title": "Tidak ada item pencocokan",

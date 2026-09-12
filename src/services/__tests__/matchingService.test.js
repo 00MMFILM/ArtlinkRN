@@ -1,7 +1,14 @@
 // supabase 클라이언트는 이 테스트에서 쓰지 않으므로 mock (env/네트워크 의존 제거)
 jest.mock("../supabaseClient", () => ({ supabase: {} }));
+// apiConfig도 실제 fetch 헤더 로직(auth token 등)에 의존하지 않도록 mock
+jest.mock("../apiConfig", () => ({
+  MATCHING_SERVER_URL: "https://server-00mmfilms-projects.vercel.app",
+  getApiHeaders: () => ({ "Content-Type": "application/json" }),
+}));
 
 import { normalizeServerMatchingPost, mergeUserMatchingPosts } from "../matchingService";
+// fetchMatchingFeed는 모듈 내부 캐시(_cache)를 갖고 있어 테스트마다 jest.resetModules() 후
+// require로 새로 불러온다(테스트 간 캐시 오염 방지).
 
 const serverRow = (localId, extra = {}) => ({
   id: "uuid-" + localId,
@@ -118,5 +125,73 @@ describe("mergeUserMatchingPosts", () => {
     const merged = mergeUserMatchingPosts(local, server, [111, 999]);
 
     expect(merged.map((p) => p.id)).toEqual([222]);
+  });
+});
+
+describe("fetchMatchingFeed", () => {
+  beforeEach(() => {
+    // 모듈 내부 in-memory 캐시(_cache)를 테스트마다 초기화 — 이전 테스트의 성공/실패 결과가
+    // 다음 테스트로 새지 않게 한다.
+    jest.resetModules();
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+  });
+
+  it("네트워크 실패 시 예시 공고(fb-*) 대신 error:'network'와 빈 배열을 반환한다", async () => {
+    global.fetch.mockRejectedValue(new Error("network down"));
+    const { fetchMatchingFeed } = require("../matchingService");
+
+    const result = await fetchMatchingFeed([]);
+
+    expect(result).toEqual({ items: [], error: "network" });
+    expect(result.items.some((p) => String(p.id).startsWith("fb-"))).toBe(false);
+  });
+
+  it("HTTP 오류 응답이면 예시 공고 대신 http_<status> 에러를 반환한다", async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 500, json: async () => [] });
+    const { fetchMatchingFeed } = require("../matchingService");
+
+    const result = await fetchMatchingFeed([]);
+
+    expect(result).toEqual({ items: [], error: "http_500" });
+  });
+
+  it("빈 배열 응답이면 error는 null이고 items도 빈 배열이다 (예시 공고로 대체하지 않음)", async () => {
+    global.fetch.mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+    const { fetchMatchingFeed } = require("../matchingService");
+
+    const result = await fetchMatchingFeed([]);
+
+    expect(result).toEqual({ items: [], error: null });
+  });
+
+  it("성공 시 서버 아이템에 기본값을 채워 매핑하고 error는 null이다", async () => {
+    global.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: "p1", title: "공고1" }] });
+    const { fetchMatchingFeed } = require("../matchingService");
+
+    const result = await fetchMatchingFeed([]);
+
+    expect(result.error).toBeNull();
+    expect(result.items).toEqual([
+      { source: "ai", tab: "프로젝트", requirements: {}, tags: [], id: "p1", title: "공고1" },
+    ]);
+  });
+
+  it("실패 후 캐시에 빈 배열이 남지 않아 재호출 시 다시 fetch를 시도한다", async () => {
+    global.fetch.mockRejectedValueOnce(new Error("down"));
+    const { fetchMatchingFeed } = require("../matchingService");
+
+    const first = await fetchMatchingFeed([]);
+    expect(first.error).toBe("network");
+
+    global.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [{ id: "p2" }] });
+    const second = await fetchMatchingFeed([]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(second.error).toBeNull();
+    expect(second.items).toHaveLength(1);
   });
 });

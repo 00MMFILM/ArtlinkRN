@@ -53,7 +53,7 @@
     "private": "Private",
     "retry": "Try again",
     "video_ai_retry_msg": "The analysis result didn't come through. Check your connection and try again — your note is unchanged.",
-    "video_quota_exceeded": "You've used all your free video analysis trials. Premium gives you unlimited access."
+    "video_quota_exceeded": "You've used all your free video analysis trials. Premium gives you 15 analyses a month."
   },
   "tabs": {
     "home": "Home",
@@ -211,6 +211,8 @@
     "checkin_badge": "Check-in"
   },
   "noteCreate": {
+    "draft_keep_failed": "Couldn't keep your draft",
+    "draft_keep_failed_msg": "We couldn't hold on to what you've written, so we didn't open the sign-up screen. Please save the note first.",
     "title": "New note",
     "title_placeholder": "Enter a title",
     "content_placeholder": "Record today's practice...",
@@ -461,6 +463,9 @@
     "view_detail": "View details",
     "result_count": "{{count}} matches",
     "loading": "Loading listings...",
+    "load_error": "Couldn't load listings",
+    "load_error_msg": "Check your connection and try again.",
+    "retry": "Try again",
     "empty_user_title": "No posts yet",
     "empty_user_msg": "Tap the + button to add one.",
     "empty_title": "No matching items",
@@ -847,8 +852,8 @@
   },
   "premium": {
     "title": "ArtLink Premium",
-    "subtitle": "Unlimited AI coaching",
-    "benefit_text": "Unlimited AI text feedback (fair use)",
+    "subtitle": "Text feedback 10x/day · Video 15x/month",
+    "benefit_text": "10 AI text feedback sessions per day",
     "benefit_video": "15 AI video analyses per month — full-video understanding",
     "benefit_model": "Deeper coaching from our top AI model",
     "monthly": "Monthly",

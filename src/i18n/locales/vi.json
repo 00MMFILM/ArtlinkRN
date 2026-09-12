@@ -53,7 +53,7 @@
     "private": "Riêng tư",
     "retry": "Thử lại",
     "video_ai_retry_msg": "Không nhận được kết quả phân tích. Vui lòng kiểm tra kết nối và thử lại — ghi chú của bạn vẫn còn nguyên.",
-    "video_quota_exceeded": "Bạn đã dùng hết lượt phân tích video miễn phí. Bản Premium cho phép sử dụng không giới hạn."
+    "video_quota_exceeded": "Bạn đã dùng hết lượt phân tích video miễn phí. Bản Premium cho phép sử dụng 15 lượt mỗi tháng."
   },
   "tabs": {
     "home": "Trang chủ",
@@ -208,6 +208,8 @@
     "no_notes_desc": "Nhấn nút + ở góc dưới bên phải\nđể ghi lại ghi chú luyện tập đầu tiên!"
   },
   "noteCreate": {
+    "draft_keep_failed": "Không giữ được bản nháp",
+    "draft_keep_failed_msg": "Chúng tôi không lưu tạm được nội dung bạn đang viết nên chưa mở màn hình đăng ký. Vui lòng lưu ghi chú trước.",
     "title": "Ghi chú mới",
     "title_placeholder": "Nhập tiêu đề",
     "content_placeholder": "Ghi lại buổi luyện tập hôm nay...",
@@ -452,6 +454,9 @@
     "view_detail": "Xem chi tiết",
     "result_count": "{{count}} kết quả ghép",
     "loading": "Đang tải thông báo...",
+    "load_error": "Không thể tải thông báo",
+    "load_error_msg": "Vui lòng kiểm tra kết nối và thử lại.",
+    "retry": "Thử lại",
     "empty_user_title": "Chưa có bài đăng nào",
     "empty_user_msg": "Nhấn nút + để đăng bài.",
     "empty_title": "Không có mục ghép cặp",

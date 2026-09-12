@@ -53,7 +53,7 @@
     "private": "Privado",
     "retry": "Reintentar",
     "video_ai_retry_msg": "No se recibió el resultado del análisis. Comprueba tu conexión e inténtalo de nuevo; tu nota sigue intacta.",
-    "video_quota_exceeded": "Has agotado tus análisis de vídeo gratuitos. Premium te da acceso ilimitado."
+    "video_quota_exceeded": "Has agotado tus análisis de vídeo gratuitos. Premium te ofrece 15 análisis al mes."
   },
   "tabs": {
     "home": "Inicio",
@@ -208,6 +208,8 @@
     "no_notes_desc": "Pulsa el botón + de la esquina inferior derecha\npara registrar tu primera nota de práctica."
   },
   "noteCreate": {
+    "draft_keep_failed": "No se pudo guardar el borrador",
+    "draft_keep_failed_msg": "No pudimos conservar lo que estabas escribiendo, así que no abrimos la pantalla de registro. Guarda la nota primero.",
     "title": "Nueva nota",
     "title_placeholder": "Introduce un título",
     "content_placeholder": "Registra la práctica de hoy...",
@@ -452,6 +454,9 @@
     "view_detail": "Ver detalle",
     "result_count": "{{count}} coincidencias",
     "loading": "Cargando convocatorias...",
+    "load_error": "No se pudieron cargar las convocatorias",
+    "load_error_msg": "Comprueba tu conexión e inténtalo de nuevo.",
+    "retry": "Reintentar",
     "empty_user_title": "Aún no has registrado ninguna publicación",
     "empty_user_msg": "Pulsa el botón + para registrar una.",
     "empty_title": "No hay elementos de emparejamiento",

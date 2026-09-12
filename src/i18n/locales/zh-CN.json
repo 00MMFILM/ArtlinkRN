@@ -53,7 +53,7 @@
     "private": "私密",
     "retry": "重试",
     "video_ai_retry_msg": "未能收到分析结果。请检查网络连接后重试，笔记内容保持不变。",
-    "video_quota_exceeded": "您已用完免费视频分析次数。升级高级版可无限使用。"
+    "video_quota_exceeded": "您已用完免费视频分析次数。升级高级版每月可使用15次。"
   },
   "tabs": {
     "home": "首页",
@@ -208,6 +208,8 @@
     "no_notes_desc": "点击右下角的 + 按钮\n记录第一篇练习笔记吧！"
   },
   "noteCreate": {
+    "draft_keep_failed": "未能保留草稿",
+    "draft_keep_failed_msg": "无法临时保存正在编写的内容，因此没有跳转到注册页面。请先保存笔记。",
     "title": "新建笔记",
     "title_placeholder": "请输入标题",
     "content_placeholder": "记录今天的练习...",
@@ -452,6 +454,9 @@
     "view_detail": "查看详情",
     "result_count": "{{count}}个匹配",
     "loading": "正在加载公告...",
+    "load_error": "无法加载公告",
+    "load_error_msg": "请检查网络连接后重试。",
+    "retry": "重试",
     "empty_user_title": "还没有登录的内容",
     "empty_user_msg": "点击 + 按钮来登录吧。",
     "empty_title": "没有匹配项目",

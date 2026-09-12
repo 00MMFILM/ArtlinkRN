@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppProvider, useApp } from "./src/context/AppContext";
 import { supabase } from "./src/services/supabaseClient";
 import { trackFunnelEvent } from "./src/services/mauService";
+import { loadDraft } from "./src/services/noteDraft";
 import Toast from "./src/components/Toast";
 
 // Screens
@@ -51,16 +52,16 @@ const Tab = createBottomTabNavigator();
 // artlink://practice?title=..&content=..&field=acting&source=bium
 const navigationRef = createNavigationContainerRef();
 
-function openNoteCreateWhenReady(prefill, attempt = 0) {
+function openNoteCreateWhenReady(prefill, attempt = 0, restoredDraft = false) {
   if (attempt > 60) return; // 온보딩 등으로 30초 내 진입 못 하면 포기
   const hasRoute =
     navigationRef.isReady() &&
     navigationRef.getRootState()?.routeNames?.includes("NoteCreate");
   if (hasRoute) {
-    navigationRef.navigate("NoteCreate", { prefill });
+    navigationRef.navigate("NoteCreate", { prefill, restoredDraft });
     return;
   }
-  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1), 500);
+  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1, restoredDraft), 500);
 }
 
 function TabIcon({ emoji, focused }) {
@@ -326,6 +327,21 @@ function AppNavigator() {
     const sub = Linking.addEventListener("url", ({ url }) => handleDeepLink(url));
     return () => sub.remove();
   }, []);
+
+  // 가입 왕복(인증 화면 진입 → 가입/스킵)이나 앱 재실행으로 사라졌던 노트 초안 복원.
+  // 열기만 하고 저장은 하지 않는다 — 저장은 사용자가 눌러야만 일어난다.
+  const draftRestoredRef = useRef(false);
+  useEffect(() => {
+    if (authState !== "app") {
+      draftRestoredRef.current = false;
+      return;
+    }
+    if (draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    loadDraft().then((draft) => {
+      if (draft) openNoteCreateWhenReady(draft, 0, true);
+    });
+  }, [authState]);
 
   const needsLink = authState === "app" && userProfile?.email && !userProfile?.authUserId && !linkDismissed;
 

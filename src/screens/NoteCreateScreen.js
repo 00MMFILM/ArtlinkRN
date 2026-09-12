@@ -27,6 +27,7 @@ import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, show
 import { FIELDS } from "../utils/helpers";
 import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
 import { trackFunnelEvent } from "../services/mauService";
+import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
 import TopBar from "../components/TopBar";
 import { useTranslation } from "react-i18next";
 
@@ -49,11 +50,29 @@ export default function NoteCreateScreen({ navigation, route }) {
   const { t, i18n } = useTranslation();
   const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState } = useApp();
 
+  // 초안 보관용 — 렌더마다 최신 상태를 담아두고, 인증 화면으로 떠날 때 그대로 저장한다
+  const draftStateRef = useRef({});
+
+  // 인증 화면으로 가면 NoteCreate가 언마운트된다 → 초안을 확실히 보관한 뒤에만 전환
+  const goToAuthWithDraft = useCallback(async () => {
+    // 보관할 내용이 없으면 그냥 이동 (잃을 것이 없다)
+    if (!hasDraftContent(draftStateRef.current)) {
+      setAuthState("auth");
+      return;
+    }
+    const ok = await saveDraft(draftStateRef.current);
+    if (!ok) {
+      Alert.alert(t("noteCreate.draft_keep_failed"), t("noteCreate.draft_keep_failed_msg"));
+      return;
+    }
+    setAuthState("auth");
+  }, [setAuthState, t]);
+
   // AI 쿼터 소진: 게스트→로그인 유도, 로그인 유저→프리미엄 안내
   const promptQuotaExceeded = useCallback(() => {
     if (!userProfile?.authUserId) {
       Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
-        { text: t("premium.guest_trial_cta"), onPress: () => setAuthState("auth") },
+        { text: t("premium.guest_trial_cta"), onPress: goToAuthWithDraft },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     } else {
@@ -62,27 +81,26 @@ export default function NoteCreateScreen({ navigation, route }) {
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     }
-  }, [userProfile?.authUserId, setAuthState, navigation, t]);
+  }, [userProfile?.authUserId, goToAuthWithDraft, navigation, t]);
 
   // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
   const prefill = route?.params?.prefill || null;
+  // 가입 왕복 후 복원으로 열린 경우 (App.js가 보관된 초안을 prefill로 넘긴다)
+  const restoredDraft = !!route?.params?.restoredDraft;
   const [title, setTitle] = useState(prefill?.title || "");
   const [content, setContent] = useState(prefill?.content || "");
   const [field, setField] = useState(prefill?.field && FIELDS.includes(prefill.field) ? prefill.field : FIELDS[0]);
-
-  // 화면이 이미 떠 있는 상태에서 새 딥링크가 오면 params만 갱신됨 → 반영
-  useEffect(() => {
-    const p = route?.params?.prefill;
-    if (!p) return;
-    if (p.title) setTitle(p.title);
-    if (p.content) setContent(p.content);
-    if (p.field && FIELDS.includes(p.field)) setField(p.field);
-  }, [route?.params?.prefill]);
-  const [tags, setTags] = useState([]);
+  // 사용자가 제목을 한 번이라도 편집했으면 기본 제목으로 덮어쓰지 않는다
+  const titleEditedRef = useRef(!!prefill?.title);
+  const handleChangeTitle = useCallback((v) => {
+    titleEditedRef.current = true;
+    setTitle(v);
+  }, []);
+  const [tags, setTags] = useState(Array.isArray(prefill?.tags) ? prefill.tags : []);
   const [tagInput, setTagInput] = useState("");
-  const [seriesName, setSeriesName] = useState("");
-  const [aiComment, setAiComment] = useState("");
-  const [aiScores, setAiScores] = useState(null);
+  const [seriesName, setSeriesName] = useState(prefill?.seriesName || "");
+  const [aiComment, setAiComment] = useState(prefill?.aiComment || "");
+  const [aiScores, setAiScores] = useState(prefill?.aiScores || null);
   // 스트리밍 실패 시 잘린 부분 텍스트가 aiComment에 남지 않도록,
   // 분석 시작 전 확정값을 기억해뒀다가 실패 시 복원한다.
   const aiCommentRef = useRef(aiComment);
@@ -90,16 +108,35 @@ export default function NoteCreateScreen({ navigation, route }) {
     aiCommentRef.current = aiComment;
   }, [aiComment]);
   const [aiLoading, setAiLoading] = useState(false);
-  const [videoAnalysis, setVideoAnalysis] = useState("");
+  const [videoAnalysis, setVideoAnalysis] = useState(prefill?.videoAnalysis || "");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
   const [videoAiProgress, setVideoAiProgress] = useState({ phase: "", percent: 0, message: "" });
   const hasUnsavedChangesRef = useRef(false);
 
   // Media state
-  const [images, setImages] = useState([]); // [{ uri, type, width, height }]
-  const [voiceRecordings, setVoiceRecordings] = useState([]); // [{ uri, duration }]
-  const [audioFiles, setAudioFiles] = useState([]); // [{ uri, name, duration }]
-  const [pdfFiles, setPdfFiles] = useState([]); // [{ uri, name }]
+  const [images, setImages] = useState(Array.isArray(prefill?.images) ? prefill.images : []); // [{ uri, type, width, height }]
+  const [voiceRecordings, setVoiceRecordings] = useState(Array.isArray(prefill?.voiceRecordings) ? prefill.voiceRecordings : []); // [{ uri, duration }]
+  const [audioFiles, setAudioFiles] = useState(Array.isArray(prefill?.audioFiles) ? prefill.audioFiles : []); // [{ uri, name, duration }]
+  const [pdfFiles, setPdfFiles] = useState(Array.isArray(prefill?.pdfFiles) ? prefill.pdfFiles : []); // [{ uri, name }]
+
+  // 화면이 이미 떠 있는 상태에서 새 딥링크/복원 prefill이 오면 params만 갱신됨 → 반영
+  useEffect(() => {
+    const p = route?.params?.prefill;
+    if (!p) return;
+    if (p.title) setTitle(p.title);
+    if (p.content) setContent(p.content);
+    if (p.field && FIELDS.includes(p.field)) setField(p.field);
+    if (Array.isArray(p.tags) && p.tags.length > 0) setTags(p.tags);
+    if (p.seriesName) setSeriesName(p.seriesName);
+    if (p.aiComment) setAiComment(p.aiComment);
+    if (p.aiScores) setAiScores(p.aiScores);
+    if (p.videoAnalysis) setVideoAnalysis(p.videoAnalysis);
+    if (Array.isArray(p.images) && p.images.length > 0) setImages(p.images);
+    if (Array.isArray(p.voiceRecordings) && p.voiceRecordings.length > 0) setVoiceRecordings(p.voiceRecordings);
+    if (Array.isArray(p.audioFiles) && p.audioFiles.length > 0) setAudioFiles(p.audioFiles);
+    if (Array.isArray(p.pdfFiles) && p.pdfFiles.length > 0) setPdfFiles(p.pdfFiles);
+    if (p.title) titleEditedRef.current = true;
+  }, [route?.params?.prefill]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
@@ -155,10 +192,25 @@ export default function NoteCreateScreen({ navigation, route }) {
 
   // Track unsaved changes
   useEffect(() => {
-    if (title || content || tags.length > 0 || seriesName || aiComment || videoAnalysis || images.length > 0 || voiceRecordings.length > 0 || audioFiles.length > 0 || pdfFiles.length > 0) {
+    if (restoredDraft || title || content || tags.length > 0 || seriesName || aiComment || videoAnalysis || images.length > 0 || voiceRecordings.length > 0 || audioFiles.length > 0 || pdfFiles.length > 0) {
       hasUnsavedChangesRef.current = true;
     }
-  }, [title, content, tags, seriesName, aiComment, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles]);
+  }, [restoredDraft, title, content, tags, seriesName, aiComment, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles]);
+
+  // 저장 가능 여부 판단 재료 — 글이 없어도 첨부나 분석 결과가 있으면 기록으로 남긴다
+  const hasAttachments = images.length > 0 || voiceRecordings.length > 0 || audioFiles.length > 0 || pdfFiles.length > 0;
+  const hasAiResult = !!aiComment || !!videoAnalysis;
+
+  // 첨부·분석이 생기는 순간 제목이 비어 있으면 기본 제목을 넣어준다 (입력란에 보이므로 바로 고칠 수 있다)
+  useEffect(() => {
+    if (titleEditedRef.current || title.trim()) return;
+    if (!hasAttachments && !hasAiResult) return;
+    const d = new Date();
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setTitle(`${t("fields." + field)} ${ymd}`);
+  }, [hasAttachments, hasAiResult, title, field, t]);
+
+  draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles };
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
@@ -168,7 +220,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         t("common.discard_message"),
         [
           { text: t("common.keep_editing"), style: "cancel" },
-          { text: t("common.leave"), style: "destructive", onPress: () => { hasUnsavedChangesRef.current = false; navigation.goBack(); } },
+          { text: t("common.leave"), style: "destructive", onPress: () => { hasUnsavedChangesRef.current = false; clearDraft(); navigation.goBack(); } },
         ]
       );
     } else {
@@ -189,7 +241,7 @@ export default function NoteCreateScreen({ navigation, route }) {
           {
             text: t("common.leave"),
             style: "destructive",
-            onPress: () => navigation.dispatch(e.data.action),
+            onPress: () => { clearDraft(); navigation.dispatch(e.data.action); },
           },
         ]
       );
@@ -261,9 +313,9 @@ export default function NoteCreateScreen({ navigation, route }) {
             { text: t("signupNudge.later"), style: "cancel" },
             {
               text: t("signupNudge.cta"),
-              onPress: () => {
+              onPress: async () => {
                 trackFunnelEvent("signup_nudge_tapped", i18n.language);
-                setAuthState("auth");
+                await goToAuthWithDraft();
               },
             },
           ]
@@ -296,7 +348,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         ]
       );
     } catch {}
-  }, [t, i18n.language, userProfile?.authUserId, setAuthState]);
+  }, [t, i18n.language, userProfile?.authUserId, goToAuthWithDraft]);
 
   const handleAnalyze = useCallback(async () => {
     if (!content.trim()) {
@@ -674,7 +726,9 @@ export default function NoteCreateScreen({ navigation, route }) {
       Alert.alert(t("noteCreate.title_required"), t("noteCreate.title_required_msg"));
       return;
     }
-    if (!content.trim()) {
+    // 글이 없어도 첨부(영상·음성·오디오·문서)나 분석 결과가 있으면 기록으로 남긴다.
+    // 전부 비었을 때만 막는다 — 빈 노트는 만들지 않는다.
+    if (!content.trim() && !hasAttachments && !hasAiResult) {
       Alert.alert(t("noteCreate.content_required"), t("noteCreate.content_required_msg"));
       return;
     }
@@ -698,9 +752,10 @@ export default function NoteCreateScreen({ navigation, route }) {
     };
     hasUnsavedChangesRef.current = false;
     handleSaveNote(noteData);
+    clearDraft(); // 노트로 남았으니 보관된 초안은 지운다 (복원으로 중복 생성되지 않게)
     trackFunnelEvent("note_saved", i18n.language);
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, handleSaveNote, navigation, t, i18n.language]);
+  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -741,7 +796,7 @@ export default function NoteCreateScreen({ navigation, route }) {
           placeholder={t("noteCreate.title_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={title}
-          onChangeText={setTitle}
+          onChangeText={handleChangeTitle}
           maxLength={100}
           returnKeyType="next"
         />

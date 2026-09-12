@@ -53,7 +53,7 @@
     "private": "不公開",
     "retry": "重試",
     "video_ai_retry_msg": "未能收到分析結果。請檢查網路連線後重試，筆記內容保持不變。",
-    "video_quota_exceeded": "您已用完免費影片分析次數。升級進階版即可無限使用。"
+    "video_quota_exceeded": "您已用完免費影片分析次數。升級進階版每月可使用15次。"
   },
   "tabs": {
     "home": "首頁",
@@ -208,6 +208,8 @@
     "no_notes_desc": "點擊右下角的 + 按鈕，\n記錄您的第一篇練習筆記吧！"
   },
   "noteCreate": {
+    "draft_keep_failed": "未能保留草稿",
+    "draft_keep_failed_msg": "無法暫時保存正在編寫的內容，因此沒有前往註冊頁面。請先儲存筆記。",
     "title": "新筆記",
     "title_placeholder": "請輸入標題",
     "content_placeholder": "記錄今天的練習...",
@@ -452,6 +454,9 @@
     "view_detail": "查看詳細",
     "result_count": "{{count}} 個配對",
     "loading": "正在載入公告...",
+    "load_error": "無法載入公告",
+    "load_error_msg": "請檢查網路連線後重試。",
+    "retry": "重試",
     "empty_user_title": "尚未登錄任何文章",
     "empty_user_msg": "點擊 + 按鈕來登錄吧。",
     "empty_title": "沒有配對項目",

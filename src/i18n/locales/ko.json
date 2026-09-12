@@ -53,7 +53,7 @@
     "private": "비공개",
     "retry": "다시 시도",
     "video_ai_retry_msg": "분석 결과를 받지 못했습니다. 연결을 확인하고 다시 시도해주세요. 노트 내용은 그대로 남아 있습니다.",
-    "video_quota_exceeded": "무료 영상 분석 체험을 모두 사용하셨습니다. 프리미엄에서 무제한으로 이용할 수 있어요."
+    "video_quota_exceeded": "무료 영상 분석 체험을 모두 사용하셨습니다. 프리미엄에서는 월 15회까지 이용할 수 있어요."
   },
   "tabs": {
     "home": "홈",
@@ -211,6 +211,8 @@
     "checkin_badge": "체크인"
   },
   "noteCreate": {
+    "draft_keep_failed": "초안을 보관하지 못했습니다",
+    "draft_keep_failed_msg": "작성 중인 내용을 임시 보관하지 못해 가입 화면으로 이동하지 않았습니다. 먼저 노트를 저장해 주세요.",
     "title": "새 노트",
     "title_placeholder": "제목을 입력하세요",
     "content_placeholder": "오늘의 연습을 기록해보세요...",
@@ -461,6 +463,9 @@
     "view_detail": "상세 보기",
     "result_count": "{{count}}개 매칭",
     "loading": "공고를 불러오는 중...",
+    "load_error": "공고를 불러오지 못했어요",
+    "load_error_msg": "네트워크 연결을 확인하고 다시 시도해주세요.",
+    "retry": "다시 시도",
     "empty_user_title": "아직 등록한 글이 없습니다",
     "empty_user_msg": "+ 버튼을 눌러 등록해보세요.",
     "empty_title": "매칭 항목이 없습니다",
@@ -847,8 +852,8 @@
   },
   "premium": {
     "title": "ArtLink 프리미엄",
-    "subtitle": "AI 코칭을 제한 없이",
-    "benefit_text": "AI 텍스트 피드백 무제한 (공정 사용)",
+    "subtitle": "텍스트 하루 10회 · 영상 월 15회",
+    "benefit_text": "AI 텍스트 피드백 하루 10회",
     "benefit_video": "AI 영상 분석 월 15회 — 영상 통째 분석",
     "benefit_model": "최상위 AI 모델의 깊이 있는 코칭",
     "monthly": "월간",

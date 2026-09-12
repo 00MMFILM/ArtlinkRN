@@ -53,7 +53,7 @@
     "private": "非公開",
     "retry": "再試行",
     "video_ai_retry_msg": "分析結果を受け取れませんでした。接続を確認してもう一度お試しください。ノートの内容はそのまま残っています。",
-    "video_quota_exceeded": "無料の映像分析トライアルをすべて使用しました。プレミアムなら無制限でご利用いただけます。"
+    "video_quota_exceeded": "無料の映像分析トライアルをすべて使用しました。プレミアムなら月15回までご利用いただけます。"
   },
   "tabs": {
     "home": "ホーム",
@@ -208,6 +208,8 @@
     "no_notes_desc": "右下の＋ボタンを押して\n最初の練習ノートを記録しましょう！"
   },
   "noteCreate": {
+    "draft_keep_failed": "下書きを保存できませんでした",
+    "draft_keep_failed_msg": "作成中の内容を一時保存できなかったため、登録画面に移動しませんでした。先にノートを保存してください。",
     "title": "新しいノート",
     "title_placeholder": "タイトルを入力してください",
     "content_placeholder": "今日の練習を記録してみましょう...",
@@ -452,6 +454,9 @@
     "view_detail": "詳細を見る",
     "result_count": "{{count}}件マッチ",
     "loading": "公募を読み込み中...",
+    "load_error": "公募を読み込めませんでした",
+    "load_error_msg": "接続を確認してもう一度お試しください。",
+    "retry": "再試行",
     "empty_user_title": "まだ登録した投稿がありません",
     "empty_user_msg": "＋ボタンを押して登録してみましょう。",
     "empty_title": "マッチング項目がありません",

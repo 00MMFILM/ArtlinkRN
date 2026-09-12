@@ -37,6 +37,13 @@ const FIELD_TAB_FIELD_KEYS = FIELDS.map((f) => ({
   emoji: FIELD_EMOJIS[f] || "📝",
 }));
 
+// 마감일이 지났는지(로컬 date 기준) — AI 공고 목록 필터·D-day 배지 표시 양쪽에서 공용.
+// deadline이 없으면 "마감일 미정"이므로 지난 것으로 취급하지 않는다.
+function isDeadlineExpired(deadline) {
+  if (!deadline) return false;
+  return Math.ceil((new Date(deadline) - new Date()) / 86400000) <= 0;
+}
+
 export default function MatchingScreen({ navigation }) {
   const { t } = useTranslation();
   const {
@@ -53,19 +60,27 @@ export default function MatchingScreen({ navigation }) {
   // AI feed state
   const [aiPostings, setAiPostings] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
+  // 통신 실패/빈 목록 구분용 — null이면 정상(성공), 문자열이면 오류 코드("network"|"http_<status>")
+  const [aiError, setAiError] = useState(null);
 
-  // Load AI feed on mount
-  useEffect(() => {
+  // AI 공고 로드. 마운트 시 1회 + 오류 화면의 "다시 시도" 버튼에서 재사용.
+  const loadAiFeed = useCallback(() => {
     let mounted = true;
     setAiLoading(true);
-    fetchMatchingFeed(userProfile.fields || []).then((data) => {
+    fetchMatchingFeed(userProfile.fields || []).then(({ items, error }) => {
       if (mounted) {
-        setAiPostings(data);
+        setAiPostings(items);
+        setAiError(error);
         setAiLoading(false);
       }
     });
     return () => { mounted = false; };
   }, [userProfile.fields]);
+
+  useEffect(() => {
+    const cleanup = loadAiFeed();
+    return cleanup;
+  }, [loadAiFeed]);
 
   // 서버 사용자 공고(다른 사용자 글 포함) — 진입 시 1회, 실패 시 [] → 로컬만 표시
   const [serverUserPosts, setServerUserPosts] = useState([]);
@@ -82,7 +97,11 @@ export default function MatchingScreen({ navigation }) {
     [matchingPosts, serverUserPosts, matchingDeletedIds]
   );
 
-  const dataSource = sourceTab === "ai" ? aiPostings : userPosts;
+  // AI 공고 중 마감 지난 항목은 기본 제외(사용자가 직접 올린 공고는 건드리지 않음).
+  // 마감일 없는 공고("마감일 미정")는 계속 노출된다.
+  const dataSource = sourceTab === "ai"
+    ? aiPostings.filter((item) => !isDeadlineExpired(item.deadline))
+    : userPosts;
 
   const filtered = useMemo(() => {
     let items = dataSource
@@ -424,6 +443,14 @@ export default function MatchingScreen({ navigation }) {
               {t("matching.loading")}
             </Text>
           </View>
+        ) : sourceTab === "ai" && aiError ? (
+          <EmptyState
+            icon="⚠️"
+            title={t("matching.load_error")}
+            message={t("matching.load_error_msg")}
+            actionLabel={t("matching.retry")}
+            onAction={loadAiFeed}
+          />
         ) : filtered.length === 0 ? (
           sourceTab === "user" ? (
             <EmptyState

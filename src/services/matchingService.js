@@ -1,18 +1,11 @@
 import { MATCHING_SERVER_URL, getApiHeaders } from "./apiConfig";
 import { supabase } from "./supabaseClient";
 
-// In-memory cache (10 min TTL)
+// In-memory cache (10 min TTL) — 성공(빈 응답 포함) 결과만 캐시한다. 실패는 캐시하지 않아
+// 다음 진입 시 재시도된다(FALLBACK_SAMPLE_PROJECTS 제거에 따른 변경 — 실측 예시 공고가 실제
+// 서버 공고처럼 보이는 문제 방지).
 let _cache = { data: null, ts: 0 };
 const CACHE_TTL = 10 * 60 * 1000;
-
-const FALLBACK_SAMPLE_PROJECTS = [
-  { id: "fb-1", source: "ai", sourcePlatform: "AI수집", tab: "프로젝트", title: "단편영화 출연자 모집", field: "acting", description: "20대 여성 주연. 독립영화제 출품 예정 단편영화.", deadline: "2026-03-15", tags: ["독립영화", "주연"], requirements: { gender: "female", ageRange: [20, 29], location: "서울" } },
-  { id: "fb-2", source: "ai", sourcePlatform: "AI수집", tab: "프로젝트", title: "뮤지컬 앙상블 캐스팅", field: "music", description: "창작 뮤지컬 앙상블 캐스트. 노래와 연기를 동시에 소화할 수 있는 분.", deadline: "2026-03-20", tags: ["뮤지컬", "앙상블", "보컬"], requirements: { ageRange: [20, 35] } },
-  { id: "fb-3", source: "ai", sourcePlatform: "AI수집", tab: "프로젝트", title: "현대무용 페스티벌 참여 댄서 모집", field: "dance", description: "서울 현대무용 페스티벌. 솔로 또는 듀엣 작품 참여자 모집.", deadline: "2026-04-10", tags: ["현대무용", "페스티벌"], requirements: { location: "서울" } },
-  { id: "fb-4", source: "ai", sourcePlatform: "AI수집", tab: "오디션", title: "드라마 공개 오디션", field: "acting", description: "OTT 오리지널 드라마. 다양한 연령대의 조연 역할 오디션.", deadline: "2026-03-25", tags: ["드라마", "OTT", "조연"], requirements: { ageRange: [20, 45], location: "서울" } },
-  { id: "fb-5", source: "ai", sourcePlatform: "AI수집", tab: "오디션", title: "장편영화 배우 캐스팅", field: "film", description: "심리 스릴러 장편영화. 20-30대 남녀 배우 오디션.", deadline: "2026-03-25", tags: ["장편영화", "캐스팅"], requirements: { ageRange: [20, 39] } },
-  { id: "fb-6", source: "ai", sourcePlatform: "AI수집", tab: "콜라보", title: "무용 x 영상 콜라보 프로젝트", field: "dance", description: "무용 퍼포먼스를 영상으로 기록하는 콜라보.", deadline: "2026-04-20", tags: ["무용", "영상", "퍼포먼스"] },
-];
 
 /**
  * 사용자가 작성한 매칭 공고를 서버(matching_posts)에 저장.
@@ -116,6 +109,13 @@ export async function fetchUserMatchingPosts() {
   }
 }
 
+/**
+ * AI 매칭 공고 피드를 서버에서 읽어온다.
+ * 반환 형태 { items, error } — 성공(빈 응답 포함) error:null, 실패 error:"network"|"http_<status>".
+ * 실패 시 절대 예시 공고로 대체하지 않고(과거 FALLBACK_SAMPLE_PROJECTS 제거), 캐시에도 남기지
+ * 않는다 — 다음 화면 진입에서 재시도되게 하기 위함. 호출부(MatchingScreen)는 error로 오류/빈
+ * 목록 UI를 구분한다.
+ */
 export async function fetchMatchingFeed(userFields = []) {
   // Return cache if valid
   if (_cache.data && Date.now() - _cache.ts < CACHE_TTL) {
@@ -133,7 +133,10 @@ export async function fetchMatchingFeed(userFields = []) {
         headers: getApiHeaders(),
         body: JSON.stringify({ userFields, page, limit }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // 실패 — 캐시하지 않고 그대로 반환(다음 진입 시 재시도)
+        return { items: [], error: `http_${res.status}` };
+      }
       const data = await res.json();
       if (!Array.isArray(data) || data.length === 0) break;
       allItems.push(...data);
@@ -142,21 +145,18 @@ export async function fetchMatchingFeed(userFields = []) {
       if (page > 10) break; // Safety cap: max 500 posts
     }
 
-    if (allItems.length > 0) {
-      const items = allItems.map((item) => ({
-        source: "ai",
-        tab: "프로젝트",
-        requirements: {},
-        tags: [],
-        ...item,
-      }));
-      _cache = { data: items, ts: Date.now() };
-      return items;
-    }
-    throw new Error("Empty response");
+    const items = allItems.map((item) => ({
+      source: "ai",
+      tab: "프로젝트",
+      requirements: {},
+      tags: [],
+      ...item,
+    }));
+    const result = { items, error: null };
+    _cache = { data: result, ts: Date.now() };
+    return result;
   } catch {
-    // Fallback to sample data when server is unreachable
-    _cache = { data: FALLBACK_SAMPLE_PROJECTS, ts: Date.now() };
-    return FALLBACK_SAMPLE_PROJECTS;
+    // 네트워크 실패 — 캐시하지 않고 그대로 반환(다음 진입 시 재시도)
+    return { items: [], error: "network" };
   }
 }
