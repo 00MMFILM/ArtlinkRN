@@ -28,6 +28,7 @@ import { FIELDS } from "../utils/helpers";
 import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
 import { trackFunnelEvent } from "../services/mauService";
 import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
+import { startPractice, resumePractice, completePractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
 import { useTranslation } from "react-i18next";
 
@@ -210,7 +211,19 @@ export default function NoteCreateScreen({ navigation, route }) {
     setTitle(`${t("fields." + field)} ${ymd}`);
   }, [hasAttachments, hasAiResult, title, field, t]);
 
-  draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles };
+  // 연습 세션 — 이 화면 한 번이 연습 한 번. 초안 복원이면 새로 만들지 않고 이어받는다.
+  const practiceRef = useRef(null);
+  if (!practiceRef.current) {
+    const keptSessionId = route?.params?.prefill?.sessionId;
+    practiceRef.current = keptSessionId
+      ? resumePractice(keptSessionId, "text", null, field)
+      : startPractice("text", null, field);
+  }
+  useEffect(() => {
+    if (practiceRef.current) practiceRef.current.field = field;
+  }, [field]);
+
+  draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, sessionId: practiceRef.current?.sessionId };
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
@@ -288,6 +301,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
       trackFunnelEvent("ai_feedback_done", i18n.language);
+      aiFeedbackDone(practiceRef.current, "text");
       maybeOfferReminder();
     } catch (e) {
       // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
@@ -433,6 +447,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         (progress) => setVideoAiProgress(progress)
       );
       setVideoAnalysis(result);
+      aiFeedbackDone(practiceRef.current, "video");
     } catch (e) {
       // 실패는 결과로 채우지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
@@ -751,11 +766,15 @@ export default function NoteCreateScreen({ navigation, route }) {
       pdfFiles: pdfFiles.length > 0 ? pdfFiles : undefined,
     };
     hasUnsavedChangesRef.current = false;
-    handleSaveNote(noteData);
+    const savedNoteId = handleSaveNote(noteData);
     clearDraft(); // 노트로 남았으니 보관된 초안은 지운다 (복원으로 중복 생성되지 않게)
     trackFunnelEvent("note_saved", i18n.language);
+    completePractice(practiceRef.current, {
+      subjectKey: savedNoteId,
+      kind: noteVideos.length > 0 ? "video" : "text",
+    });
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language]);
+  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({

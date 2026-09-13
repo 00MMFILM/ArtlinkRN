@@ -22,6 +22,7 @@ import { analyzeNote, analyzeVideoFrames, lastAiMeta, rateFeedback } from "../se
 import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCollectionService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
+import { aiFeedbackDone, newUuid } from "../services/practiceService";
 import { formatDate, timeAgo } from "../utils/helpers";
 import FeedbackShareCard from "../components/FeedbackShareCard";
 import { buildCardProps, shareCardImage } from "../utils/shareCard";
@@ -267,6 +268,8 @@ export default function NoteDetailScreen({ route, navigation }) {
       // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
       handleUpdateNote({ ...(noteRef.current || note), aiComment: analysis, aiScores: scores, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
       showToast(t("noteDetail.ai_complete"), "success");
+      // 재분석도 연습 한 번 — 이 화면엔 시작 지점이 없어 단건 세션으로 보낸다
+      aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
 
       // Submit anonymous metadata for ALL users (no personal content)
       submitAnonymousMetadata({
@@ -363,6 +366,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       const latestNote = noteRef.current || note;
       handleUpdateNote({ ...latestNote, videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
       showToast(t("noteDetail.video_ai_complete"), "success");
+      aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
     } catch (e) {
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";

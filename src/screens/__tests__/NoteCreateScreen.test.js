@@ -5,12 +5,19 @@ import NoteCreateScreen from "../NoteCreateScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
 import { hasAskedReminder } from "../../services/reminderService";
+import { startPractice, resumePractice, completePractice, aiFeedbackDone } from "../../services/practiceService";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
+jest.mock("../../services/practiceService", () => ({
+  startPractice: jest.fn(() => ({ sessionId: "sess-new", kind: "text", subjectKey: null, field: "acting" })),
+  resumePractice: jest.fn((sessionId, kind, subjectKey, field) => ({ sessionId, kind, subjectKey, field })),
+  completePractice: jest.fn(),
+  aiFeedbackDone: jest.fn(),
+}));
 jest.mock("../../services/aiService", () => ({
   analyzeNote: jest.fn(),
   analyzeVideoFrames: jest.fn(),
@@ -318,5 +325,89 @@ describe("항목2 — 가입 왕복 시 초안 보존·복원", () => {
     await waitFor(() => expect(AsyncStorage.__store[DRAFT_KEY]).toBeUndefined());
     expect(ctx.handleSaveNote).not.toHaveBeenCalled();
     expect(navigation.goBack).toHaveBeenCalled();
+  });
+});
+
+// 2단계 — 반복 연습 측정. 노트 작성 화면 한 번 = 연습 세션 하나.
+describe("NoteCreateScreen — 연습 세션", () => {
+  beforeEach(resetAll);
+
+  it("(a) 마운트 시 세션이 시작되고, 저장 시 같은 세션이 노트 id로 완료된다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 1757740000000);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+
+    expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
+
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    fireEvent.press(utils.getByText("common.save"));
+
+    expect(completePractice).toHaveBeenCalledTimes(1);
+    const [session, overrides] = completePractice.mock.calls[0];
+    expect(session.sessionId).toBe("sess-new");
+    expect(overrides.subjectKey).toBe(1757740000000);
+    expect(overrides.kind).toBe("text");
+    expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
+  });
+
+  it("(b) 영상이 붙어 있으면 완료 종류가 video", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 42);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+
+    await attachVideo(utils);
+    fireEvent.press(utils.getByText("common.save"));
+
+    expect(completePractice.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ subjectKey: 42, kind: "video" })
+    );
+  });
+
+  it("(c) AI 분석 성공마다 ai_feedback_done — 텍스트·영상 종류로 구분", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+
+    await runAi(utils);
+    expect(aiFeedbackDone).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess-new" }), "text");
+
+    await attachVideo(utils);
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.video_ai_analyze"));
+    });
+    await waitFor(() => utils.getByText("noteCreate.video_ai_result"));
+    expect(aiFeedbackDone).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess-new" }), "video");
+  });
+
+  it("(d) 초안 복원이면 새 세션을 만들지 않고 초안의 sessionId를 이어받는다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 7);
+    useApp.mockReturnValue(ctx);
+    const utils = render(
+      <NoteCreateScreen
+        navigation={navigation}
+        route={{ params: { prefill: { content: "본문", field: "music", sessionId: "sess-kept" }, restoredDraft: true } }}
+      />
+    );
+
+    expect(startPractice).not.toHaveBeenCalled();
+    expect(resumePractice).toHaveBeenCalledWith("sess-kept", "text", null, "music");
+
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    fireEvent.press(utils.getByText("common.save"));
+    expect(completePractice.mock.calls[0][0].sessionId).toBe("sess-kept");
+  });
+
+  it("(e) 가입 왕복으로 보관되는 초안에 sessionId가 들어간다", async () => {
+    useApp.mockReturnValue(buildCtx(null));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await runAi(utils);
+
+    const cta = Alert.alert.mock.calls[0][2].find((b) => b.text === "signupNudge.cta");
+    await act(async () => { await cta.onPress(); });
+
+    expect(JSON.parse(AsyncStorage.__store[DRAFT_KEY]).sessionId).toBe("sess-new");
   });
 });

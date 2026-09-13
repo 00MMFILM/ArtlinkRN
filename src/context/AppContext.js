@@ -272,6 +272,7 @@ export function AppProvider({ children }) {
     if (userProfile.authUserId) {
       syncSingleNote(userProfile.authUserId, newNote).catch(() => {});
     }
+    return newNote.id; // 저장된 노트 id — 연습 측정의 subjectKey로 쓴다
   }, [showToast, userProfile.authUserId]);
 
   const handleDeleteNote = useCallback((noteId) => {

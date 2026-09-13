@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { trackFunnelEvent } from "../services/mauService";
+import { startPractice, completePractice } from "../services/practiceService";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
 
@@ -126,16 +127,25 @@ export default function HomeScreen({ navigation }) {
     return set;
   }, [savedNotes, todayKey]);
 
+  // 체크인 한 번 = 연습 세션 하나 (펼칠 때 시작 → 저장 때 완료)
+  const checkinSessionRef = useRef(null);
+
   const handleCheckinTap = useCallback((field) => {
-    setExpandedField((prev) => (prev === field ? null : field));
+    const expanding = expandedField !== field;
+    setExpandedField(expanding ? field : null);
+    if (expanding) checkinSessionRef.current = startPractice("checkin", field, field);
     setCheckinMemo("");
-  }, []);
+  }, [expandedField]);
 
   const handleCheckinSave = useCallback((field) => {
     const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
     handleSaveNote({ title, field, type: "checkin" });
     // 홈 체크인도 노트 저장이다 — 계측이 빠져 있어 실사용 저장의 75%가 집계되지 않았다(2026-09-07)
     trackFunnelEvent("note_saved", i18n.language);
+    if (checkinSessionRef.current) {
+      completePractice(checkinSessionRef.current, { subjectKey: field, field });
+      checkinSessionRef.current = null;
+    }
     setExpandedField(null);
     setCheckinMemo("");
   }, [checkinMemo, handleSaveNote, t, i18n.language]);

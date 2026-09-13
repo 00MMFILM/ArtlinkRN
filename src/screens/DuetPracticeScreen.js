@@ -2,7 +2,7 @@
 // 모드: 큐 연습(무음 기본·음성 토글) / 대본 보기(내 대사 가림). 음성은 expo-speech —
 // 네이티브 모듈이라 스토어 빌드에 실려야 켜지고, 구버전 바이너리에선 토글 자체가 숨는다.
 // 씬 데이터: 번들 JSON + actraw.kr/duet-scenes.json 원격 갱신 (전부 저작권 만료 고전).
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CLight, T } from "../constants/theme";
 import bundledData from "../data/duet-scenes.json";
+import { startPractice, completePractice } from "../services/practiceService";
 
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
 let Speech = null;
@@ -64,6 +65,14 @@ export default function DuetPracticeScreen({ navigation }) {
   const line = lines[idx];
   const partnerName = scene ? scene.roles[1 - myRole]?.name : "";
 
+  // 연습 세션 — 모드를 고르면 시작, 마지막 줄에 닿으면 딱 1회 완료 (대사 내용은 보내지 않는다)
+  const practiceRef = useRef(null);
+  const completedRef = useRef(false);
+  const beginPractice = (s) => {
+    completedRef.current = false;
+    practiceRef.current = startPractice("duet", s?.id, "acting");
+  };
+
   const openScene = (s) => { setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
   const advance = (d) => {
     stopSpeak();
@@ -71,6 +80,10 @@ export default function DuetPracticeScreen({ navigation }) {
     setIdx(n); setRevealed(false);
     const L = lines[n];
     if (d > 0 && L && L.r !== myRole) speakLine(L.t);
+    if (d > 0 && n === lines.length - 1 && practiceRef.current && !completedRef.current) {
+      completedRef.current = true;
+      completePractice(practiceRef.current);
+    }
   };
 
   useEffect(() => stopSpeak, []); // 화면 이탈 시 음성 정지
@@ -141,13 +154,13 @@ export default function DuetPracticeScreen({ navigation }) {
             ) : null}
           </View>
 
-          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("cue"); setIdx(0); }} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("cue"); setIdx(0); beginPractice(scene); }} activeOpacity={0.8}>
             <Text style={[T.titleBold, { color: CLight.gray900 }]}>🎬 큐 연습</Text>
             <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
               상대 대사가 한 줄씩 나오고, 내 차례에 멈춰요. 내 대사는 가려져서 암기 확인이 됩니다.
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.modeCard} onPress={() => setMode("script")} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("script"); beginPractice(scene); }} activeOpacity={0.8}>
             <Text style={[T.titleBold, { color: CLight.gray900 }]}>📜 대본 보기</Text>
             <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
               전체 대사를 순서대로 읽어요. 내 대사만 가리고 훑는 것도 가능해요.
@@ -214,7 +227,7 @@ export default function DuetPracticeScreen({ navigation }) {
                 {idx >= lines.length - 1 ? "끝" : mine && !revealed ? "건너뛰고 다음" : "다음"}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.ctlBtn} onPress={() => { setIdx(0); setRevealed(false); }}>
+            <TouchableOpacity style={styles.ctlBtn} onPress={() => { setIdx(0); setRevealed(false); beginPractice(scene); }}>
               <Text style={[T.bodyBold, { color: CLight.gray700 }]}>처음부터</Text>
             </TouchableOpacity>
           </View>

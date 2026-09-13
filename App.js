@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Text, View, StyleSheet, Modal, TextInput, TouchableOpacity, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from "react-native";
+import { Text, View, StyleSheet, Modal, TextInput, TouchableOpacity, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Linking, AppState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ExpoLinking from "expo-linking";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { AppProvider, useApp } from "./src/context/AppContext";
 import { supabase } from "./src/services/supabaseClient";
 import { trackFunnelEvent } from "./src/services/mauService";
 import { loadDraft } from "./src/services/noteDraft";
+import { flushPracticeQueue } from "./src/services/practiceService";
 import Toast from "./src/components/Toast";
 
 // Screens
@@ -341,6 +342,16 @@ function AppNavigator() {
     loadDraft().then((draft) => {
       if (draft) openNoteCreateWhenReady(draft, 0, true);
     });
+  }, [authState]);
+
+  // 쌓인 연습 이벤트 전송 — 앱 진입 시 1회, 백그라운드에서 돌아올 때 1회
+  useEffect(() => {
+    if (authState !== "app") return;
+    flushPracticeQueue();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") flushPracticeQueue();
+    });
+    return () => sub.remove();
   }, [authState]);
 
   const needsLink = authState === "app" && userProfile?.email && !userProfile?.authUserId && !linkDismissed;

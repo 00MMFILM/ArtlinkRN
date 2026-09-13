@@ -3,12 +3,17 @@ import { render, fireEvent } from "@testing-library/react-native";
 import HomeScreen from "../HomeScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
+import { startPractice, completePractice } from "../../services/practiceService";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
+jest.mock("../../services/practiceService", () => ({
+  startPractice: jest.fn(() => ({ sessionId: "sess-home", kind: "checkin" })),
+  completePractice: jest.fn(),
+}));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -66,5 +71,35 @@ describe("HomeScreen — 빠른 체크인 계측", () => {
       expect.objectContaining({ field: "music", type: "checkin" })
     );
     expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
+  });
+});
+
+// 2단계 — 반복 연습 측정. 체크인도 "연습 한 번"이라 시작·완료가 한 세션으로 묶여야 한다.
+describe("HomeScreen — 체크인 연습 세션", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("분야 원을 펼칠 때 세션이 시작되고, 저장 시 같은 세션이 완료된다", () => {
+    const ctx = buildCtx([]);
+    useApp.mockReturnValue(ctx);
+    const { getByText } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music"));
+    expect(startPractice).toHaveBeenCalledWith("checkin", "music", "music");
+
+    fireEvent.press(getByText("common.save"));
+    expect(completePractice).toHaveBeenCalledTimes(1);
+    expect(completePractice.mock.calls[0][0].sessionId).toBe("sess-home");
+    // 기존 최초 1회 통계는 그대로 남는다
+    expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
+  });
+
+  it("원을 접을 때는 세션을 새로 시작하지 않는다", () => {
+    useApp.mockReturnValue(buildCtx([]));
+    const { getByText } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music")); // 펼침
+    fireEvent.press(getByText("fields.music")); // 접음
+    expect(startPractice).toHaveBeenCalledTimes(1);
+    expect(completePractice).not.toHaveBeenCalled();
   });
 });

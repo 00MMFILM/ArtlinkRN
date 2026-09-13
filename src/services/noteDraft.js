@@ -28,6 +28,8 @@ export function buildDraft(state = {}) {
     draft[k] = Array.isArray(state[k]) ? state[k] : [];
   });
   draft.aiScores = state.aiScores && typeof state.aiScores === "object" ? state.aiScores : null;
+  // 연습 세션 id — 가입 왕복이 연습 2회로 세이지 않게 복원 때 이어받는다 (내용 아님)
+  draft.sessionId = typeof state.sessionId === "string" ? state.sessionId : null;
   draft.savedAt = Date.now();
   return draft;
 }
@@ -43,6 +45,7 @@ export function validateDraft(raw) {
     draft[k] = Array.isArray(raw[k]) ? raw[k] : [];
   });
   draft.aiScores = raw.aiScores && typeof raw.aiScores === "object" ? raw.aiScores : null;
+  draft.sessionId = typeof raw.sessionId === "string" ? raw.sessionId : null;
   draft.savedAt = typeof raw.savedAt === "number" ? raw.savedAt : 0;
   return hasSubstance(draft) ? draft : null;
 }
