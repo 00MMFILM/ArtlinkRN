@@ -46,22 +46,28 @@ export default function NoteDetailScreen({ route, navigation }) {
     handleAcceptAIDisclosure,
     isKoreanLocale,
     setAuthState,
+    premium,
   } = useApp();
 
-  // 게스트(비로그인)면 로그인 유도, 로그인 유저면 프리미엄 안내. AI 쿼터 소진 공통 처리.
-  const promptQuotaExceeded = useCallback(() => {
+  // 게스트(비로그인)면 로그인 유도, 무료 로그인 유저면 프리미엄 안내,
+  // 이미 프리미엄이면 결제 권유 대신 남은 한도 안내. AI 쿼터 소진 공통 처리.
+  const promptQuotaExceeded = useCallback((kind = "video", info = {}) => {
     if (!userProfile?.authUserId) {
       Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
         { text: t("premium.guest_trial_cta"), onPress: () => setAuthState("auth") },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
+    } else if (premium?.active) {
+      const max = info.max ?? (kind === "text" ? 10 : 15);
+      const key = kind === "text" ? "premium.limit_text_reached" : "premium.limit_video_reached";
+      Alert.alert(t("premium.active_title"), t(key, { max }));
     } else {
       Alert.alert(t("common.video_quota_exceeded"), "", [
         { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     }
-  }, [userProfile?.authUserId, setAuthState, navigation, t]);
+  }, [userProfile?.authUserId, premium?.active, setAuthState, navigation, t]);
 
   const note = useMemo(
     () => savedNotes.find((n) => n.id === noteId),
@@ -322,7 +328,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       }
     } catch (e) {
       if (e?.message === "AI_QUOTA") {
-        promptQuotaExceeded(); // 게스트→로그인, 로그인유저→프리미엄
+        promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
       } else {
         showToast(t("noteDetail.ai_failed"), "error");
       }
@@ -371,7 +377,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
       if (quota) {
-        promptQuotaExceeded(); // 게스트→로그인, 로그인유저→프리미엄
+        promptQuotaExceeded("video", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
       } else {
         Alert.alert(
           t("noteDetail.video_ai_failed"),

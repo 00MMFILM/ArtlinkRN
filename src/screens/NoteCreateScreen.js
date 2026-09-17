@@ -49,7 +49,7 @@ async function markSignupNudgeAsked() {
 
 export default function NoteCreateScreen({ navigation, route }) {
   const { t, i18n } = useTranslation();
-  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState } = useApp();
+  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState, premium } = useApp();
 
   // 초안 보관용 — 렌더마다 최신 상태를 담아두고, 인증 화면으로 떠날 때 그대로 저장한다
   const draftStateRef = useRef({});
@@ -69,20 +69,25 @@ export default function NoteCreateScreen({ navigation, route }) {
     setAuthState("auth");
   }, [setAuthState, t]);
 
-  // AI 쿼터 소진: 게스트→로그인 유도, 로그인 유저→프리미엄 안내
-  const promptQuotaExceeded = useCallback(() => {
+  // AI 쿼터 소진: 게스트→로그인 유도, 무료 로그인 유저→프리미엄 안내,
+  // 프리미엄 유저→이미 프리미엄이므로 "프리미엄 보기"가 아니라 남은 한도 안내를 보여준다.
+  const promptQuotaExceeded = useCallback((kind = "video", info = {}) => {
     if (!userProfile?.authUserId) {
       Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
         { text: t("premium.guest_trial_cta"), onPress: goToAuthWithDraft },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
+    } else if (premium?.active) {
+      const max = info.max ?? (kind === "text" ? 10 : 15);
+      const key = kind === "text" ? "premium.limit_text_reached" : "premium.limit_video_reached";
+      Alert.alert(t("premium.active_title"), t(key, { max }));
     } else {
       Alert.alert(t("common.video_quota_exceeded"), "", [
         { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     }
-  }, [userProfile?.authUserId, goToAuthWithDraft, navigation, t]);
+  }, [userProfile?.authUserId, premium?.active, goToAuthWithDraft, navigation, t]);
 
   // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
   const prefill = route?.params?.prefill || null;
@@ -306,7 +311,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     } catch (e) {
       // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
       setAiComment(previousComment);
-      if (e?.message === "AI_QUOTA") promptQuotaExceeded();
+      if (e?.message === "AI_QUOTA") promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed });
       else Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
     } finally {
       setAiLoading(false);
@@ -452,7 +457,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       // 실패는 결과로 채우지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
       if (quota) {
-        promptQuotaExceeded(); // 게스트→로그인, 로그인유저→프리미엄
+        promptQuotaExceeded("video", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
       } else {
         Alert.alert(
           t("noteCreate.ai_failed"),

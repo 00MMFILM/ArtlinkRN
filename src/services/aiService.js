@@ -891,7 +891,15 @@ function streamAnalyze(requestBody, onToken) {
       if (xhr.responseText) onToken?.(xhr.responseText.split("[[")[0]);
     };
     xhr.onload = () => {
-      if (xhr.status === 429) return reject(new Error("AI_QUOTA"));
+      if (xhr.status === 429) {
+        const err = new Error("AI_QUOTA");
+        try {
+          const info = JSON.parse(xhr.responseText || "{}");
+          err.quotaUsed = info.used;
+          err.quotaMax = info.max;
+        } catch (_) {}
+        return reject(err);
+      }
       if (xhr.status >= 200 && xhr.status < 300) {
         const text = xhr.responseText || "";
         if (text.trim().length < 10) reject(new Error("AI_EMPTY_RESPONSE"));
@@ -1005,7 +1013,14 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
 
     if (!response.ok) {
       console.log("[analyzeNote] Server error:", response.status);
-      throw new Error(response.status === 429 ? "AI_QUOTA" : "AI_SERVER_ERROR");
+      if (response.status === 429) {
+        const info = await response.json().catch(() => ({}));
+        const err = new Error("AI_QUOTA");
+        err.quotaUsed = info.used;
+        err.quotaMax = info.max;
+        throw err;
+      }
+      throw new Error("AI_SERVER_ERROR");
     }
     const data = await response.json();
     if (!data.analysis && !data.content) {
@@ -1485,7 +1500,10 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
 
         if (response.status === 429) {
           const info = await response.json().catch(() => ({}));
-          throw videoAiError("QUOTA", `quota exceeded (${info.used}/${info.max})`);
+          const err = videoAiError("QUOTA", `quota exceeded (${info.used}/${info.max})`);
+          err.quotaUsed = info.used;
+          err.quotaMax = info.max;
+          throw err;
         }
         if (response.status >= 400 && response.status < 500) {
           throw videoAiError("REJECTED", `server rejected: ${response.status}`);

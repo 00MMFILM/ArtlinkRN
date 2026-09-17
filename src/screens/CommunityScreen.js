@@ -17,11 +17,13 @@ import { useNavigation } from "@react-navigation/native";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { FIELDS, visibleCommunityPosts } from "../utils/helpers";
 import Pill from "../components/Pill";
+import PremiumBadge from "../components/PremiumBadge";
 import {
   fetchPosts,
   getDemoPosts,
   invalidatePostsCache,
 } from "../services/communityService";
+import { fetchPremiumUserIds } from "../services/premiumService";
 
 const TAB_KEYS = [
   { key: "tab_all", value: "전체" },
@@ -56,7 +58,7 @@ function formatTimeAgo(dateStr, t) {
 }
 
 // ─── Post Card ───────────────────────────────────────────────
-function PostCard({ post, onReport, onPress }) {
+function PostCard({ post, onReport, onPress, isPremiumAuthor }) {
   const { t } = useTranslation();
   const field = post.author_field || post.field;
   const emoji = FIELD_EMOJIS[field] || "";
@@ -73,6 +75,7 @@ function PostCard({ post, onReport, onPress }) {
           <Text style={[T.captionBold, { color: CLight.gray900 }]}>
             {author}
           </Text>
+          {isPremiumAuthor ? <PremiumBadge size={12} style={{ marginLeft: 3 }} /> : null}
           <Text style={[T.tiny, { color: CLight.gray400, marginLeft: 4 }]}>
             {timeAgo}
           </Text>
@@ -138,6 +141,17 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [usingDemo, setUsingDemo] = useState(false);
+  // 왕관은 글 데이터(author_premium)가 아니라 서버가 주는 활성 프리미엄 id 목록으로 그린다.
+  // 목록을 못 받으면(null) 배지 없이 그대로 보여준다 — 오류 표시 없음.
+  const [premiumUserIds, setPremiumUserIds] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchPremiumUserIds()
+      .then((ids) => { if (alive) setPremiumUserIds(ids); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // 전공이 뒤늦게 로드되면 한 번만 기본 필터를 사용자 전공으로 맞춤
   useEffect(() => {
@@ -288,7 +302,14 @@ export default function CommunityScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <PostCard post={item} onReport={handlePostAction} onPress={handlePostPress} />}
+          renderItem={({ item }) => (
+            <PostCard
+              post={item}
+              onReport={handlePostAction}
+              onPress={handlePostPress}
+              isPremiumAuthor={!!(item.user_id && premiumUserIds?.has(item.user_id))}
+            />
+          )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={

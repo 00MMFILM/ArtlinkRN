@@ -830,5 +830,17 @@
     "msg": "Daftar dan catatan serta masukan ini akan tersimpan di akun Anda, plus jatah masukan AI gratis bertambah. Pendaftaran gratis.",
     "later": "Nanti saja",
     "cta": "Daftar gratis"
+  },
+  "premium": {
+    "active_title": "Premium aktif",
+    "active_plan_monthly": "Paket bulanan",
+    "active_plan_yearly": "Paket tahunan",
+    "active_plan_comp": "Akses gratis",
+    "since": "Sejak {{date}}",
+    "next_billing": "Tagihan berikutnya {{date}}",
+    "manage": "Kelola langganan",
+    "badge": "Premium",
+    "limit_text_reached": "Anda sudah memakai {{max}} umpan balik teks hari ini. Kuotanya kembali besok.",
+    "limit_video_reached": "Anda sudah memakai {{max}} analisis video bulan ini. Kuotanya kembali bulan depan."
   }
 }

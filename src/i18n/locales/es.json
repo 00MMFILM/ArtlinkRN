@@ -830,5 +830,17 @@
     "msg": "Al registrarte, esta nota y su comentario se guardan en tu cuenta y aumentan tus comentarios de IA gratuitos. Registrarse es gratis.",
     "later": "Más tarde",
     "cta": "Registrarme gratis"
+  },
+  "premium": {
+    "active_title": "Premium activo",
+    "active_plan_monthly": "Plan mensual",
+    "active_plan_yearly": "Plan anual",
+    "active_plan_comp": "Acceso gratuito",
+    "since": "Desde el {{date}}",
+    "next_billing": "Próximo cobro el {{date}}",
+    "manage": "Gestionar suscripción",
+    "badge": "Premium",
+    "limit_text_reached": "Has usado los {{max}} comentarios de texto de hoy. Se renuevan mañana.",
+    "limit_video_reached": "Has usado los {{max}} análisis de vídeo de este mes. Se renuevan el mes que viene."
   }
 }

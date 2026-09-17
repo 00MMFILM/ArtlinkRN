@@ -830,5 +830,17 @@
     "msg": "註冊後，這則記錄與回饋會儲存到你的帳號，免費 AI 回饋次數也會增加。註冊免費。",
     "later": "稍後再說",
     "cta": "免費註冊"
+  },
+  "premium": {
+    "active_title": "進階版使用中",
+    "active_plan_monthly": "月繳方案",
+    "active_plan_yearly": "年繳方案",
+    "active_plan_comp": "免費使用權",
+    "since": "自 {{date}} 起",
+    "next_billing": "下次扣款 {{date}}",
+    "manage": "管理訂閱",
+    "badge": "進階版",
+    "limit_text_reached": "今天的文字回饋 {{max}} 次已用完，明天可以繼續使用。",
+    "limit_video_reached": "本月的影片分析 {{max}} 次已用完，下個月會重新計算。"
   }
 }

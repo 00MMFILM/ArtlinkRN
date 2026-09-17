@@ -77,7 +77,7 @@ const AsyncStorage = require("@react-native-async-storage/async-storage");
 const { DRAFT_KEY } = require("../../services/noteDraft");
 
 const setAuthState = jest.fn();
-const buildCtx = (authUserId) => ({
+const buildCtx = (authUserId, premium = { active: false }) => ({
   handleSaveNote: jest.fn(),
   savedNotes: [],
   userProfile: authUserId ? { authUserId } : {},
@@ -85,6 +85,7 @@ const buildCtx = (authUserId) => ({
   handleAcceptAIDisclosure: jest.fn(),
   isKoreanLocale: true,
   setAuthState,
+  premium,
 });
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn(), addListener: jest.fn(() => jest.fn()) };
@@ -409,5 +410,41 @@ describe("NoteCreateScreen — 연습 세션", () => {
     await act(async () => { await cta.onPress(); });
 
     expect(JSON.parse(AsyncStorage.__store[DRAFT_KEY]).sessionId).toBe("sess-new");
+  });
+});
+
+// 프리미엄 구독자에게 "무료 체험 소진 · 프리미엄 보기"를 또 띄우던 문제(2026-09-17).
+// 이미 결제한 사람에겐 결제 권유가 아니라 남은 한도를 알려줘야 한다.
+describe("NoteCreateScreen — 쿼터 소진 안내", () => {
+  beforeEach(resetAll);
+
+  it("프리미엄이면 결제 권유 대신 하루 한도 소진 문구를 띄운다(구독 화면 이동 없음)", async () => {
+    useApp.mockReturnValue(buildCtx("u1", { active: true, kind: "sub", plan: "yearly" }));
+    const err = new Error("AI_QUOTA");
+    err.quotaMax = 10;
+    err.quotaUsed = 10;
+    analyzeNote.mockRejectedValue(err);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await runAi(utils);
+
+    const call = Alert.alert.mock.calls.find((c) => c[0] === "premium.active_title");
+    expect(call).toBeTruthy();
+    expect(call[1]).toBe("premium.limit_text_reached");
+    // 결제 권유 경로는 타지 않는다
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "common.video_quota_exceeded")).toBe(false);
+    expect(navigation.navigate).not.toHaveBeenCalledWith("Subscription");
+  });
+
+  it("무료 로그인 유저는 기존대로 프리미엄 안내를 받는다", async () => {
+    useApp.mockReturnValue(buildCtx("u1", { active: false }));
+    analyzeNote.mockRejectedValue(new Error("AI_QUOTA"));
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await runAi(utils);
+
+    const call = Alert.alert.mock.calls.find((c) => c[0] === "common.video_quota_exceeded");
+    expect(call).toBeTruthy();
+    expect(call[2].some((b) => b.text === "premium.quota_cta")).toBe(true);
   });
 });

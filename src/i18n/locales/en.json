@@ -873,7 +873,17 @@
     "quota_cta": "See Premium",
     "guest_trial_title": "You've used your free trial",
     "guest_trial_msg": "Sign up to keep getting AI feedback. It's free to join.",
-    "guest_trial_cta": "Sign up"
+    "guest_trial_cta": "Sign up",
+    "active_title": "Premium active",
+    "active_plan_monthly": "Monthly plan",
+    "active_plan_yearly": "Yearly plan",
+    "active_plan_comp": "Complimentary access",
+    "since": "Since {{date}}",
+    "next_billing": "Next billing {{date}}",
+    "manage": "Manage subscription",
+    "badge": "Premium",
+    "limit_text_reached": "You've used all {{max}} text feedback sessions for today. They reset tomorrow.",
+    "limit_video_reached": "You've used all {{max}} video analyses this month. They reset next month."
   },
   "signupNudge": {
     "title": "Want to keep this feedback?",

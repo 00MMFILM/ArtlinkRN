@@ -12,11 +12,14 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
+import { useApp } from "../context/AppContext";
+import { formatDate } from "../utils/helpers";
 import {
   purchasesReady,
   getPremiumOffering,
   purchasePremium,
   restorePurchases,
+  getPremiumEntitlement,
 } from "../services/purchasesService";
 
 // 이용약관·개인정보 링크 + 자동갱신 고지
@@ -26,22 +29,35 @@ const GOOGLE_PLAY_TERMS_URL = "https://play.google.com/intl/ko/about/play-terms/
 const TERMS_URL = Platform.OS === "ios" ? APPLE_EULA_URL : GOOGLE_PLAY_TERMS_URL;
 const PRIVACY_URL = "https://art-link.kr/privacy/";
 
+// 구독 관리는 스토어에서만 가능하다 (심사 요건)
+const ANDROID_PACKAGE = "com.mm00.artlink";
+function manageUrl(planCode) {
+  if (Platform.OS === "ios") return "https://apps.apple.com/account/subscriptions";
+  const sku = planCode ? `&sku=artlink_premium_${planCode}` : "";
+  return `https://play.google.com/store/account/subscriptions?package=${ANDROID_PACKAGE}${sku}`;
+}
+
 export default function SubscriptionScreen({ navigation }) {
   const { t } = useTranslation();
+  const { premium, markPremiumActive, refreshPremium } = useApp();
+  const isActive = !!premium?.active;
+
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
   const [offering, setOffering] = useState(null);
+  const [entitlement, setEntitlement] = useState(null);
   const [selected, setSelected] = useState("yearly"); // 연간이 기본 (마진·리텐션 유리)
 
   useEffect(() => {
     (async () => {
       if (purchasesReady()) {
-        const o = await getPremiumOffering();
-        setOffering(o);
+        // 구독 중이면 결제 상품 목록 대신 만료일(다음 결제일)만 필요하다
+        if (isActive) setEntitlement(await getPremiumEntitlement());
+        else setOffering(await getPremiumOffering());
       }
       setLoading(false);
     })();
-  }, []);
+  }, [isActive]);
 
   const monthlyPkg = offering?.monthly || null;
   const yearlyPkg = offering?.annual || null;
@@ -56,6 +72,9 @@ export default function SubscriptionScreen({ navigation }) {
     const { success, cancelled } = await purchasePremium(selectedPkg);
     setBuying(false);
     if (success) {
+      // 서버 웹훅 반영 전에도 화면은 즉시 프리미엄으로 바뀌어야 한다
+      markPremiumActive({ kind: "sub", plan: selected });
+      refreshPremium();
       Alert.alert(t("premium.title"), t("premium.purchase_success"), [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -68,6 +87,10 @@ export default function SubscriptionScreen({ navigation }) {
     setBuying(true);
     const restored = await restorePurchases();
     setBuying(false);
+    if (restored) {
+      markPremiumActive({ kind: "sub" });
+      refreshPremium();
+    }
     Alert.alert(
       t("premium.title"),
       restored ? t("premium.restore_success") : t("premium.restore_none"),
@@ -80,6 +103,80 @@ export default function SubscriptionScreen({ navigation }) {
     { icon: "🎥", text: t("premium.benefit_video") },
     { icon: "🧠", text: t("premium.benefit_model") },
   ];
+
+  // ─── 구독 중: 결제창 대신 상태 화면 ───
+  if (isActive) {
+    // 플랜은 서버 값이 정본. 없으면 RevenueCat 상품 식별자로 유추한다.
+    const productId = entitlement?.productIdentifier || "";
+    const planCode =
+      premium.plan ||
+      (/month/i.test(productId) ? "monthly" : /year|annual/i.test(productId) ? "yearly" : null);
+    const isComp = premium.kind === "comp";
+    const planLabel = isComp
+      ? t("premium.active_plan_comp")
+      : planCode === "monthly"
+      ? t("premium.active_plan_monthly")
+      : planCode === "yearly"
+      ? t("premium.active_plan_yearly")
+      : null;
+    // 무료 이용권에는 결제일이 없다
+    const nextBilling = !isComp && entitlement?.expirationDate ? entitlement.expirationDate : null;
+
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.closeText}>✕</Text>
+          </TouchableOpacity>
+
+          <View style={styles.activeHeader}>
+            <Text style={styles.activeCrown}>{"\uD83D\uDC51"}</Text>
+            <Text style={[T.h1, styles.title]}>{t("premium.active_title")}</Text>
+            {planLabel ? (
+              <Text style={[T.body, { color: CLight.gray500, marginTop: 4 }]}>{planLabel}</Text>
+            ) : null}
+            {premium.since ? (
+              <Text style={[T.caption, { color: CLight.gray400, marginTop: 4 }]}>
+                {t("premium.since", { date: formatDate(premium.since) })}
+              </Text>
+            ) : null}
+            {nextBilling ? (
+              <Text style={[T.caption, { color: CLight.gray400, marginTop: 2 }]}>
+                {t("premium.next_billing", { date: formatDate(nextBilling) })}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.benefits}>
+            {benefits.map((b, i) => (
+              <View key={i} style={styles.benefitRow}>
+                <Text style={styles.benefitIcon}>{b.icon}</Text>
+                <Text style={[T.body, styles.benefitText]}>{b.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.ctaBtn} onPress={() => Linking.openURL(manageUrl(planCode))}>
+            <Text style={[T.bodyBold, { color: "#FFFFFF" }]}>{t("premium.manage")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore} disabled={buying}>
+            <Text style={[T.small, { color: CLight.gray500 }]}>{t("premium.restore")}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.links}>
+            <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
+              <Text style={[T.caption, styles.linkText]}>{t("premium.terms")}</Text>
+            </TouchableOpacity>
+            <Text style={[T.caption, { color: CLight.gray300 }]}> · </Text>
+            <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
+              <Text style={[T.caption, styles.linkText]}>{t("premium.privacy")}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -178,6 +275,8 @@ const styles = StyleSheet.create({
   badge: { alignSelf: "flex-start", backgroundColor: CLight.pink, color: "#FFFFFF", fontSize: 12, fontWeight: "700", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, overflow: "hidden", marginBottom: 12 },
   title: { color: CLight.gray900, marginBottom: 6 },
   subtitle: { color: CLight.gray500, marginBottom: 24 },
+  activeHeader: { alignItems: "center", marginBottom: 28 },
+  activeCrown: { fontSize: 44, marginBottom: 10 },
   benefits: { marginBottom: 28, gap: 14 },
   benefitRow: { flexDirection: "row", alignItems: "center" },
   benefitIcon: { fontSize: 20, marginRight: 12 },

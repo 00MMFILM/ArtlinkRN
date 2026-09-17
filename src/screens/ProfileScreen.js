@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, APP_VERSION } from "../constants/theme";
 import { calculateAge } from "../utils/helpers";
+import PremiumBadge from "../components/PremiumBadge";
 
 // ─── Language options ───
 
@@ -74,6 +75,7 @@ export default function ProfileScreen({ navigation }) {
     language,
     handleChangeLanguage,
     setAuthState,
+    premium,
   } = useApp();
   const [showLangPicker, setShowLangPicker] = useState(false);
 
@@ -184,7 +186,10 @@ export default function ProfileScreen({ navigation }) {
               <Text style={styles.avatarEmoji}>{avatarEmoji}</Text>
             </View>
           )}
-          <Text style={[T.h2, { color: CLight.gray900, marginTop: 14 }]}>{displayName}</Text>
+          <Text style={[T.h2, { color: CLight.gray900, marginTop: 14 }]}>
+            {displayName}
+            {premium?.active ? <Text>{" "}<PremiumBadge size={18} label /></Text> : null}
+          </Text>
           {displayFields ? (
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 4 }]}>{displayFields}</Text>
           ) : null}

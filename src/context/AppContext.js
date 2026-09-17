@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, STORAGE_KEYS } from "../utils/storage";
 import { supabase } from "../services/supabaseClient";
@@ -10,6 +11,7 @@ import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, de
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
 import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
 import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
+import { fetchPremiumStatus, EMPTY_PREMIUM, shouldApplyServerPremium, PREMIUM_OPTIMISTIC_MS } from "../services/premiumService";
 
 const AppContext = createContext();
 
@@ -44,6 +46,8 @@ export function AppProvider({ children }) {
   const [dataConsentAsked, setDataConsentAsked] = useState(false);
   const [aiDisclosureAccepted, setAiDisclosureAccepted] = useState(false);
   const [language, setLanguage] = useState(i18n.language || "ko");
+  // 프리미엄 상태 — 화면(왕관 배지·구독 화면·한도 안내)이 읽는 유일한 정본
+  const [premium, setPremium] = useState(EMPTY_PREMIUM);
   const isKoreanLocale = language === "ko";
 
   const artistProfile = useMemo(
@@ -137,6 +141,7 @@ export function AppProvider({ children }) {
         safeStorageSet(STORAGE_KEYS.PROFILE, null);
         safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
         setDeviceUserId(null);
+        setPremium(EMPTY_PREMIUM);
         setAuthState("auth");
       } else if (event === "PASSWORD_RECOVERY") {
         // 비밀번호 재설정 링크로 앱 진입 시 → 로그인 화면으로
@@ -204,6 +209,36 @@ export function AppProvider({ children }) {
       }
     })();
   }, [storageReady, authState, userProfile.authUserId]);
+
+  // ─── 프리미엄 상태 ───
+  // 서버(premium_members)가 정본. 실패하면 이전 값을 유지한다(화면 깜빡임 방지).
+  const premiumOptimisticUntilRef = useRef(0);
+  const refreshPremium = useCallback(async () => {
+    if (!userProfile.authUserId) {
+      setPremium(EMPTY_PREMIUM); // 로그아웃·게스트는 프리미엄 없음
+      return;
+    }
+    const next = await fetchPremiumStatus();
+    // 결제 직후 3분은 서버의 false(웹훅 지연)로 낙관적 활성 상태를 되돌리지 않는다(2026-09-17 리뷰 지적)
+    if (shouldApplyServerPremium(next, premiumOptimisticUntilRef.current)) setPremium(next);
+  }, [userProfile.authUserId]);
+
+  // 결제·복원 성공 직후 즉시 활성 표시 — 서버 웹훅 반영까지 수 초~수십 초 걸린다.
+  // 다음 refreshPremium에서 서버 값(kind/plan/since 포함)으로 교체된다.
+  const markPremiumActive = useCallback((info = {}) => {
+    premiumOptimisticUntilRef.current = Date.now() + PREMIUM_OPTIMISTIC_MS;
+    setPremium((prev) => ({ ...prev, ...info, active: true, source: "purchase" }));
+  }, []);
+
+  // 앱 진입 + 백그라운드 복귀 시 갱신
+  useEffect(() => {
+    if (!storageReady || authState !== "app") return;
+    refreshPremium();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") refreshPremium();
+    });
+    return () => sub.remove();
+  }, [storageReady, authState, refreshPremium]);
 
   // Sync profile + stats to Supabase when profilePublic is enabled
   useEffect(() => {
@@ -532,6 +567,7 @@ export function AppProvider({ children }) {
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
+    premium, refreshPremium, markPremiumActive,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
@@ -547,6 +583,7 @@ export function AppProvider({ children }) {
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
+    premium, refreshPremium, markPremiumActive,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,

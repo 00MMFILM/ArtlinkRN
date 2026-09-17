@@ -62,3 +62,41 @@ describe("premium.subtitle / premium.benefit_text — 실제 한도(하루 10회
     expect(j.premium.benefit_text).toEqual(expect.stringContaining("10"));
   });
 });
+
+// 결제해도 앱이 그대로이던 문제(2026-09-17) 수정으로 새로 쓰는 프리미엄 상태 문구.
+// 10개 언어 전부에 있어야 한다 (en 폴백에 기대면 한국어 사용자 외에는 영어가 섞여 보인다).
+const NEW_PREMIUM_KEYS = [
+  "active_title",
+  "active_plan_monthly",
+  "active_plan_yearly",
+  "active_plan_comp",
+  "since",
+  "next_billing",
+  "manage",
+  "badge",
+  "limit_text_reached",
+  "limit_video_reached",
+];
+
+describe("premium 상태 문구 — 10개 언어 전부 존재", () => {
+  it.each(LOCALES)("%s: 새 premium 키가 모두 비어있지 않은 문자열이다", (code) => {
+    const j = loadLocale(code);
+    expect(j.premium).toBeDefined();
+    NEW_PREMIUM_KEYS.forEach((k) => {
+      expect(typeof j.premium[k]).toBe("string");
+      expect(j.premium[k].trim().length).toBeGreaterThan(0);
+    });
+  });
+
+  it.each(LOCALES)("%s: since/next_billing은 {{date}} 치환자를 갖는다", (code) => {
+    const j = loadLocale(code);
+    expect(j.premium.since).toEqual(expect.stringContaining("{{date}}"));
+    expect(j.premium.next_billing).toEqual(expect.stringContaining("{{date}}"));
+  });
+
+  it.each(LOCALES)("%s: 소진 안내는 {{max}} 치환자를 갖는다 (서버 한도값을 그대로 쓴다)", (code) => {
+    const j = loadLocale(code);
+    expect(j.premium.limit_text_reached).toEqual(expect.stringContaining("{{max}}"));
+    expect(j.premium.limit_video_reached).toEqual(expect.stringContaining("{{max}}"));
+  });
+});

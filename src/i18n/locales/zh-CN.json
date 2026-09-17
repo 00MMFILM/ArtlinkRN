@@ -830,5 +830,17 @@
     "msg": "注册后，这条记录和反馈会保存到你的账号，免费 AI 反馈次数也会增加。注册免费。",
     "later": "以后再说",
     "cta": "免费注册"
+  },
+  "premium": {
+    "active_title": "高级版使用中",
+    "active_plan_monthly": "月度方案",
+    "active_plan_yearly": "年度方案",
+    "active_plan_comp": "免费使用权",
+    "since": "自 {{date}} 起",
+    "next_billing": "下次扣款 {{date}}",
+    "manage": "管理订阅",
+    "badge": "高级版",
+    "limit_text_reached": "今天的文字反馈 {{max}} 次已用完，明天可以继续使用。",
+    "limit_video_reached": "本月的视频分析 {{max}} 次已用完，下个月会重新计算。"
   }
 }

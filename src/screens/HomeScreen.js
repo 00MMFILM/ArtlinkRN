@@ -15,6 +15,7 @@ import { trackFunnelEvent } from "../services/mauService";
 import { startPractice, completePractice } from "../services/practiceService";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
+import PremiumBadge from "../components/PremiumBadge";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -28,6 +29,7 @@ export default function HomeScreen({ navigation }) {
     artistProfile,
     fieldOrder,
     isKoreanLocale,
+    premium,
   } = useApp();
 
   // 2인 대사 연습 — 한국어 콘텐츠라 KR 로케일만 노출.
@@ -188,6 +190,8 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.greetingContainer}>
             <Text style={[T.h3, { color: CLight.gray900 }]}>
               {greeting},{" "}
+              {premium?.active ? <PremiumBadge size={16} /> : null}
+              {premium?.active ? " " : null}
               <Text style={{ color: CLight.pink }}>{userName}</Text>
               {t("home.suffix_nim")}
             </Text>

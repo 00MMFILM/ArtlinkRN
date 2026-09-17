@@ -18,13 +18,14 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-const buildCtx = (savedNotes) => ({
+const buildCtx = (savedNotes, premium = { active: false }) => ({
   savedNotes,
   handleSaveNote: jest.fn(),
   userProfile: { name: "홍길동", fields: ["music"] },
   artistProfile: {},
   fieldOrder: [],
   isKoreanLocale: false,
+  premium,
 });
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() };
@@ -101,5 +102,22 @@ describe("HomeScreen — 체크인 연습 세션", () => {
     fireEvent.press(getByText("fields.music")); // 접음
     expect(startPractice).toHaveBeenCalledTimes(1);
     expect(completePractice).not.toHaveBeenCalled();
+  });
+});
+
+// 결제한 사용자가 앱 어디서도 티가 안 나던 문제(2026-09-17) — 인사말에 왕관이 붙는다.
+describe("HomeScreen — 프리미엄 왕관 배지", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("프리미엄이면 인사말 이름 앞에 왕관이 보인다", () => {
+    useApp.mockReturnValue(buildCtx([], { active: true, kind: "sub", plan: "yearly" }));
+    const { queryByTestId } = render(<HomeScreen navigation={navigation} />);
+    expect(queryByTestId("premium-badge")).toBeTruthy();
+  });
+
+  it("비프리미엄이면 왕관이 없다", () => {
+    useApp.mockReturnValue(buildCtx([], { active: false }));
+    const { queryByTestId } = render(<HomeScreen navigation={navigation} />);
+    expect(queryByTestId("premium-badge")).toBeNull();
   });
 });

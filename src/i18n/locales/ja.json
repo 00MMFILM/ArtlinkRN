@@ -830,5 +830,17 @@
     "msg": "登録すると、この記録とフィードバックがアカウントに保存され、無料AIフィードバックの回数も増えます。登録は無料です。",
     "later": "あとで",
     "cta": "無料で登録"
+  },
+  "premium": {
+    "active_title": "プレミアム利用中",
+    "active_plan_monthly": "月額プラン",
+    "active_plan_yearly": "年額プラン",
+    "active_plan_comp": "無料利用権",
+    "since": "{{date}}から",
+    "next_billing": "次回の請求 {{date}}",
+    "manage": "サブスクリプションの管理",
+    "badge": "プレミアム",
+    "limit_text_reached": "本日のテキストフィードバック{{max}}回をすべて使いました。明日また利用できます。",
+    "limit_video_reached": "今月の映像分析{{max}}回をすべて使いました。来月また利用できます。"
   }
 }

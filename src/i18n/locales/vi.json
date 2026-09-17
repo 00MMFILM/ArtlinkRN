@@ -830,5 +830,17 @@
     "msg": "Đăng ký để ghi chú và phản hồi này được lưu vào tài khoản, đồng thời có thêm lượt phản hồi AI miễn phí. Đăng ký hoàn toàn miễn phí.",
     "later": "Để sau",
     "cta": "Đăng ký miễn phí"
+  },
+  "premium": {
+    "active_title": "Đang dùng Premium",
+    "active_plan_monthly": "Gói hàng tháng",
+    "active_plan_yearly": "Gói hàng năm",
+    "active_plan_comp": "Quyền dùng miễn phí",
+    "since": "Từ {{date}}",
+    "next_billing": "Thanh toán kế tiếp {{date}}",
+    "manage": "Quản lý gói đăng ký",
+    "badge": "Premium",
+    "limit_text_reached": "Bạn đã dùng hết {{max}} lượt phản hồi văn bản hôm nay. Ngày mai sẽ được làm mới.",
+    "limit_video_reached": "Bạn đã dùng hết {{max}} lượt phân tích video tháng này. Tháng sau sẽ được làm mới."
   }
 }

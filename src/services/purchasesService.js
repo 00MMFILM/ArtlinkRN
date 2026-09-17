@@ -75,6 +75,17 @@ export async function restorePurchases() {
   }
 }
 
+/** 프리미엄 엔티틀먼트 상세 (만료일·상품 식별자). 없으면 null */
+export async function getPremiumEntitlement() {
+  if (!configured) return null;
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    return customerInfo.entitlements.active[ENTITLEMENT_ID] || null;
+  } catch {
+    return null;
+  }
+}
+
 /** 프리미엄 활성 여부 */
 export async function checkPremium() {
   if (!configured) return false;
