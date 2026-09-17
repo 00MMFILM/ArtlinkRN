@@ -17,6 +17,24 @@ const AppContext = createContext();
 
 const DEFAULT_FIELD_ORDER = ["acting", "music", "art", "dance", "literature", "film"];
 
+// 둘러보기(게스트)로 한 번 들어온 기기는 다음 실행부터 가입 화면을 다시 보지 않는다.
+// 로그아웃하면 지워서 가입 화면으로 돌아가게 한다.
+export const GUEST_ENTERED_KEY = "artlink-guest-entered";
+
+/**
+ * 앱 시작 시 진입 상태 결정 (테스트 가능하도록 순수 함수로 분리)
+ * - 프로필 있음 + auth 연동: 세션이 있어야 진입
+ * - 프로필 있음 + 구 유저: 바로 진입
+ * - 프로필 없음: 둘러보기 이력이 있으면 진입, 없으면 가입 화면
+ */
+export function resolveInitialAuthState({ profile, hasSession, guestEntered }) {
+  if (profile) {
+    if (profile.authUserId) return hasSession ? "app" : "auth";
+    return "app";
+  }
+  return guestEntered ? "app" : "auth";
+}
+
 export function AppProvider({ children }) {
   const [savedNotes, setSavedNotes] = useState([]);
   const [userProfile, setUserProfile] = useState({
@@ -97,17 +115,17 @@ export function AppProvider({ children }) {
         safeStorageGet(STORAGE_KEYS.AI_DISCLOSURE_ACCEPTED),
       ]);
       if (notes) setSavedNotes(notes);
-      if (profile) {
-        setUserProfile(profile);
-        if (profile.authUserId) {
-          // Auth 유저 → 세션 유효할 때만 진입
-          const { data: { session } } = await supabase.auth.getSession();
-          setAuthState(session ? "app" : "auth");
-        } else {
-          // 기존 유저 (Auth 미연동) → 바로 앱 진입 허용
-          setAuthState("app");
-        }
+      let hasSession = false;
+      if (profile?.authUserId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        hasSession = !!session;
       }
+      if (profile) setUserProfile(profile);
+      // 읽기 실패해도 앱 시작이 멈추지 않게 (실패 = 둘러보기 이력 없음)
+      const guestEntered = await AsyncStorage.getItem(GUEST_ENTERED_KEY)
+        .then((v) => v === "true")
+        .catch(() => false);
+      setAuthState(resolveInitialAuthState({ profile, hasSession, guestEntered }));
 
       if (g) setGoals(g);
       // subscription removed
@@ -142,6 +160,8 @@ export function AppProvider({ children }) {
         safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
         setDeviceUserId(null);
         setPremium(EMPTY_PREMIUM);
+        // 로그아웃한 사용자는 다시 가입/로그인 화면을 보게 한다 (게스트 재진입 키 제거)
+        AsyncStorage.removeItem(GUEST_ENTERED_KEY).catch(() => {});
         setAuthState("auth");
       } else if (event === "PASSWORD_RECOVERY") {
         // 비밀번호 재설정 링크로 앱 진입 시 → 로그인 화면으로
@@ -331,10 +351,10 @@ export function AppProvider({ children }) {
     });
   }, [showToast, userProfile.authUserId]);
 
-  const handleUpdateNote = useCallback((updatedNote) => {
+  const handleUpdateNote = useCallback((updatedNote, { silent = false } = {}) => {
     const withTimestamp = { ...updatedNote, updatedAt: new Date().toISOString() };
     setSavedNotes((prev) => prev.map((n) => (n.id === updatedNote.id ? withTimestamp : n)));
-    showToast(i18n.t("toast.note_updated"), "edit");
+    if (!silent) showToast(i18n.t("toast.note_updated"), "edit");
     if (userProfile.authUserId) {
       syncSingleNote(userProfile.authUserId, withTimestamp).catch(() => {});
     }
@@ -465,6 +485,9 @@ export function AppProvider({ children }) {
       // 기존 deviceUserId 캐시 초기화 (새 auth user에 맞게 재등록)
       safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
       setDeviceUserId(null);
+    } else {
+      // 둘러보기 — 이 기기는 다음 실행부터 바로 홈으로 (가입 화면 반복 노출 제거)
+      AsyncStorage.setItem(GUEST_ENTERED_KEY, "true").catch(() => {});
     }
     setAuthState("app");
   }, []);

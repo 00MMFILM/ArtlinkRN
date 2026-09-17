@@ -191,7 +191,10 @@
     "write_note": "Tulis Catatan",
     "hero_title": "Catat latihan pertama Anda",
     "hero_desc": "Cukup satu baris tentang dialog, nyanyian, atau latihan —\nAI langsung memberi masukan. Gratis, tanpa daftar.",
-    "hero_cta": "Catat dan dapatkan masukan AI"
+    "hero_cta": "Catat dan dapatkan masukan AI",
+    "hero_title_ko_acting": "Rekam dialog latihan hari ini dan dapatkan masukan",
+    "hero_desc_ko_acting": "Sedang bersiap untuk audisi atau ujian masuk?\nCatat satu adegan setiap kali dan dapatkan satu hal untuk diperbaiki berikutnya. Gratis, tanpa daftar.",
+    "hero_cta_ko_acting": "Catat latihan dan dapatkan masukan"
   },
   "notes": {
     "search_placeholder": "Cari catatan...",
@@ -842,5 +845,19 @@
     "badge": "Premium",
     "limit_text_reached": "Anda sudah memakai {{max}} umpan balik teks hari ini. Kuotanya kembali besok.",
     "limit_video_reached": "Anda sudah memakai {{max}} analisis video bulan ini. Kuotanya kembali bulan depan."
+  },
+  "focus": {
+    "pick_title": "Pilih satu hal untuk diperbaiki di latihan berikutnya",
+    "current": "Fokus latihan ini",
+    "repractice_cta": "Latihan lagi dengan poin ini",
+    "previous_title": "Latihan sebelumnya",
+    "previous_focus": "Fokus sebelumnya",
+    "score_delta": "Perubahan indikator aktivitas latihan",
+    "duet_hint": "Rekam dialog yang baru Anda latih dan lampirkan — masukannya jadi ada dasarnya.",
+    "axis_technique": "Teknik",
+    "axis_expression": "Ekspresi",
+    "axis_creativity": "Kreativitas",
+    "axis_consistency": "Konsistensi",
+    "axis_growth": "Perubahan"
   }
 }

@@ -191,7 +191,10 @@
     "write_note": "Escribir una nota",
     "hero_title": "Registra tu primera práctica",
     "hero_desc": "Con una sola línea sobre un diálogo, una canción o un ensayo,\nla IA te da su comentario al instante. Gratis y sin registro.",
-    "hero_cta": "Registrar y recibir comentario de IA"
+    "hero_cta": "Registrar y recibir comentario de IA",
+    "hero_title_ko_acting": "Graba el diálogo que ensayaste hoy y recibe comentarios",
+    "hero_desc_ko_acting": "¿Preparas un casting o una prueba de acceso?\nRegistra escena por escena y recibe un punto que mejorar la próxima vez. Gratis y sin registro.",
+    "hero_cta_ko_acting": "Registrar la práctica y recibir comentarios"
   },
   "notes": {
     "search_placeholder": "Buscar notas...",
@@ -842,5 +845,19 @@
     "badge": "Premium",
     "limit_text_reached": "Has usado los {{max}} comentarios de texto de hoy. Se renuevan mañana.",
     "limit_video_reached": "Has usado los {{max}} análisis de vídeo de este mes. Se renuevan el mes que viene."
+  },
+  "focus": {
+    "pick_title": "Elige una cosa que mejorar en la próxima práctica",
+    "current": "Enfoque de esta práctica",
+    "repractice_cta": "Practicar de nuevo con este punto",
+    "previous_title": "Práctica anterior",
+    "previous_focus": "Enfoque anterior",
+    "score_delta": "Cambio en los indicadores de actividad de práctica",
+    "duet_hint": "Graba el diálogo que acabas de ensayar y adjúntalo: así el comentario tendrá base.",
+    "axis_technique": "Técnica",
+    "axis_expression": "Expresión",
+    "axis_creativity": "Creatividad",
+    "axis_consistency": "Constancia",
+    "axis_growth": "Cambio"
   }
 }

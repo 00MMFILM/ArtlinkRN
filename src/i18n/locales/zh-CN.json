@@ -191,7 +191,10 @@
     "write_note": "写笔记",
     "hero_title": "记录你的第一次练习",
     "hero_desc": "台词、歌唱、练习，只写一行\nAI 立刻给你反馈。无需注册，免费。",
-    "hero_cta": "记录并获取 AI 反馈"
+    "hero_cta": "记录并获取 AI 反馈",
+    "hero_title_ko_acting": "把今天练的台词录下来，拿到反馈",
+    "hero_desc_ko_acting": "正在准备艺考或试镜？\n一场戏一场戏地记录，拿到下次要改的一点。无需注册，免费。",
+    "hero_cta_ko_acting": "记录练习并获取反馈"
   },
   "notes": {
     "search_placeholder": "搜索笔记...",
@@ -842,5 +845,19 @@
     "badge": "高级版",
     "limit_text_reached": "今天的文字反馈 {{max}} 次已用完，明天可以继续使用。",
     "limit_video_reached": "本月的视频分析 {{max}} 次已用完，下个月会重新计算。"
+  },
+  "focus": {
+    "pick_title": "选一个下次练习要改的点",
+    "current": "本次练习的重点",
+    "repractice_cta": "按这个重点再练一次",
+    "previous_title": "上次练习",
+    "previous_focus": "上次的重点",
+    "score_delta": "练习活动指标变化",
+    "duet_hint": "把刚才练的台词录下来并附上，反馈才有依据。",
+    "axis_technique": "技术",
+    "axis_expression": "表现",
+    "axis_creativity": "创意",
+    "axis_consistency": "坚持",
+    "axis_growth": "变化"
   }
 }

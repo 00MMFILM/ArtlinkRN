@@ -191,7 +191,10 @@
     "write_note": "撰寫筆記",
     "hero_title": "記錄你的第一次練習",
     "hero_desc": "台詞、歌唱、練習，只寫一行\nAI 立刻給你回饋。免註冊，免費。",
-    "hero_cta": "記錄並取得 AI 回饋"
+    "hero_cta": "記錄並取得 AI 回饋",
+    "hero_title_ko_acting": "把今天練的台詞錄下來，拿到回饋",
+    "hero_desc_ko_acting": "正在準備藝考或試鏡？\n一場戲一場戲地記錄，拿到下次要改的一點。免註冊，免費。",
+    "hero_cta_ko_acting": "記錄練習並取得回饋"
   },
   "notes": {
     "search_placeholder": "搜尋筆記...",
@@ -842,5 +845,19 @@
     "badge": "進階版",
     "limit_text_reached": "今天的文字回饋 {{max}} 次已用完，明天可以繼續使用。",
     "limit_video_reached": "本月的影片分析 {{max}} 次已用完，下個月會重新計算。"
+  },
+  "focus": {
+    "pick_title": "選一個下次練習要改的點",
+    "current": "本次練習的重點",
+    "repractice_cta": "依這個重點再練一次",
+    "previous_title": "上次練習",
+    "previous_focus": "上次的重點",
+    "score_delta": "練習活動指標變化",
+    "duet_hint": "把剛才練的台詞錄下來並附上，回饋才有依據。",
+    "axis_technique": "技術",
+    "axis_expression": "表現",
+    "axis_creativity": "創意",
+    "axis_consistency": "堅持",
+    "axis_growth": "變化"
   }
 }

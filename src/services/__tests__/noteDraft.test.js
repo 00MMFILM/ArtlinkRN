@@ -121,3 +121,13 @@ describe("hasDraftContent", () => {
     expect(hasDraftContent({ videoAnalysis: "분석" })).toBe(true);
   });
 });
+
+describe("고칠 점 후보·선택 보존", () => {
+  it("초안 왕복에서 focusOptions와 chosenFocus가 살아남는다", () => {
+    const draft = validateDraft(JSON.parse(JSON.stringify(buildDraft({
+      ...fullState, focusOptions: ["호흡 늦추기", "시선 고정", 3], chosenFocus: "시선 고정",
+    }))));
+    expect(draft.focusOptions).toEqual(["호흡 늦추기", "시선 고정"]);
+    expect(draft.chosenFocus).toBe("시선 고정");
+  });
+});

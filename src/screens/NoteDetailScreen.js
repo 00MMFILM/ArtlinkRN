@@ -18,11 +18,13 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { getRelatedNotes } from "../services/analyticsService";
-import { analyzeNote, analyzeVideoFrames, lastAiMeta, rateFeedback } from "../services/aiService";
+import { analyzeNote, analyzeVideoFrames, lastAiMeta, rateFeedback, buildPreviousContext, focusSummary } from "../services/aiService";
 import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCollectionService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { aiFeedbackDone, newUuid } from "../services/practiceService";
+import { trackFunnelEvent } from "../services/mauService";
+import FocusPicker from "../components/FocusPicker";
 import { formatDate, timeAgo } from "../utils/helpers";
 import FeedbackShareCard from "../components/FeedbackShareCard";
 import { buildCardProps, shareCardImage } from "../utils/shareCard";
@@ -178,10 +180,40 @@ export default function NoteDetailScreen({ route, navigation }) {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // 지난 연습 — 이 노트가 재연습(parentNoteId)이고 그 노트가 기기에 남아 있을 때만
+  const previousNote = useMemo(
+    () => (note?.parentNoteId ? savedNotes.find((n) => n.id === note.parentNoteId) || null : null),
+    [note?.parentNoteId, savedNotes]
+  );
+
   const relatedNotes = useMemo(() => {
     if (!note) return [];
     return getRelatedNotes(note, savedNotes);
   }, [note, savedNotes]);
+
+  // 고칠 점 선택 — 노트에 저장하고 퍼널에 최초 1회 기록
+  const handleChooseFocus = useCallback((value) => {
+    if (!note) return;
+    handleUpdateNote({ ...(noteRef.current || note), chosenFocus: value || undefined }, { silent: true });
+    if (value) trackFunnelEvent("focus_selected");
+  }, [note, handleUpdateNote]);
+
+  // 고른 초점으로 같은 장면 다시 연습 — 새 노트가 체인(rootNoteId·parentNoteId)을 들고 열린다
+  const handleRepractice = useCallback(() => {
+    if (!note) return;
+    trackFunnelEvent("repractice_started");
+    navigation.navigate("NoteCreate", {
+      prefill: {
+        title: note.title,
+        field: note.field,
+        seriesName: note.seriesName || note.title,
+        rootNoteId: note.rootNoteId || note.id,
+        parentNoteId: note.id,
+        focus: note.chosenFocus,
+        sceneId: note.sceneId,
+      },
+    });
+  }, [note, navigation]);
 
   const fieldEmoji = FIELD_EMOJIS[note?.field] || "\uD83D\uDCDD";
   const fieldLabel = t("fields." + (note?.field || "etc"));
@@ -266,13 +298,14 @@ export default function NoteDetailScreen({ route, navigation }) {
         savedNotes,
         note,
         userProfile,
-        (partial) => setStreamingText(partial)
+        (partial) => setStreamingText(partial),
+        { focus: note.focus, previous: buildPreviousContext(previousNote) }
       );
       const analysis = result.analysis || result;
       const scores = result.scores || null;
       setStreamingText("");
       // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
-      handleUpdateNote({ ...(noteRef.current || note), aiComment: analysis, aiScores: scores, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
+      handleUpdateNote({ ...(noteRef.current || note), aiComment: analysis, aiScores: scores, focusOptions: result.focusOptions || undefined, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
       showToast(t("noteDetail.ai_complete"), "success");
       // 재분석도 연습 한 번 — 이 화면엔 시작 지점이 없어 단건 세션으로 보낸다
       aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
@@ -335,7 +368,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     } finally {
       setAiLoading(false);
     }
-  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, t, navigation]);
+  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, t, navigation, previousNote]);
 
   const handleRequestAI = useCallback(async () => {
     if (!note) return;
@@ -366,11 +399,12 @@ export default function NoteDetailScreen({ route, navigation }) {
         note.title,
         noteVideos,
         userProfile,
-        (progress) => setVideoAiProgress(progress)
+        (progress) => setVideoAiProgress(progress),
+        { focus: note.focus, previous: buildPreviousContext(previousNote) }
       );
       // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
       const latestNote = noteRef.current || note;
-      handleUpdateNote({ ...latestNote, videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
+      handleUpdateNote({ ...latestNote, videoAnalysis: result, focusOptions: lastAiMeta.focusOptions?.length ? lastAiMeta.focusOptions : latestNote.focusOptions, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
       showToast(t("noteDetail.video_ai_complete"), "success");
       aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
     } catch (e) {
@@ -392,7 +426,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t, promptQuotaExceeded]);
+  }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t, promptQuotaExceeded, previousNote]);
 
   useEffect(() => {
     startVideoAIRef.current = startVideoAI;
@@ -785,6 +819,39 @@ export default function NoteDetailScreen({ route, navigation }) {
 
     return (
       <View style={styles.tabContent}>
+        {/* 지난 연습 — 직전 노트가 기기에 남아 있을 때만 */}
+        {previousNote ? (
+          <View style={styles.prevCard}>
+            <Text style={[T.captionBold, { color: CLight.gray700 }]}>{t("focus.previous_title")}</Text>
+            <Text style={[T.small, { color: CLight.gray500, marginTop: 2 }]} numberOfLines={1}>
+              {previousNote.title} · {timeAgo(previousNote.createdAt)}
+            </Text>
+            {previousNote.chosenFocus ? (
+              <Text style={[T.small, { color: CLight.pink, marginTop: 8 }]}>
+                {t("focus.previous_focus")}: {previousNote.chosenFocus}
+              </Text>
+            ) : null}
+            {focusSummary(previousNote.aiComment || previousNote.videoAnalysis || "", 200) ? (
+              <Text style={[T.small, { color: CLight.gray700, marginTop: 6 }]}>
+                {focusSummary(previousNote.aiComment || previousNote.videoAnalysis || "", 200)}
+              </Text>
+            ) : null}
+            {note.aiScores && previousNote.aiScores ? (
+              <>
+                <Text style={[T.micro, { color: CLight.gray500, marginTop: 10 }]}>{t("focus.score_delta")}</Text>
+                <Text style={[T.small, { color: CLight.gray700, marginTop: 2 }]}>
+                  {["technique", "expression", "creativity", "consistency", "growth"]
+                    .map((k) => {
+                      const d = (note.aiScores[k] || 0) - (previousNote.aiScores[k] || 0);
+                      return `${t("focus.axis_" + k)} ${d > 0 ? "+" : ""}${d}`;
+                    })
+                    .join(" · ")}
+                </Text>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Text AI Analysis */}
         {aiLoading ? (
           streamingText ? (
@@ -814,6 +881,17 @@ export default function NoteDetailScreen({ route, navigation }) {
             </View>
             <View style={styles.aiDivider} />
             <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text>
+            <FocusPicker
+              title={t("focus.pick_title")}
+              options={note.focusOptions}
+              value={note.chosenFocus}
+              onSelect={handleChooseFocus}
+            />
+            {note.chosenFocus ? (
+              <TouchableOpacity style={styles.repracticeBtn} onPress={handleRepractice} activeOpacity={0.85}>
+                <Text style={[T.smallBold, { color: CLight.white }]}>{t("focus.repractice_cta")}</Text>
+              </TouchableOpacity>
+            ) : null}
             <View style={styles.aiActionRow}>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShareFeedback} disabled={sharing}>
                 {sharing ? (
@@ -1146,6 +1224,21 @@ const styles = StyleSheet.create({
   aiLoadingContainer: {
     alignItems: "center",
     paddingVertical: 60,
+  },
+  prevCard: {
+    backgroundColor: CLight.white,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: CLight.gray200,
+  },
+  repracticeBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: CLight.pink,
   },
   aiCard: {
     backgroundColor: CLight.white,

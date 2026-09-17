@@ -9,7 +9,7 @@ import { getOrCreateDeviceId } from "./mauService";
 import i18n from "i18next";
 
 // 마지막 AI 생성 메타 — 노트 저장 시 함께 기록 (모델·프롬프트 버전 추적 = 학습 데이터 필터 기준)
-export const lastAiMeta = { model: null, promptVersion: null, pipeline: null, transcript: null };
+export const lastAiMeta = { model: null, promptVersion: null, pipeline: null, transcript: null, focusOptions: [] };
 
 /**
  * 피드백 평가 전송 (👍/👎 + 이유) — 학습 데이터 라벨링
@@ -870,6 +870,54 @@ export function parseScores(raw) {
   return { analysis: raw.slice(0, m.index).trim(), scores };
 }
 
+// 피드백 끝의 [[FOCUS]] 한 줄 → 다음 연습에서 고칠 점 후보(최대 3개).
+// [[SCORES]] 바로 앞에 오며, 표시용 본문에선 제거한다. 구서버 응답엔 이 줄이 없다(그땐 options=[]).
+const FOCUS_RE = /\[\[FOCUS\]\]([^\n]*)/i;
+export function parseFocus(raw) {
+  if (!raw) return { analysis: raw, options: [] };
+  const m = raw.match(FOCUS_RE);
+  if (!m) {
+    // 끝에 걸린 미완성 마커("[[FOC")만 지운다 — 본문 중간의 [[대사]] 같은 표기는 그대로 둔다
+    return { analysis: raw.replace(/\[\[[A-Za-z]*\]?$/, "").trim(), options: [] };
+  }
+  const options = m[1]
+    .split("|")
+    .map((s) => s.trim().slice(0, 40))
+    .filter(Boolean)
+    .slice(0, 3);
+  return { analysis: raw.slice(0, m.index).trim(), options };
+}
+
+// 피드백에서 🎯(개선 포인트) 섹션만 뽑아 요약으로 쓴다. 섹션이 없으면 앞부분을 쓴다.
+const SECTION_RE = /[\u{1F4CC}\u{1F4AA}\u{1F3AF}\u{1F3AD}\u{1F3A8}\u{1F4A1}\u{1F4C8}\u{1F51C}]/u;
+export function focusSummary(text, max = 400) {
+  if (!text) return "";
+  const idx = text.indexOf("\u{1F3AF}");
+  const body = idx >= 0 ? text.slice(idx + 2) : text;
+  const next = body.search(SECTION_RE);
+  const section = next >= 0 ? body.slice(0, next) : body;
+  return section.trim().slice(0, max);
+}
+
+// 직전 연습 노트 → 서버로 보낼 previous 블록 (없으면 null)
+export function buildPreviousContext(prevNote) {
+  if (!prevNote) return null;
+  const summary = focusSummary(prevNote.aiComment || prevNote.videoAnalysis || "", 400);
+  if (!summary && !prevNote.aiScores && !prevNote.chosenFocus) return null;
+  return {
+    focus: prevNote.chosenFocus || null,
+    summary,
+    scores: prevNote.aiScores || null,
+  };
+}
+
+// focus/previous는 서버 선택 필드 — 있을 때만 싣는다 (구서버는 무시한다)
+function withPracticeContext(body, extra) {
+  if (extra?.focus) body.focus = String(extra.focus).slice(0, 80);
+  if (extra?.previous) body.previous = extra.previous;
+  return body;
+}
+
 /**
  * 서버 스트리밍 엔드포인트를 XHR로 소비 (React Native fetch는 스트리밍 미지원).
  * onToken(누적텍스트)를 청크마다 호출하여 화면에 실시간 표시.
@@ -921,7 +969,13 @@ function streamAnalyze(requestBody, onToken) {
   });
 }
 
-export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}, onToken = null) {
+// parseScores 결과에 남아 있는 [[FOCUS]] 줄을 한 번 더 걷어내 focusOptions로 넘긴다
+function withFocus(scored) {
+  const { analysis, options } = parseFocus(scored.analysis);
+  return { analysis, scores: scored.scores, focusOptions: options };
+}
+
+export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}, onToken = null, extra = null) {
   const fmt = getResponseFormat();
 
   // Extract PDF text if PDF files are attached
@@ -984,12 +1038,13 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
   const prompt = buildAIPrompt(field, combinedContent, savedNotes, currentNote, userProfile);
 
   try {
-    const requestBody = {
+    const requestBody = withPracticeContext({
       prompt,
       field,
       noteTitle: currentNote?.title || "",
       wantScores: true, // 서버가 끝에 [[SCORES]] 붙여줌 → parseScores로 aiScores 저장 (성장 분석용)
-    };
+      wantFocus: true, // 서버가 [[SCORES]] 바로 앞에 [[FOCUS]] 붙여줌 (이 플래그가 없으면 안 붙는다 — 구버전 앱 보호)
+    }, extra);
     if (imageFrames.length > 0) {
       requestBody.frames = imageFrames;
     }
@@ -997,7 +1052,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     // onToken 콜백이 있으면 스트리밍 (실시간 표시), 없으면 기존 방식
     if (typeof onToken === "function") {
       const fullText = await streamAnalyze(requestBody, onToken);
-      return parseScores(fullText); // 끝의 [[SCORES]] → aiScores, 본문은 제거
+      return withFocus(parseScores(fullText)); // 끝의 [[SCORES]]·[[FOCUS]] → 데이터로, 본문에선 제거
     }
 
     const controller = new AbortController();
@@ -1031,7 +1086,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     lastAiMeta.promptVersion = data.meta?.promptVersion || null;
     lastAiMeta.pipeline = null;
     lastAiMeta.transcript = null;
-    return parseScores(data.analysis || data.content || ""); // 끝의 [[SCORES]] → aiScores
+    return withFocus(parseScores(data.analysis || data.content || "")); // 끝의 [[SCORES]]·[[FOCUS]] → 데이터로
   } catch (e) {
     console.log("[analyzeNote] AI failed:", e.message);
     // Throw so caller can show error instead of silent heuristic
@@ -1420,7 +1475,7 @@ function deleteTempMedia(fileName) {
  *   NO_VIDEO | NO_FRAMES | QUOTA | REJECTED | TIMEOUT | NETWORK.
  *   실패를 절대 안내 문구로 대체해 반환하지 않는다 — 호출부가 노트에 저장해버리기 때문.
  */
-export async function analyzeVideoFrames(field, content, title, videos, userProfile, onProgress) {
+export async function analyzeVideoFrames(field, content, title, videos, userProfile, onProgress, extra = null) {
   if (!videos || videos.length === 0) {
     throw videoAiError("NO_VIDEO", "no video attached");
   }
@@ -1466,15 +1521,16 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     onProgress?.({ phase: "analyzing", percent: 45, message: fmt.progressAIRequest });
 
     const prompt = buildVideoPrompt(field, content, title);
-    const body = JSON.stringify({
+    const body = JSON.stringify(withPracticeContext({
       prompt,
       field,
       noteTitle: title || "",
+      wantFocus: true, // 영상 응답의 마지막 줄로 [[FOCUS]]가 온다 (플래그 없으면 안 붙는다)
       frames,
       frameTimes,
       ...(videoUrl ? { videoUrl } : {}),
       ...(transcript ? { transcript } : {}),
-    });
+    }, extra));
 
     // 응답을 놓치면 분석이 소실되므로 일시적 실패는 1회 재시도한다.
     // 4xx(인증·쿼터·잘못된 요청)는 재시도해도 결과가 같으므로 즉시 중단한다.
@@ -1518,10 +1574,13 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
         lastAiMeta.promptVersion = data.meta?.promptVersion || null;
         lastAiMeta.pipeline = data.meta?.pipeline || null;
         lastAiMeta.transcript = transcript || null;
+        // 영상 응답에도 [[FOCUS]] 줄이 올 수 있다 — 화면에 마커가 새지 않게 걷어내고 메타에 담는다
+        const parsed = parseFocus(data.analysis);
+        lastAiMeta.focusOptions = parsed.options;
 
         deleteTempMedia(tempFileName); // 분석 완료 — 임시 원본 정리 (보존본은 서버가 media-archive에 복사함)
         onProgress?.({ phase: "done", percent: 100, message: fmt.progressDone });
-        return data.analysis;
+        return parsed.analysis;
       } catch (e) {
         if (e.videoAiReason) throw e; // 재시도 무의미 — 그대로 올림
         lastError = e;

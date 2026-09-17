@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CLight, T } from "../constants/theme";
 import bundledData from "../data/duet-scenes.json";
 import { startPractice, completePractice } from "../services/practiceService";
+import { trackFunnelEvent } from "../services/mauService";
+import i18n from "i18next";
 
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
 let Speech = null;
@@ -73,6 +75,28 @@ export default function DuetPracticeScreen({ navigation }) {
     practiceRef.current = startPractice("duet", s?.id, "acting");
   };
 
+  // 연습을 끝냈다는 신호 — 큐 모드 마지막 줄, 대본 모드의 "연습 끝" 버튼이 공유한다 (중복 완료 방지)
+  const finishPractice = () => {
+    if (practiceRef.current && !completedRef.current) {
+      completedRef.current = true;
+      completePractice(practiceRef.current);
+    }
+  };
+
+  // 방금 연습한 장면을 기록으로 — 노트 작성 화면이 장면 제목·연기·시리즈·sceneId로 채워져 열린다
+  const goToNote = () => {
+    finishPractice();
+    trackFunnelEvent("duet_to_note", i18n?.language);
+    navigation.navigate("NoteCreate", {
+      prefill: {
+        title: `${scene.play} 2인 대사`,
+        field: "acting",
+        seriesName: scene.play,
+        sceneId: scene.id,
+      },
+    });
+  };
+
   const openScene = (s) => { setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
   const advance = (d) => {
     stopSpeak();
@@ -80,10 +104,7 @@ export default function DuetPracticeScreen({ navigation }) {
     setIdx(n); setRevealed(false);
     const L = lines[n];
     if (d > 0 && L && L.r !== myRole) speakLine(L.t);
-    if (d > 0 && n === lines.length - 1 && practiceRef.current && !completedRef.current) {
-      completedRef.current = true;
-      completePractice(practiceRef.current);
-    }
+    if (d > 0 && n === lines.length - 1) finishPractice();
   };
 
   useEffect(() => stopSpeak, []); // 화면 이탈 시 음성 정지
@@ -231,6 +252,11 @@ export default function DuetPracticeScreen({ navigation }) {
               <Text style={[T.bodyBold, { color: CLight.gray700 }]}>처음부터</Text>
             </TouchableOpacity>
           </View>
+          {idx >= lines.length - 1 ? (
+            <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85}>
+              <Text style={[T.bodyBold, { color: CLight.white }]}>연습 기록 남기기</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     );
@@ -274,6 +300,12 @@ export default function DuetPracticeScreen({ navigation }) {
             </TouchableOpacity>
           );
         })}
+        <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85}>
+          <Text style={[T.bodyBold, { color: CLight.white }]}>연습 기록 남기기</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.finishBtn} onPress={finishPractice} activeOpacity={0.85}>
+          <Text style={[T.bodyBold, { color: CLight.gray700 }]}>연습 끝</Text>
+        </TouchableOpacity>
         <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 18 }]}>
           연습 씬 제공 — ACT RAW (actraw.kr)
         </Text>
@@ -323,4 +355,12 @@ const styles = StyleSheet.create({
     backgroundColor: CLight.surface, borderRadius: 12, padding: 13, marginBottom: 8,
   },
   lineMine: { borderLeftWidth: 3, borderLeftColor: CLight.pink },
+  noteBtn: {
+    marginTop: 12, paddingVertical: 14, borderRadius: 12, alignItems: "center",
+    backgroundColor: CLight.pink,
+  },
+  finishBtn: {
+    marginTop: 8, paddingVertical: 13, borderRadius: 12, alignItems: "center",
+    backgroundColor: CLight.gray100,
+  },
 });

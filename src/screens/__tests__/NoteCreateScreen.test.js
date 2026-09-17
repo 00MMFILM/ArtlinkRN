@@ -22,6 +22,7 @@ jest.mock("../../services/aiService", () => ({
   analyzeNote: jest.fn(),
   analyzeVideoFrames: jest.fn(),
   lastAiMeta: {},
+  buildPreviousContext: jest.fn((prev) => (prev ? { focus: prev.chosenFocus || null, summary: "지난 요약", scores: prev.aiScores || null } : null)),
 }));
 jest.mock("../../services/adService", () => ({
   incrementDailyAICount: jest.fn(),
@@ -446,5 +447,113 @@ describe("NoteCreateScreen — 쿼터 소진 안내", () => {
     const call = Alert.alert.mock.calls.find((c) => c[0] === "common.video_quota_exceeded");
     expect(call).toBeTruthy();
     expect(call[2].some((b) => b.text === "premium.quota_cta")).toBe(true);
+  });
+});
+
+// 3단계 — 재연습 체인: 초점·부모 노트·장면 id가 저장 데이터와 연습 계측에 그대로 실린다
+describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneId)", () => {
+  beforeEach(resetAll);
+
+  const parent = {
+    id: 100,
+    title: "햄릿 독백",
+    field: "acting",
+    aiComment: "📌 인상\n좋다.\n🎯 개선 포인트\n첫 문장이 빠르다.\n🔜 다음",
+    aiScores: { technique: 5 },
+    chosenFocus: "첫 문장 호흡 늦추기",
+  };
+  const repracticeRoute = {
+    params: {
+      prefill: {
+        title: "햄릿 독백",
+        field: "acting",
+        seriesName: "햄릿 독백",
+        rootNoteId: 100,
+        parentNoteId: 100,
+        focus: "첫 문장 호흡 늦추기",
+        sceneId: "hamlet-1",
+      },
+    },
+  };
+
+  it("재연습이면 초점을 상단에 고정 표시하고, 연습 세션 subjectKey가 장면 id로 묶인다", () => {
+    const ctx = buildCtx("u1");
+    ctx.savedNotes = [parent];
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={repracticeRoute} />);
+
+    expect(utils.getByText("focus.current: 첫 문장 호흡 늦추기")).toBeTruthy();
+    expect(startPractice).toHaveBeenCalledWith("text", "hamlet-1", "acting");
+  });
+
+  it("분석 요청에 이번 초점(focus)과 직전 연습(previous)이 실린다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.savedNotes = [parent];
+    useApp.mockReturnValue(ctx);
+    analyzeNote.mockResolvedValue({ analysis: "피드백", scores: null, focusOptions: ["시선 고정", "볼륨 낮추기"] });
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={repracticeRoute} />);
+    await runAi(utils);
+
+    const extra = analyzeNote.mock.calls[0][6];
+    expect(extra.focus).toBe("첫 문장 호흡 늦추기");
+    expect(extra.previous).toEqual({ focus: "첫 문장 호흡 늦추기", summary: "지난 요약", scores: { technique: 5 } });
+  });
+
+  it("고른 초점·체인·후보가 저장 데이터에 들어가고, 완료 계측도 장면 id로 간다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.savedNotes = [parent];
+    ctx.handleSaveNote = jest.fn(() => 777);
+    useApp.mockReturnValue(ctx);
+    analyzeNote.mockResolvedValue({ analysis: "피드백", scores: null, focusOptions: ["시선 고정", "볼륨 낮추기"] });
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={repracticeRoute} />);
+    await runAi(utils);
+
+    // AI 결과 아래 "다음 연습에서 고칠 점 하나 고르기" 칩
+    expect(utils.getByText("focus.pick_title")).toBeTruthy();
+    fireEvent.press(utils.getByText("시선 고정"));
+    expect(trackFunnelEvent).toHaveBeenCalledWith("focus_selected", "ko");
+
+    fireEvent.press(utils.getByText("common.save"));
+    const noteData = ctx.handleSaveNote.mock.calls[0][0];
+    expect(noteData.sceneId).toBe("hamlet-1");
+    expect(noteData.parentNoteId).toBe(100);
+    expect(noteData.rootNoteId).toBe(100);
+    expect(noteData.focus).toBe("첫 문장 호흡 늦추기");
+    expect(noteData.chosenFocus).toBe("시선 고정");
+    expect(noteData.focusOptions).toEqual(["시선 고정", "볼륨 낮추기"]);
+    expect(completePractice.mock.calls[0][1].subjectKey).toBe("hamlet-1");
+  });
+
+  it("2인 대사에서 온 새 기록엔 녹음 안내가 뜨고, 체인이 없으면 기존 동작 그대로", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 42);
+    useApp.mockReturnValue(ctx);
+
+    const duetRoute = { params: { prefill: { title: "햄릿 2인 대사", field: "acting", seriesName: "햄릿", sceneId: "hamlet-1" } } };
+    const utils = render(<NoteCreateScreen navigation={navigation} route={duetRoute} />);
+    expect(utils.getByText("focus.duet_hint")).toBeTruthy();
+    expect(utils.queryByText(/focus.current/)).toBeNull();
+
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "연습함");
+    fireEvent.press(utils.getByText("common.save"));
+    const noteData = ctx.handleSaveNote.mock.calls[0][0];
+    expect(noteData.sceneId).toBe("hamlet-1");
+    expect(noteData.parentNoteId).toBeUndefined();
+    expect(noteData.focus).toBeUndefined();
+  });
+
+  it("체인이 전혀 없으면 subjectKey는 예전처럼 저장된 노트 id", () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 5);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
+
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    fireEvent.press(utils.getByText("common.save"));
+    expect(completePractice.mock.calls[0][1].subjectKey).toBe(5);
   });
 });

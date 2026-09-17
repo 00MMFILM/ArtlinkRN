@@ -131,6 +131,13 @@ export function mergeNotes(localNotes, serverRows) {
           voiceRecordings: localNote.voiceRecordings,
           audioFiles: localNote.audioFiles,
           pdfFiles: localNote.pdfFiles,
+          // 재연습 체인 — 서버 user_notes에 컬럼이 없어 서버가 최신이어도 덮어쓰면 연결이 끊긴다
+          sceneId: localNote.sceneId,
+          parentNoteId: localNote.parentNoteId,
+          rootNoteId: localNote.rootNoteId,
+          focus: localNote.focus,
+          chosenFocus: localNote.chosenFocus,
+          focusOptions: localNote.focusOptions,
         };
       }
     } else {

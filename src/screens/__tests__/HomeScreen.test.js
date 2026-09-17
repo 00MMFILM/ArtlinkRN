@@ -121,3 +121,35 @@ describe("HomeScreen — 프리미엄 왕관 배지", () => {
     expect(queryByTestId("premium-badge")).toBeNull();
   });
 });
+
+// 3단계 — 한국어 첫 경험: 노트 0개면 입시·오디션 맥락 문구 + 2인 대사 진입을 히어로 바로 아래
+describe("HomeScreen — 한국어 첫 화면", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("한국어 + 노트 0개면 입시·오디션 문구로 바뀌고 2인 대사 카드가 보인다 (연기 유저가 아니어도)", () => {
+    useApp.mockReturnValue({ ...buildCtx([]), isKoreanLocale: true });
+    const { queryByText } = render(<HomeScreen navigation={navigation} />);
+    expect(queryByText("home.hero_title_ko_acting")).toBeTruthy();
+    expect(queryByText("home.hero_cta_ko_acting")).toBeTruthy();
+    expect(queryByText("home.hero_title")).toBeNull();
+    expect(queryByText("2인 대사 연습")).toBeTruthy();
+  });
+
+  it("한국어라도 노트가 있으면 기존 화면 그대로 (2인 대사 카드는 연기 유저에게만)", () => {
+    useApp.mockReturnValue({
+      ...buildCtx([{ id: "n1", title: "첫 노트", field: "music", createdAt: new Date().toISOString() }]),
+      isKoreanLocale: true,
+    });
+    const { queryByText } = render(<HomeScreen navigation={navigation} />);
+    expect(queryByText("home.hero_title_ko_acting")).toBeNull();
+    expect(queryByText("2인 대사 연습")).toBeNull();
+  });
+
+  it("다른 언어는 기존 문구 그대로", () => {
+    useApp.mockReturnValue(buildCtx([])); // isKoreanLocale: false
+    const { queryByText } = render(<HomeScreen navigation={navigation} />);
+    expect(queryByText("home.hero_title")).toBeTruthy();
+    expect(queryByText("home.hero_title_ko_acting")).toBeNull();
+    expect(queryByText("2인 대사 연습")).toBeNull();
+  });
+});

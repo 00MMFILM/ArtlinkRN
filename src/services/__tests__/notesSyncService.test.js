@@ -53,3 +53,34 @@ describe("mergeNotes", () => {
     expect(JSON.stringify(local)).toBe(snapshot);
   });
 });
+
+// 재연습 체인(sceneId·parentNoteId·rootNoteId·focus)은 서버 user_notes에 컬럼이 없다.
+// 서버 행이 더 최신이어도 이 필드를 덮어쓰면 "지난 연습" 연결이 끊긴다.
+describe("mergeNotes — 기기 로컬 전용 재연습 체인 보존", () => {
+  it("서버가 더 최신이어도 체인 필드와 미디어는 로컬 값을 유지한다", () => {
+    const local = [{
+      id: 1,
+      title: "local",
+      content: "local",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      images: [{ uri: "file:///a.jpg" }],
+      sceneId: "hamlet-1",
+      parentNoteId: 100,
+      rootNoteId: 100,
+      focus: "첫 문장 호흡 늦추기",
+      chosenFocus: "시선 고정",
+      focusOptions: ["시선 고정"],
+    }];
+    const merged = mergeNotes(local, [serverRow(1, { title: "server newer", updatedAt: "2026-05-01T00:00:00.000Z" })]);
+
+    expect(merged[0].title).toBe("server newer"); // 본문은 서버가 이긴다
+    expect(merged[0].sceneId).toBe("hamlet-1");
+    expect(merged[0].parentNoteId).toBe(100);
+    expect(merged[0].rootNoteId).toBe(100);
+    expect(merged[0].focus).toBe("첫 문장 호흡 늦추기");
+    expect(merged[0].chosenFocus).toBe("시선 고정");
+    expect(merged[0].focusOptions).toEqual(["시선 고정"]);
+    expect(merged[0].images).toEqual([{ uri: "file:///a.jpg" }]);
+  });
+});

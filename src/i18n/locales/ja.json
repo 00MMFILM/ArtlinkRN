@@ -191,7 +191,10 @@
     "write_note": "ノートを書く",
     "hero_title": "最初の練習を記録してみましょう",
     "hero_desc": "セリフ・歌・練習を一行書くだけで\nAIがすぐにフィードバックします。登録なしで無料。",
-    "hero_cta": "記録してAIフィードバックをもらう"
+    "hero_cta": "記録してAIフィードバックをもらう",
+    "hero_title_ko_acting": "今日練習したセリフを録音してフィードバックをもらう",
+    "hero_desc_ko_acting": "入試・オーディションの準備中なら\n一場面ずつ記録して、次に直す点を受け取りましょう。登録なしで無料。",
+    "hero_cta_ko_acting": "練習を記録してフィードバックをもらう"
   },
   "notes": {
     "search_placeholder": "ノートを検索...",
@@ -842,5 +845,19 @@
     "badge": "プレミアム",
     "limit_text_reached": "本日のテキストフィードバック{{max}}回をすべて使いました。明日また利用できます。",
     "limit_video_reached": "今月の映像分析{{max}}回をすべて使いました。来月また利用できます。"
+  },
+  "focus": {
+    "pick_title": "次の練習で直す点を一つ選ぶ",
+    "current": "今回の練習の焦点",
+    "repractice_cta": "このポイントでもう一度練習",
+    "previous_title": "前回の練習",
+    "previous_focus": "前回の焦点",
+    "score_delta": "練習活動指標の変化",
+    "duet_hint": "今練習したセリフを録音して添付すると、根拠のあるフィードバックが受けられます",
+    "axis_technique": "技術",
+    "axis_expression": "表現",
+    "axis_creativity": "創造",
+    "axis_consistency": "継続",
+    "axis_growth": "変化"
   }
 }

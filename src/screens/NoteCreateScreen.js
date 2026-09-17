@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
-import { analyzeNote, analyzeVideoFrames, lastAiMeta } from "../services/aiService";
+import { analyzeNote, analyzeVideoFrames, lastAiMeta, buildPreviousContext } from "../services/aiService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { FIELDS } from "../utils/helpers";
 import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
@@ -30,6 +30,7 @@ import { trackFunnelEvent } from "../services/mauService";
 import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
 import { startPractice, resumePractice, completePractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
+import FocusPicker from "../components/FocusPicker";
 import { useTranslation } from "react-i18next";
 
 // 게스트 가입 유도는 기기당 딱 1회 (리마인더 플래그와 같은 방식)
@@ -107,6 +108,18 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [seriesName, setSeriesName] = useState(prefill?.seriesName || "");
   const [aiComment, setAiComment] = useState(prefill?.aiComment || "");
   const [aiScores, setAiScores] = useState(prefill?.aiScores || null);
+  // 재연습 체인 — 이번 연습의 초점(focus), 어느 장면·어느 노트의 재연습인지 (기기 로컬 노트에만 저장)
+  const focus = prefill?.focus || null;
+  const sceneId = prefill?.sceneId || null;
+  const parentNoteId = prefill?.parentNoteId || null;
+  const rootNoteId = prefill?.rootNoteId || prefill?.parentNoteId || null;
+  const parentNote = useMemo(
+    () => (parentNoteId ? savedNotes.find((n) => n.id === parentNoteId) || null : null),
+    [savedNotes, parentNoteId]
+  );
+  // AI가 준 "다음에 고칠 점" 후보와 이번에 고른 값
+  const [focusOptions, setFocusOptions] = useState(Array.isArray(prefill?.focusOptions) ? prefill.focusOptions : []);
+  const [chosenFocus, setChosenFocus] = useState(prefill?.chosenFocus ?? null);
   // 스트리밍 실패 시 잘린 부분 텍스트가 aiComment에 남지 않도록,
   // 분석 시작 전 확정값을 기억해뒀다가 실패 시 복원한다.
   const aiCommentRef = useRef(aiComment);
@@ -217,18 +230,21 @@ export default function NoteCreateScreen({ navigation, route }) {
   }, [hasAttachments, hasAiResult, title, field, t]);
 
   // 연습 세션 — 이 화면 한 번이 연습 한 번. 초안 복원이면 새로 만들지 않고 이어받는다.
+  // 재연습·2인 대사에서 왔으면 "같은 장면/같은 연습"으로 묶이도록 subjectKey를 고정한다
+  // (장면 id > 체인의 최초 노트 id > 직전 노트 id). 없으면 저장 시 노트 id로 채운다.
+  const practiceSubjectKey = sceneId || rootNoteId || parentNoteId || null;
   const practiceRef = useRef(null);
   if (!practiceRef.current) {
     const keptSessionId = route?.params?.prefill?.sessionId;
     practiceRef.current = keptSessionId
-      ? resumePractice(keptSessionId, "text", null, field)
-      : startPractice("text", null, field);
+      ? resumePractice(keptSessionId, "text", practiceSubjectKey, field)
+      : startPractice("text", practiceSubjectKey, field);
   }
   useEffect(() => {
     if (practiceRef.current) practiceRef.current.field = field;
   }, [field]);
 
-  draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, sessionId: practiceRef.current?.sessionId };
+  draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, sessionId: practiceRef.current?.sessionId, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions };
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
@@ -301,10 +317,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         field, content, savedNotes,
         { title, field, images, voiceRecordings, audioFiles, pdfFiles },
         userProfile,
-        (partial) => setAiComment(partial)
+        (partial) => setAiComment(partial),
+        { focus, previous: buildPreviousContext(parentNote) }
       );
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
+      setFocusOptions(result.focusOptions || []);
       trackFunnelEvent("ai_feedback_done", i18n.language);
       aiFeedbackDone(practiceRef.current, "text");
       maybeOfferReminder();
@@ -316,7 +334,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     } finally {
       setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t, i18n.language, promptQuotaExceeded]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t, i18n.language, promptQuotaExceeded, focus, parentNote]);
 
   // 첫 AI 피드백 직후 딱 한 번 — 게스트는 가입 유도, 로그인 유저는 연습 알림 제안 (Calm 패턴)
   const maybeOfferReminder = useCallback(async () => {
@@ -449,9 +467,11 @@ export default function NoteCreateScreen({ navigation, route }) {
         title,
         noteVideos,
         userProfile,
-        (progress) => setVideoAiProgress(progress)
+        (progress) => setVideoAiProgress(progress),
+        { focus, previous: buildPreviousContext(parentNote) }
       );
       setVideoAnalysis(result);
+      if (lastAiMeta.focusOptions?.length) setFocusOptions(lastAiMeta.focusOptions);
       aiFeedbackDone(practiceRef.current, "video");
     } catch (e) {
       // 실패는 결과로 채우지 않는다 — 안내만 띄우고 재시도를 제안한다
@@ -472,7 +492,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [noteVideos, field, content, title, userProfile, t, promptQuotaExceeded]);
+  }, [noteVideos, field, content, title, userProfile, t, promptQuotaExceeded, focus, parentNote]);
 
   useEffect(() => {
     startVideoAnalysisRef.current = startVideoAnalysis;
@@ -769,17 +789,24 @@ export default function NoteCreateScreen({ navigation, route }) {
       voiceRecordings: voiceRecordings.length > 0 ? voiceRecordings : undefined,
       audioFiles: audioFiles.length > 0 ? audioFiles : undefined,
       pdfFiles: pdfFiles.length > 0 ? pdfFiles : undefined,
+      // 재연습 체인 (기기 로컬 전용 — 서버 user_notes에는 컬럼이 없다)
+      sceneId: sceneId || undefined,
+      parentNoteId: parentNoteId || undefined,
+      rootNoteId: rootNoteId || undefined,
+      focus: focus || undefined,
+      chosenFocus: chosenFocus || undefined,
+      focusOptions: focusOptions.length > 0 ? focusOptions : undefined,
     };
     hasUnsavedChangesRef.current = false;
     const savedNoteId = handleSaveNote(noteData);
     clearDraft(); // 노트로 남았으니 보관된 초안은 지운다 (복원으로 중복 생성되지 않게)
     trackFunnelEvent("note_saved", i18n.language);
     completePractice(practiceRef.current, {
-      subjectKey: savedNoteId,
+      subjectKey: practiceSubjectKey || savedNoteId,
       kind: noteVideos.length > 0 ? "video" : "text",
     });
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language]);
+  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions, practiceSubjectKey]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -814,6 +841,15 @@ export default function NoteCreateScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* 재연습이면 이번 연습의 초점을 고정 표시 */}
+        {focus ? (
+          <View style={styles.focusBanner}>
+            <Text style={[T.small, { color: CLight.pink }]}>
+              {t("focus.current")}: {focus}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Title Input */}
         <TextInput
           style={styles.titleInput}
@@ -824,6 +860,11 @@ export default function NoteCreateScreen({ navigation, route }) {
           maxLength={100}
           returnKeyType="next"
         />
+
+        {/* 2인 대사 연습에서 왔을 때 — 녹음 첨부를 권한다 */}
+        {sceneId ? (
+          <Text style={[T.small, { color: CLight.gray500, marginTop: 10 }]}>{t("focus.duet_hint")}</Text>
+        ) : null}
 
         {/* Content Input */}
         <TextInput
@@ -1107,6 +1148,15 @@ export default function NoteCreateScreen({ navigation, route }) {
               <Text style={styles.aiResultHeaderText}>{t("noteCreate.ai_result")}</Text>
             </View>
             <Text style={styles.aiResultContent}>{aiComment}</Text>
+            <FocusPicker
+              title={t("focus.pick_title")}
+              options={focusOptions}
+              value={chosenFocus}
+              onSelect={(v) => {
+                setChosenFocus(v);
+                if (v) trackFunnelEvent("focus_selected", i18n.language);
+              }}
+            />
           </View>
         ) : null}
 
@@ -1143,6 +1193,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 40,
+  },
+
+  focusBanner: {
+    backgroundColor: CLight.pinkSoft,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
 
   // Title

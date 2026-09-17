@@ -191,7 +191,10 @@
     "write_note": "Viết ghi chú",
     "hero_title": "Ghi lại buổi tập đầu tiên",
     "hero_desc": "Chỉ cần một dòng về lời thoại, bài hát hay buổi tập —\nAI sẽ phản hồi ngay. Miễn phí, không cần đăng ký.",
-    "hero_cta": "Ghi lại và nhận phản hồi AI"
+    "hero_cta": "Ghi lại và nhận phản hồi AI",
+    "hero_title_ko_acting": "Ghi âm lời thoại đã tập hôm nay và nhận phản hồi",
+    "hero_desc_ko_acting": "Đang chuẩn bị thi tuyển hay casting?\nGhi lại từng cảnh và nhận một điểm cần sửa cho lần sau. Miễn phí, không cần đăng ký.",
+    "hero_cta_ko_acting": "Ghi lại buổi tập và nhận phản hồi"
   },
   "notes": {
     "search_placeholder": "Tìm kiếm ghi chú...",
@@ -842,5 +845,19 @@
     "badge": "Premium",
     "limit_text_reached": "Bạn đã dùng hết {{max}} lượt phản hồi văn bản hôm nay. Ngày mai sẽ được làm mới.",
     "limit_video_reached": "Bạn đã dùng hết {{max}} lượt phân tích video tháng này. Tháng sau sẽ được làm mới."
+  },
+  "focus": {
+    "pick_title": "Chọn một điểm để sửa ở buổi tập sau",
+    "current": "Trọng tâm của buổi tập này",
+    "repractice_cta": "Tập lại với điểm này",
+    "previous_title": "Buổi tập trước",
+    "previous_focus": "Trọng tâm lần trước",
+    "score_delta": "Thay đổi của chỉ số hoạt động luyện tập",
+    "duet_hint": "Ghi âm lời thoại vừa tập rồi đính kèm — phản hồi sẽ có căn cứ.",
+    "axis_technique": "Kỹ thuật",
+    "axis_expression": "Biểu đạt",
+    "axis_creativity": "Sáng tạo",
+    "axis_consistency": "Đều đặn",
+    "axis_growth": "Thay đổi"
   }
 }

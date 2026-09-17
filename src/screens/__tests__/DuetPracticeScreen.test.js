@@ -11,6 +11,10 @@ jest.mock("../../services/practiceService", () => ({
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
+jest.mock("i18next", () => ({ language: "ko" }));
+
+const { trackFunnelEvent } = require("../../services/mauService");
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn() };
 const firstScene = scenes.scenes[0];
@@ -52,5 +56,56 @@ describe("DuetPracticeScreen — 연습 세션", () => {
     openCueMode(utils);
     fireEvent.press(utils.getByText("처음부터"));
     expect(startPractice).toHaveBeenCalledTimes(2);
+  });
+});
+
+// 2인 대사 → 기록: 연습을 끝낸 자리에서 노트 작성으로 이어진다 (2단계까지는 길이 없었다)
+describe("DuetPracticeScreen — 연습 기록 남기기", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+  });
+
+  const openScriptMode = (utils) => {
+    fireEvent.press(utils.getAllByText(firstScene.play)[0]);
+    fireEvent.press(utils.getByText("📜 대본 보기"));
+  };
+
+  it("큐 모드 마지막 줄에서 기록 버튼이 나오고, 장면 정보가 채워진 노트 작성으로 간다", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openCueMode(utils);
+    expect(utils.queryByText("연습 기록 남기기")).toBeNull(); // 첫 줄엔 없다
+
+    for (let i = 0; i < firstScene.lines.length + 3; i++) {
+      const next = utils.queryByText("다음") || utils.queryByText("건너뛰고 다음");
+      if (!next) break;
+      fireEvent.press(next);
+    }
+
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
+      prefill: {
+        title: `${firstScene.play} 2인 대사`,
+        field: "acting",
+        seriesName: firstScene.play,
+        sceneId: firstScene.id,
+      },
+    });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("duet_to_note", "ko");
+    expect(completePractice).toHaveBeenCalledTimes(1); // 마지막 줄에서 이미 완료 — 중복 없음
+  });
+
+  it("대본 모드: '연습 끝'이 완료 신호를 채우고, 기록 버튼도 같은 인자로 간다", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openScriptMode(utils);
+
+    fireEvent.press(utils.getByText("연습 끝"));
+    fireEvent.press(utils.getByText("연습 끝")); // 두 번 눌러도 완료는 1회
+    expect(completePractice).toHaveBeenCalledTimes(1);
+    expect(completePractice.mock.calls[0][0].sessionId).toBe("sess-duet");
+
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    expect(navigation.navigate.mock.calls[0][1].prefill.sceneId).toBe(firstScene.id);
+    expect(completePractice).toHaveBeenCalledTimes(1);
   });
 });

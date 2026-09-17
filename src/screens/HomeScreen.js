@@ -56,6 +56,9 @@ export default function HomeScreen({ navigation }) {
     </TouchableOpacity>
   ) : null;
 
+  // 한국어 + 노트 0개 = 첫 경험. 입시·오디션 맥락 문구로 바꾸고 2인 대사 진입을 히어로 바로 아래 둔다.
+  const koFirstRun = isKoreanLocale && savedNotes.length === 0;
+
   const [expandedField, setExpandedField] = useState(null);
   const [checkinMemo, setCheckinMemo] = useState("");
 
@@ -212,17 +215,17 @@ export default function HomeScreen({ navigation }) {
         {!hasNotes ? (
           <View style={[styles.summaryCard, { backgroundColor: CLight.surface, alignItems: "center" }]}>
             <Text style={[T.h3, { color: CLight.gray900, textAlign: "center" }]}>
-              {t("home.hero_title")}
+              {t(koFirstRun ? "home.hero_title_ko_acting" : "home.hero_title")}
             </Text>
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 8, textAlign: "center" }]}>
-              {t("home.hero_desc")}
+              {t(koFirstRun ? "home.hero_desc_ko_acting" : "home.hero_desc")}
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
               onPress={() => navigation.navigate("NoteCreate")}
               activeOpacity={0.7}
             >
-              <Text style={styles.emptyButtonText}>{t("home.hero_cta")}</Text>
+              <Text style={styles.emptyButtonText}>{t(koFirstRun ? "home.hero_cta_ko_acting" : "home.hero_cta")}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -269,7 +272,8 @@ export default function HomeScreen({ navigation }) {
         </View>
         )}
 
-        {isActingUser && duetCard}
+        {koFirstRun ? duetCard : null}
+        {!koFirstRun && isActingUser && duetCard}
         {/* ---- Quick actions ---- */}
         <View style={styles.quickActionsContainer}>
           {quickActions.map((action) => (

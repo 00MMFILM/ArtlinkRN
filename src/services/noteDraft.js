@@ -6,6 +6,9 @@ export const DRAFT_KEY = "artlink-note-draft";
 
 const TEXT_FIELDS = ["title", "content", "field", "seriesName", "aiComment", "videoAnalysis"];
 const LIST_FIELDS = ["tags", "images", "voiceRecordings", "audioFiles", "pdfFiles"];
+// 재연습 체인 (장면·부모 노트·이번 초점) — 가입 왕복에서도 연결이 끊기지 않게 함께 보관
+const CHAIN_FIELDS = ["sceneId", "parentNoteId", "rootNoteId", "focus", "chosenFocus"];
+const scalarOrNull = (v) => (typeof v === "string" || typeof v === "number" ? v : null);
 
 // 초안에서 실제 "내용"으로 칠 것 — 제목만 있는 건 보관하지 않는다
 const hasSubstance = (d) =>
@@ -27,6 +30,10 @@ export function buildDraft(state = {}) {
   LIST_FIELDS.forEach((k) => {
     draft[k] = Array.isArray(state[k]) ? state[k] : [];
   });
+  CHAIN_FIELDS.forEach((k) => {
+    draft[k] = scalarOrNull(state[k]);
+  });
+  draft.focusOptions = Array.isArray(state.focusOptions) ? state.focusOptions.filter((s) => typeof s === "string").slice(0, 3) : [];
   draft.aiScores = state.aiScores && typeof state.aiScores === "object" ? state.aiScores : null;
   // 연습 세션 id — 가입 왕복이 연습 2회로 세이지 않게 복원 때 이어받는다 (내용 아님)
   draft.sessionId = typeof state.sessionId === "string" ? state.sessionId : null;
@@ -44,6 +51,10 @@ export function validateDraft(raw) {
   LIST_FIELDS.forEach((k) => {
     draft[k] = Array.isArray(raw[k]) ? raw[k] : [];
   });
+  CHAIN_FIELDS.forEach((k) => {
+    draft[k] = scalarOrNull(raw[k]);
+  });
+  draft.focusOptions = Array.isArray(raw.focusOptions) ? raw.focusOptions.filter((s) => typeof s === "string").slice(0, 3) : [];
   draft.aiScores = raw.aiScores && typeof raw.aiScores === "object" ? raw.aiScores : null;
   draft.sessionId = typeof raw.sessionId === "string" ? raw.sessionId : null;
   draft.savedAt = typeof raw.savedAt === "number" ? raw.savedAt : 0;

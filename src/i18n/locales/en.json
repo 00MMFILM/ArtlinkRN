@@ -191,7 +191,10 @@
     "write_note": "Write a note",
     "hero_title": "Record your first practice",
     "hero_desc": "Just one line about a scene, a song, or a rehearsal —\nAI gives you feedback right away. Free, no sign-up.",
-    "hero_cta": "Write it and get AI feedback"
+    "hero_cta": "Write it and get AI feedback",
+    "hero_title_ko_acting": "Record today's lines and get feedback",
+    "hero_desc_ko_acting": "Preparing for an audition or an entrance exam?\nLog one scene at a time and get one thing to fix next. Free, no sign-up.",
+    "hero_cta_ko_acting": "Log a practice and get feedback"
   },
   "notes": {
     "search_placeholder": "Search notes...",
@@ -890,5 +893,19 @@
     "msg": "Sign up and this note and its feedback are saved to your account, plus you get more free AI feedback. Signing up is free.",
     "later": "Later",
     "cta": "Sign up free"
+  },
+  "focus": {
+    "pick_title": "Pick one thing to fix next practice",
+    "current": "Focus for this practice",
+    "repractice_cta": "Practice again with this point",
+    "previous_title": "Last practice",
+    "previous_focus": "Last focus",
+    "score_delta": "Change in practice activity indicators",
+    "duet_hint": "Record the lines you just practiced and attach them — then the feedback has something to go on.",
+    "axis_technique": "Technique",
+    "axis_expression": "Expression",
+    "axis_creativity": "Creativity",
+    "axis_consistency": "Consistency",
+    "axis_growth": "Change"
   }
 }
