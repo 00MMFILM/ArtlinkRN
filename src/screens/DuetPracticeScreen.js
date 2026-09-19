@@ -22,6 +22,8 @@ import i18n from "i18next";
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
 let Speech = null;
 try { Speech = require("expo-speech"); } catch (e) { Speech = null; }
+let AudioMode = null;
+try { AudioMode = require("expo-av").Audio; } catch (e) { AudioMode = null; }
 
 const REMOTE_URL = "https://actraw.kr/duet-scenes.json";
 
@@ -52,16 +54,30 @@ export default function DuetPracticeScreen({ navigation }) {
   const [rate, setRate] = useState(1.0);
   const canSpeak = !!(Speech && Speech.speak);
 
-  const speakLine = (text, onDone) => {
-    if (!canSpeak || !voiceOn) { onDone && onDone(); return; }
+  // force: 음성을 막 켠 순간에는 voiceOn 상태가 아직 반영 전이라 직접 넘긴다
+  const speakLine = (text, onDone, force = false) => {
+    if (!canSpeak || !(voiceOn || force)) { onDone && onDone(); return; }
+    const failed = () => { showToast(t("duet.voice_unavailable"), "error"); onDone && onDone(); };
     try {
       Speech.stop();
       Speech.speak(text.replace(/\([^)]*\)/g, ""), {
         language: "ko-KR", rate,
         onDone: () => onDone && onDone(),
-        onError: () => onDone && onDone(),
+        onError: failed,
       });
-    } catch (e) { onDone && onDone(); }
+    } catch (e) { failed(); }
+  };
+  // 상대 대사면 읽는다 — "다음"으로 넘어갈 때뿐 아니라 첫 줄·음성을 켠 순간에도
+  const speakIfPartner = (n, role, force = false) => {
+    const L = lines[n];
+    if (L && L.r !== role) speakLine(L.t, null, force);
+  };
+  const toggleVoice = () => {
+    if (voiceOn) { stopSpeak(); setVoiceOn(false); return; }
+    setVoiceOn(true);
+    // 아이폰 무음 스위치가 켜져 있어도 들리게 (기본은 무음 모드에서 소리가 안 난다)
+    try { AudioMode?.setAudioModeAsync?.({ playsInSilentModeIOS: true })?.catch?.(() => {}); } catch (e) {}
+    speakIfPartner(idx, myRole, true);
   };
   const stopSpeak = () => { try { canSpeak && Speech.stop(); } catch (e) {} };
 
@@ -130,8 +146,7 @@ export default function DuetPracticeScreen({ navigation }) {
     stopSpeak();
     const n = Math.min(Math.max(idx + d, 0), lines.length - 1);
     setIdx(n); setRevealed(false);
-    const L = lines[n];
-    if (d > 0 && L && L.r !== myRole) speakLine(L.t);
+    if (d > 0) speakIfPartner(n, myRole);
     if (d > 0 && n === lines.length - 1) finishPractice();
   };
 
@@ -203,7 +218,7 @@ export default function DuetPracticeScreen({ navigation }) {
             ) : null}
           </View>
 
-          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("cue"); setIdx(0); beginPractice(scene); }} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("cue"); setIdx(0); beginPractice(scene); speakIfPartner(0, myRole); }} activeOpacity={0.8}>
             <Text style={[T.titleBold, { color: CLight.gray900 }]}>🎬 큐 연습</Text>
             <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
               상대 대사가 한 줄씩 나오고, 내 차례에 멈춰요. 내 대사는 가려져서 암기 확인이 됩니다.
@@ -257,7 +272,7 @@ export default function DuetPracticeScreen({ navigation }) {
           </ScrollView>
           {canSpeak ? (
             <View style={[styles.chipRow, { paddingTop: 8 }]}>
-              <TouchableOpacity style={[styles.chip, voiceOn && styles.chipOn]} onPress={() => { if (voiceOn) stopSpeak(); setVoiceOn(!voiceOn); }}>
+              <TouchableOpacity style={[styles.chip, voiceOn && styles.chipOn]} onPress={toggleVoice}>
                 <Text style={[T.smallBold, { color: voiceOn ? CLight.white : CLight.gray700 }]}>🔊 상대 대사 음성</Text>
               </TouchableOpacity>
               {voiceOn ? [0.8, 1.0, 1.2].map((r) => (
@@ -276,7 +291,7 @@ export default function DuetPracticeScreen({ navigation }) {
                 {idx >= lines.length - 1 ? "끝" : mine && !revealed ? "건너뛰고 다음" : "다음"}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.ctlBtn} onPress={() => { setIdx(0); setRevealed(false); beginPractice(scene); }}>
+            <TouchableOpacity style={styles.ctlBtn} onPress={() => { stopSpeak(); setIdx(0); setRevealed(false); beginPractice(scene); speakIfPartner(0, myRole); }}>
               <Text style={[T.bodyBold, { color: CLight.gray700 }]}>처음부터</Text>
             </TouchableOpacity>
           </View>

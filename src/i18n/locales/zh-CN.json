@@ -939,6 +939,7 @@
   },
   "duet": {
     "note_done": "已跳转到记录页面",
-    "finished": "练习已完成"
+    "finished": "练习已完成",
+    "voice_unavailable": "此设备无法播放语音，请检查设备的文字转语音(TTS)设置。"
   }
 }

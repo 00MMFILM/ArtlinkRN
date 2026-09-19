@@ -19,6 +19,8 @@ jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k }),
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
+jest.mock("expo-speech", () => ({ speak: jest.fn(), stop: jest.fn() }));
+jest.mock("expo-av", () => ({ Audio: { setAudioModeAsync: jest.fn(() => Promise.resolve()) } }));
 
 const { trackFunnelEvent } = require("../../services/mauService");
 
@@ -267,5 +269,56 @@ describe("DuetPracticeScreen — 원격 씬 데이터 방어", () => {
 
     const utils = render(<DuetPracticeScreen navigation={navigation} />);
     await waitFor(() => expect(utils.queryByText("유효한 원격 씬")).toBeTruthy());
+  });
+});
+
+// 제보(2026-09-19): 큐 연습 첫 줄에서 "상대 대사 음성"을 켜도 아무 소리가 안 났다 —
+// 음성이 "다음"으로 넘어갈 때만 재생돼, 지금 떠 있는 상대 대사와 첫 줄은 읽지 않았다.
+describe("DuetPracticeScreen — 상대 대사 음성", () => {
+  const Speech = require("expo-speech");
+  const { Audio } = require("expo-av");
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+    useApp.mockReturnValue({ showToast: jest.fn() });
+  });
+
+  // 첫 줄이 상대 대사가 되도록 내 배역을 고른다
+  const partnerFirstRole = firstScene.lines[0].r === 0 ? 1 : 0;
+  const openAsPartnerFirst = (utils) => {
+    fireEvent.press(utils.getAllByText(firstScene.play)[0]);
+    if (partnerFirstRole !== 0) fireEvent.press(utils.getByText(new RegExp("^" + firstScene.roles[partnerFirstRole].name)));
+    fireEvent.press(utils.getByText("🎬 큐 연습"));
+  };
+
+  it("첫 줄에서 음성을 켜면 지금 떠 있는 상대 대사를 바로 읽는다", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openAsPartnerFirst(utils);
+    expect(Speech.speak).not.toHaveBeenCalled(); // 기본은 무음
+
+    fireEvent.press(utils.getByText("🔊 상대 대사 음성"));
+
+    expect(Speech.speak).toHaveBeenCalledTimes(1);
+    expect(Speech.speak.mock.calls[0][1].language).toBe("ko-KR");
+    expect(Audio.setAudioModeAsync).toHaveBeenCalledWith({ playsInSilentModeIOS: true }); // 아이폰 무음 스위치
+  });
+
+  it("음성을 켠 채 처음부터를 누르면 첫 상대 대사를 다시 읽는다", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openAsPartnerFirst(utils);
+    fireEvent.press(utils.getByText("🔊 상대 대사 음성"));
+    Speech.speak.mockClear();
+
+    fireEvent.press(utils.getByText("처음부터"));
+    expect(Speech.speak).toHaveBeenCalledTimes(1);
+  });
+
+  it("음성을 끄면 재생을 멈춘다", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openAsPartnerFirst(utils);
+    fireEvent.press(utils.getByText("🔊 상대 대사 음성"));
+    Speech.stop.mockClear();
+    fireEvent.press(utils.getByText("🔊 상대 대사 음성"));
+    expect(Speech.stop).toHaveBeenCalled();
   });
 });

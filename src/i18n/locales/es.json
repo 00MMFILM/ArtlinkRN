@@ -939,6 +939,7 @@
   },
   "duet": {
     "note_done": "Se abrió la pantalla de notas",
-    "finished": "Práctica terminada"
+    "finished": "Práctica terminada",
+    "voice_unavailable": "Este dispositivo no pudo reproducir la voz. Revisa los ajustes de texto a voz (TTS)."
   }
 }

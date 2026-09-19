@@ -939,6 +939,7 @@
   },
   "duet": {
     "note_done": "Moved to your notes",
-    "finished": "Practice complete"
+    "finished": "Practice complete",
+    "voice_unavailable": "This device couldn't play the voice. Please check its text-to-speech settings."
   }
 }

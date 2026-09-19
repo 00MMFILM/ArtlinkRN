@@ -939,6 +939,7 @@
   },
   "duet": {
     "note_done": "已跳轉至記錄畫面",
-    "finished": "練習已完成"
+    "finished": "練習已完成",
+    "voice_unavailable": "此裝置無法播放語音，請檢查裝置的文字轉語音(TTS)設定。"
   }
 }

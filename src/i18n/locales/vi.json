@@ -939,6 +939,7 @@
   },
   "duet": {
     "note_done": "Đã chuyển đến màn hình ghi chú",
-    "finished": "Đã hoàn thành buổi luyện tập"
+    "finished": "Đã hoàn thành buổi luyện tập",
+    "voice_unavailable": "Thiết bị này không phát được giọng đọc. Vui lòng kiểm tra cài đặt chuyển văn bản thành giọng nói (TTS)."
   }
 }

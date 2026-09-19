@@ -939,6 +939,7 @@
   },
   "duet": {
     "note_done": "Berpindah ke layar catatan",
-    "finished": "Latihan selesai"
+    "finished": "Latihan selesai",
+    "voice_unavailable": "Perangkat ini tidak dapat memutar suara. Periksa pengaturan text-to-speech (TTS)."
   }
 }
