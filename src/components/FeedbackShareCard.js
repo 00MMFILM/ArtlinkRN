@@ -1,6 +1,7 @@
 import React, { forwardRef } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "react-i18next";
 
 // AI 피드백 공유 카드 (오프스크린 렌더 → view-shot으로 캡처).
 // variant "feed"=4:5(1080×1350, 인스타 피드·스레드), "story"=9:16(1080×1920, 스토리·틱톡)
@@ -17,6 +18,7 @@ const FeedbackShareCard = forwardRef(function FeedbackShareCard(
   { variant = "feed", fieldEmoji, fieldLabel, dateLabel, title, subtitle, chips = [], blocks = [] },
   ref
 ) {
+  const { t } = useTranslation();
   const d = DIMS[variant] || DIMS.feed;
   return (
     <View ref={ref} collapsable={false} style={[styles.wrap, { width: CARD_W, height: d.h }]}>
@@ -30,7 +32,7 @@ const FeedbackShareCard = forwardRef(function FeedbackShareCard(
           <View style={styles.logo}>
             <Text style={styles.logoText}>A</Text>
           </View>
-          <Text style={styles.brandText}>ARTLINK · AI 코치</Text>
+          <Text style={styles.brandText}>{t("shareCard.brand")}</Text>
         </View>
 
         <View style={styles.meta}>
@@ -46,7 +48,7 @@ const FeedbackShareCard = forwardRef(function FeedbackShareCard(
         {chips.length > 0 && (
           <View style={styles.chips}>
             <View style={[styles.chip, styles.chipLead]}>
-              <Text style={[styles.chipText, styles.chipLeadText]}>AI 분석 {chips.length}개 항목</Text>
+              <Text style={[styles.chipText, styles.chipLeadText]}>{t("shareCard.chips_count", { count: chips.length })}</Text>
             </View>
             {chips.map((c, i) => (
               <View key={i} style={styles.chip}>
@@ -69,9 +71,9 @@ const FeedbackShareCard = forwardRef(function FeedbackShareCard(
         <View style={styles.divider} />
         <View style={styles.ctaWrap}>
           <View style={styles.cta}>
-            <Text style={styles.ctaText}>전체 코칭 받기 →</Text>
+            <Text style={styles.ctaText}>{t("shareCard.cta")}</Text>
           </View>
-          <Text style={styles.foot}>아트링크 · art-link.kr</Text>
+          <Text style={styles.foot}>{t("shareCard.footer")}</Text>
         </View>
       </LinearGradient>
     </View>

@@ -11,6 +11,8 @@ import {
   StyleSheet,
   Image,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio, Video, ResizeMode } from "expo-av";
@@ -64,7 +66,9 @@ export default function NoteDetailScreen({ route, navigation }) {
       const key = kind === "text" ? "premium.limit_text_reached" : "premium.limit_video_reached";
       Alert.alert(t("premium.active_title"), t(key, { max }));
     } else {
-      Alert.alert(t("common.video_quota_exceeded"), "", [
+      // 글 피드백 한도와 영상 분석 한도는 문구가 다르다 (횟수·주기가 다름)
+      const quotaKey = kind === "text" ? "common.text_quota_exceeded" : "common.video_quota_exceeded";
+      Alert.alert(t(quotaKey), "", [
         { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
@@ -143,9 +147,19 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [playingIdx, setPlayingIdx] = useState(null);
   const [expandedImage, setExpandedImage] = useState(null);
 
+  // 언마운트 cleanup은 []로 걸려 있어 최초 렌더의 playingSound(null)만 본다 →
+  // ref로 최신 재생 객체를 따라가야 화면을 나갈 때 소리가 실제로 멈춘다.
+  const playingSoundRef = useRef(null);
+  useEffect(() => {
+    playingSoundRef.current = playingSound;
+  }, [playingSound]);
+
   useEffect(() => {
     return () => {
-      if (playingSound) playingSound.unloadAsync();
+      if (playingSoundRef.current) {
+        playingSoundRef.current.unloadAsync?.();
+        playingSoundRef.current = null;
+      }
     };
   }, []);
 
@@ -221,6 +235,9 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── Handlers ───
 
+  // "확인을 이미 받고 나가는 중" 표시 — beforeRemove 가드가 같은 확인창을 두 번 띄우지 않게
+  const leavingRef = useRef(false);
+
   const handleBack = useCallback(() => {
     if (isEditing) {
       Alert.alert(t("noteDetail.edit_cancel_title"), t("noteDetail.edit_cancel_msg"), [
@@ -229,6 +246,7 @@ export default function NoteDetailScreen({ route, navigation }) {
           text: t("noteDetail.discard"),
           style: "destructive",
           onPress: () => {
+            leavingRef.current = true; // beforeRemove 가드가 같은 확인창을 또 띄우지 않게
             setIsEditing(false);
             setEditTitle(note?.title || "");
             setEditContent(note?.content || "");
@@ -240,6 +258,29 @@ export default function NoteDetailScreen({ route, navigation }) {
       navigation.goBack();
     }
   }, [isEditing, note, navigation, t]);
+
+  // 편집 중에는 하드웨어 뒤로가기·스와이프백도 상단 ‹ 버튼과 똑같이 확인을 받는다.
+  // 저장·삭제로 나갈 때는 이미 isEditing이 false라 걸리지 않는다.
+  useEffect(() => {
+    if (!navigation?.addListener) return undefined;
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (!isEditing || leavingRef.current) return;
+      e.preventDefault();
+      Alert.alert(t("noteDetail.edit_cancel_title"), t("noteDetail.edit_cancel_msg"), [
+        { text: t("noteDetail.keep_editing"), style: "cancel" },
+        {
+          text: t("noteDetail.discard"),
+          style: "destructive",
+          onPress: () => {
+            leavingRef.current = true;
+            setIsEditing(false);
+            navigation.dispatch(e.data.action);
+          },
+        },
+      ]);
+    });
+    return unsubscribe;
+  }, [navigation, isEditing, t]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -284,8 +325,8 @@ export default function NoteDetailScreen({ route, navigation }) {
     if (!note) return;
     setAiLoading(true);
     try {
-      // Foreign users: show interstitial ad from 2nd AI use per day
-      if (!isKoreanLocale) {
+      // Foreign users: show interstitial ad from 2nd AI use per day (프리미엄은 광고 없음)
+      if (!isKoreanLocale && !premium?.active) {
         const count = await incrementDailyAICount();
         if (shouldShowInterstitial(isKoreanLocale, count)) {
           await showInterstitialAd(); // proceeds even if ad fails
@@ -305,7 +346,13 @@ export default function NoteDetailScreen({ route, navigation }) {
       const scores = result.scores || null;
       setStreamingText("");
       // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
-      handleUpdateNote({ ...(noteRef.current || note), aiComment: analysis, aiScores: scores, focusOptions: result.focusOptions || undefined, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
+      const latestNote = noteRef.current || note;
+      const newOptions = result.focusOptions || [];
+      // 재분석이면 옛 선택이 새 후보에 없을 수 있다 — 남겨두면 엉뚱한 초점으로 재연습하게 된다
+      const keptFocus = latestNote.chosenFocus && newOptions.includes(latestNote.chosenFocus)
+        ? latestNote.chosenFocus
+        : undefined;
+      handleUpdateNote({ ...latestNote, aiComment: analysis, aiScores: scores, focusOptions: result.focusOptions || undefined, chosenFocus: keptFocus, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
       showToast(t("noteDetail.ai_complete"), "success");
       // 재분석도 연습 한 번 — 이 화면엔 시작 지점이 없어 단건 세션으로 보낸다
       aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
@@ -368,7 +415,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     } finally {
       setAiLoading(false);
     }
-  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, t, navigation, previousNote]);
+  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, premium?.active, t, navigation, previousNote, promptQuotaExceeded]);
 
   const handleRequestAI = useCallback(async () => {
     if (!note) return;
@@ -404,7 +451,12 @@ export default function NoteDetailScreen({ route, navigation }) {
       );
       // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
       const latestNote = noteRef.current || note;
-      handleUpdateNote({ ...latestNote, videoAnalysis: result, focusOptions: lastAiMeta.focusOptions?.length ? lastAiMeta.focusOptions : latestNote.focusOptions, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
+      // 새 후보가 왔으면 옛 선택은 그 안에 있을 때만 유지한다 (없으면 비운다)
+      const replacedOptions = lastAiMeta.focusOptions?.length ? lastAiMeta.focusOptions : null;
+      const keptFocus = replacedOptions
+        ? (latestNote.chosenFocus && replacedOptions.includes(latestNote.chosenFocus) ? latestNote.chosenFocus : undefined)
+        : latestNote.chosenFocus;
+      handleUpdateNote({ ...latestNote, videoAnalysis: result, focusOptions: replacedOptions || latestNote.focusOptions, chosenFocus: keptFocus, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
       showToast(t("noteDetail.video_ai_complete"), "success");
       aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
     } catch (e) {
@@ -447,8 +499,8 @@ export default function NoteDetailScreen({ route, navigation }) {
         return;
       }
     } catch {}
-    // Foreign users: must watch rewarded ad before video AI
-    if (!isKoreanLocale) {
+    // Foreign users: must watch rewarded ad before video AI (프리미엄은 광고 없이 바로 분석)
+    if (!isKoreanLocale && !premium?.active) {
       const rewarded = await showRewardedAd();
       if (!rewarded) {
         Alert.alert(t("common.error"), t("ads.rewarded_required"));
@@ -456,7 +508,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       }
     }
     startVideoAI();
-  }, [noteVideos, startVideoAI, isKoreanLocale, t]);
+  }, [noteVideos, startVideoAI, isKoreanLocale, premium?.active, t]);
 
   const handleRequestVideoAI = useCallback(async () => {
     if (!note || noteVideos.length === 0) return;
@@ -620,7 +672,10 @@ export default function NoteDetailScreen({ route, navigation }) {
         animationType="fade"
         onRequestClose={() => setFeedbackModalVisible(false)}
       >
-        <View style={styles.feedbackModalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.feedbackModalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={styles.feedbackModalBox}>
             <Text style={[T.titleBold, { color: CLight.gray900, marginBottom: 8 }]}>
               {t("noteDetail.ai_feedback_prompt")}
@@ -632,7 +687,7 @@ export default function NoteDetailScreen({ route, navigation }) {
               style={styles.feedbackModalInput}
               value={feedbackText}
               onChangeText={setFeedbackText}
-              placeholder={t("noteDetail.ai_feedback_placeholder") || ""}
+              placeholder={t("noteDetail.ai_feedback_placeholder")}
               multiline
               autoFocus
             />
@@ -666,11 +721,11 @@ export default function NoteDetailScreen({ route, navigation }) {
                   showToast(t("noteDetail.ai_feedback_sent"), "success");
                 }}
               >
-                <Text style={[T.captionBold, { color: CLight.white }]}>{t("noteDetail.ai_feedback_submit") || t("common.submit")}</Text>
+                <Text style={[T.captionBold, { color: CLight.white }]}>{t("noteDetail.ai_feedback_submit")}</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 공유 카드 — 화면 밖에서 렌더(캡처용). aiComment 있을 때만 */}
@@ -817,6 +872,23 @@ export default function NoteDetailScreen({ route, navigation }) {
     const videoProgressText = videoAiProgress.message || t("noteDetail.video_preparing");
     const videoPercent = videoAiProgress.percent || 0;
 
+    // 고칠 점 칩 + 재연습 버튼 — 글 피드백이든 영상 피드백이든 하나라도 있으면 보여준다
+    const renderFocusBlock = () => (
+      <>
+        <FocusPicker
+          title={t("focus.pick_title")}
+          options={note.focusOptions}
+          value={note.chosenFocus}
+          onSelect={handleChooseFocus}
+        />
+        {note.chosenFocus ? (
+          <TouchableOpacity style={styles.repracticeBtn} onPress={handleRepractice} activeOpacity={0.85}>
+            <Text style={[T.smallBold, { color: CLight.white }]}>{t("focus.repractice_cta")}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </>
+    );
+
     return (
       <View style={styles.tabContent}>
         {/* 지난 연습 — 직전 노트가 기기에 남아 있을 때만 */}
@@ -881,17 +953,7 @@ export default function NoteDetailScreen({ route, navigation }) {
             </View>
             <View style={styles.aiDivider} />
             <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text>
-            <FocusPicker
-              title={t("focus.pick_title")}
-              options={note.focusOptions}
-              value={note.chosenFocus}
-              onSelect={handleChooseFocus}
-            />
-            {note.chosenFocus ? (
-              <TouchableOpacity style={styles.repracticeBtn} onPress={handleRepractice} activeOpacity={0.85}>
-                <Text style={[T.smallBold, { color: CLight.white }]}>{t("focus.repractice_cta")}</Text>
-              </TouchableOpacity>
-            ) : null}
+            {renderFocusBlock()}
             <View style={styles.aiActionRow}>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShareFeedback} disabled={sharing}>
                 {sharing ? (
@@ -928,7 +990,8 @@ export default function NoteDetailScreen({ route, navigation }) {
               </View>
             </View>
           </View>
-        ) : (
+        ) : note.videoAnalysis ? null : (
+          // \uC601\uC0C1 AI \uACB0\uACFC\uAC00 \uC788\uC73C\uBA74 "AI \uBD84\uC11D\uC774 \uC544\uC9C1 \uC5C6\uC2B5\uB2C8\uB2E4"\uB294 \uC0AC\uC2E4\uC774 \uC544\uB2C8\uB2E4
           <View style={styles.aiEmptyContainer}>
             <Text style={styles.aiEmptyIcon}>{"\uD83E\uDDE0"}</Text>
             <Text style={[T.title, { color: CLight.gray900, marginTop: 12, textAlign: "center" }]}>
@@ -968,6 +1031,8 @@ export default function NoteDetailScreen({ route, navigation }) {
                 </View>
                 <View style={styles.aiDivider} />
                 <Text style={[T.body, { color: CLight.gray900 }]}>{note.videoAnalysis}</Text>
+                {/* 글 피드백 카드가 없을 때는 여기서 고칠 점·재연습을 제공한다 */}
+                {!note.aiComment ? renderFocusBlock() : null}
                 <TouchableOpacity style={styles.videoReAnalyzeBtn} onPress={handleRequestVideoAI}>
                   <Text style={[T.smallBold, { color: "#007AFF" }]}>{t("noteDetail.video_ai_reanalyze")}</Text>
                 </TouchableOpacity>

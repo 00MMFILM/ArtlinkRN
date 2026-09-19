@@ -45,6 +45,48 @@ beforeEach(() => {
   fetchPosts.mockResolvedValue(POSTS);
 });
 
+describe("CommunityScreen — 목록 조회 실패(데모 전환) 안내", () => {
+  it("데모로 전환되면 안내 배너와 재시도 버튼을 보여준다", async () => {
+    fetchPosts.mockRejectedValue(new Error("network"));
+    require("../../services/communityService").getDemoPosts.mockReturnValue(POSTS);
+    fetchPremiumUserIds.mockResolvedValue(new Set());
+    const { getByText } = render(<CommunityScreen />);
+    await waitFor(() => getByText("community.offline_notice"));
+    expect(getByText("common.retry")).toBeTruthy();
+  });
+
+  it("정상 조회되면 안내 배너가 보이지 않는다", async () => {
+    fetchPremiumUserIds.mockResolvedValue(new Set());
+    const { queryByText, getByText } = render(<CommunityScreen />);
+    await waitFor(() => getByText("유료 글"));
+    expect(queryByText("community.offline_notice")).toBeNull();
+  });
+});
+
+describe("CommunityScreen — 본인 글 신고/차단 메뉴 숨김", () => {
+  it("본인 글에는 신고 아이콘이 보이지 않는다", async () => {
+    useApp.mockReturnValue({
+      blockedUsers: [],
+      handleBlockUser: jest.fn(),
+      handleReportContent: jest.fn(),
+      deviceUserId: "u-free",
+      userProfile: {},
+    });
+    fetchPremiumUserIds.mockResolvedValue(new Set());
+    const { getByText, queryAllByText } = render(<CommunityScreen />);
+    await waitFor(() => getByText("무료 글"));
+    // 무료 글(u-free = 본인)은 신고 버튼이 없고, 유료 글(u-premium = 타인)은 남아 하나만 보여야 한다.
+    expect(queryAllByText("common.report")).toHaveLength(1);
+  });
+
+  it("타인 글에는 신고 아이콘이 보인다", async () => {
+    fetchPremiumUserIds.mockResolvedValue(new Set());
+    const { getByText, queryAllByText } = render(<CommunityScreen />);
+    await waitFor(() => getByText("유료 글"));
+    expect(queryAllByText("common.report")).toHaveLength(2);
+  });
+});
+
 describe("CommunityScreen — 프리미엄 왕관", () => {
   it("목록에 있는 user_id의 글에만 왕관을 그린다", async () => {
     fetchPremiumUserIds.mockResolvedValue(new Set(["u-premium"]));

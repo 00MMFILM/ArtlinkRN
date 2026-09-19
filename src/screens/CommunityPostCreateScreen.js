@@ -20,7 +20,6 @@ import { createPost, moderateContent } from "../services/communityService";
 import { checkProfanity } from "../utils/profanityFilter";
 
 const TYPE_KEYS = [
-  { key: "tab_notice", value: "공지" },
   { key: "tab_tip", value: "팁 공유" },
   { key: "tab_work", value: "작품 공유" },
   { key: "tab_question", value: "질문" },

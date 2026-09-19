@@ -557,6 +557,27 @@ function getFieldConfig(field) {
 
 // ─── PDF Text Extraction ───
 
+// PDF 업로드·추출이 응답 없이 매달리면 분석 전체가 멈춘다(무한 로딩).
+// 오디오 전사와 같은 방식으로 상한을 두고, 넘으면 PDF 텍스트 없이 진행한다.
+export const PDF_EXTRACT_TIMEOUT_MS = 60000;
+
+function raceWithTimeout(promise, ms) {
+  let timer = null;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  return Promise.race([promise, timeout]).then(
+    (v) => {
+      clearTimeout(timer);
+      return v;
+    },
+    (e) => {
+      clearTimeout(timer);
+      throw e;
+    }
+  );
+}
+
 /**
  * Upload PDF to server and extract text.
  * @param {string} pdfUri - local file URI
@@ -564,15 +585,23 @@ function getFieldConfig(field) {
  */
 export async function extractPdfText(pdfUri) {
   try {
-    const uploadResult = await FileSystem.uploadAsync(
-      `${SERVER_URL}/api/extract-pdf`,
-      pdfUri,
-      {
-        fieldName: "file",
-        httpMethod: "POST",
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      }
+    const uploadResult = await raceWithTimeout(
+      FileSystem.uploadAsync(
+        `${SERVER_URL}/api/extract-pdf`,
+        pdfUri,
+        {
+          fieldName: "file",
+          httpMethod: "POST",
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        }
+      ),
+      PDF_EXTRACT_TIMEOUT_MS
     );
+
+    if (!uploadResult) {
+      console.log("[extractPdfText] Timed out — PDF 텍스트 없이 진행");
+      return null;
+    }
 
     if (uploadResult.status >= 200 && uploadResult.status < 300) {
       const data = JSON.parse(uploadResult.body);
@@ -830,19 +859,15 @@ async function transcribeAllAudio(voiceRecordings = [], audioFiles = []) {
 
   voiceRecordings.forEach((rec, i) => {
     tasks.push(
-      Promise.race([
-        transcribeAudioFile(rec.uri, fmt.voiceLabel(i + 1)),
-        new Promise((resolve) => setTimeout(() => resolve(null), 120000)),
-      ]).then((t) => (t ? `[${fmt.voiceTranscriptLabel(i + 1)}]\n${t}` : null))
+      raceWithTimeout(transcribeAudioFile(rec.uri, fmt.voiceLabel(i + 1)), 120000)
+        .then((t) => (t ? `[${fmt.voiceTranscriptLabel(i + 1)}]\n${t}` : null))
     );
   });
 
   audioFiles.forEach((file, i) => {
     tasks.push(
-      Promise.race([
-        transcribeAudioFile(file.uri, file.name || fmt.audioFileLabel(i + 1)),
-        new Promise((resolve) => setTimeout(() => resolve(null), 120000)),
-      ]).then((t) => (t ? `[${fmt.audioTranscriptLabel(file.name || fmt.audioFileLabel(i + 1))}]\n${t}` : null))
+      raceWithTimeout(transcribeAudioFile(file.uri, file.name || fmt.audioFileLabel(i + 1)), 120000)
+        .then((t) => (t ? `[${fmt.audioTranscriptLabel(file.name || fmt.audioFileLabel(i + 1))}]\n${t}` : null))
     );
   });
 
@@ -888,6 +913,15 @@ export function parseFocus(raw) {
   return { analysis: raw.slice(0, m.index).trim(), options };
 }
 
+// 최종 방어선 — 구분자가 어긋나 parseScores/parseFocus가 못 잡은 [[SCORES]]·[[FOCUS]] 줄이
+// 남아 있으면 그 줄 전체를 지운다. 본문 중간의 [[대사]] 같은 일반 표기는 건드리지 않는다.
+const LEFTOVER_MARKER_LINE_RE = /^.*\[\[(?:SCORES|FOCUS)\]\].*$/gim;
+export function stripMarkerLines(text) {
+  if (!text || typeof text !== "string") return text;
+  if (!/\[\[(?:SCORES|FOCUS)\]\]/i.test(text)) return text;
+  return text.replace(LEFTOVER_MARKER_LINE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 // 피드백에서 🎯(개선 포인트) 섹션만 뽑아 요약으로 쓴다. 섹션이 없으면 앞부분을 쓴다.
 const SECTION_RE = /[\u{1F4CC}\u{1F4AA}\u{1F3AF}\u{1F3AD}\u{1F3A8}\u{1F4A1}\u{1F4C8}\u{1F51C}]/u;
 export function focusSummary(text, max = 400) {
@@ -929,7 +963,7 @@ function streamAnalyze(requestBody, onToken) {
     xhr.open("POST", `${SERVER_URL}/api/ai-analyze?stream=1`);
     const headers = getApiHeaders();
     Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
-    xhr.timeout = 90000;
+    xhr.timeout = 130000; // 서버 상한 120초보다 넉넉히 (클라이언트가 먼저 끊지 않게)
 
     xhr.onprogress = () => {
       // 429 등 에러 응답의 JSON 본문을 화면에 흘리지 않음 (쿼터 초과 시 raw JSON 깜빡임 방지)
@@ -972,7 +1006,7 @@ function streamAnalyze(requestBody, onToken) {
 // parseScores 결과에 남아 있는 [[FOCUS]] 줄을 한 번 더 걷어내 focusOptions로 넘긴다
 function withFocus(scored) {
   const { analysis, options } = parseFocus(scored.analysis);
-  return { analysis, scores: scored.scores, focusOptions: options };
+  return { analysis: stripMarkerLines(analysis), scores: scored.scores, focusOptions: options };
 }
 
 export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}, onToken = null, extra = null) {
@@ -1056,7 +1090,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90000); // 90s client timeout
+    const timeout = setTimeout(() => controller.abort(), 130000); // 서버 상한 120초 + 여유
 
     const response = await fetch(`${SERVER_URL}/api/ai-analyze`, {
       method: "POST",
@@ -1491,11 +1525,8 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     const framePromise = extractVideoFrames(video.uri, durationSec);
     onProgress?.({ phase: "extracting", percent: 15, message: fmt.progressFrameExtract });
 
-    // Transcription with 90s timeout (5min video: upload ~30s + Whisper ~30s)
-    const transcribePromise = Promise.race([
-      transcribeVideo(video.uri),
-      new Promise((resolve) => setTimeout(() => resolve(null), 120000)),
-    ]);
+    // Transcription with 120s timeout (5min video: upload ~30s + Whisper ~30s)
+    const transcribePromise = raceWithTimeout(transcribeVideo(video.uri), 120000);
     onProgress?.({ phase: "extracting", percent: 20, message: fmt.progressAudioExtract });
 
     const [frameResult, tvResult] = await Promise.all([framePromise, transcribePromise]);
@@ -1534,10 +1565,12 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
 
     // 응답을 놓치면 분석이 소실되므로 일시적 실패는 1회 재시도한다.
     // 4xx(인증·쿼터·잘못된 요청)는 재시도해도 결과가 같으므로 즉시 중단한다.
+    // 504(게이트웨이 타임아웃)와 클라이언트 타임아웃(abort)도 재시도하지 않는다 —
+    // 서버는 분석을 계속 돌리고 있을 수 있어 재요청하면 쿼터가 두 번 깎인다.
     let lastError = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 200000);
+      const timeout = setTimeout(() => controller.abort(), 310000); // 서버 상한 300초 + 여유
       try {
         onProgress?.({
           phase: "analyzing",
@@ -1564,6 +1597,9 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
         if (response.status >= 400 && response.status < 500) {
           throw videoAiError("REJECTED", `server rejected: ${response.status}`);
         }
+        if (response.status === 504) {
+          throw videoAiError("TIMEOUT", "server timeout: 504"); // 재시도 금지 (쿼터 이중 차감)
+        }
         if (!response.ok) throw new Error(`server error: ${response.status}`);
 
         const data = await response.json();
@@ -1580,9 +1616,14 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
 
         deleteTempMedia(tempFileName); // 분석 완료 — 임시 원본 정리 (보존본은 서버가 media-archive에 복사함)
         onProgress?.({ phase: "done", percent: 100, message: fmt.progressDone });
-        return parsed.analysis;
+        return stripMarkerLines(parsed.analysis);
       } catch (e) {
         if (e.videoAiReason) throw e; // 재시도 무의미 — 그대로 올림
+        if (e.name === "AbortError") {
+          // 클라이언트 타임아웃 — 서버가 아직 돌고 있을 수 있어 재요청하지 않는다
+          deleteTempMedia(tempFileName);
+          throw videoAiError("TIMEOUT", "client timeout");
+        }
         lastError = e;
         console.log(`[analyzeVideoFrames] attempt ${attempt} failed:`, e.name, e.message);
         if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));

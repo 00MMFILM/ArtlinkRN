@@ -145,6 +145,24 @@ describe("practiceService — 큐잉", () => {
   });
 });
 
+describe("practiceService — 완료 중복 방지", () => {
+  beforeEach(() => {
+    Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
+    global.fetch = offline();
+  });
+
+  it("같은 세션을 두 번 완료해도(2인 대사 → 이어받은 노트 저장) practice_completed는 1건", async () => {
+    const duet = startPractice("duet", "hamlet-1", "acting");
+    await settle();
+    completePractice(duet);
+    await settle();
+    const resumed = resumePractice(duet.sessionId, "text", "hamlet-1", "acting");
+    completePractice(resumed, { subjectKey: 123 });
+    await settle();
+    expect(queue().filter((e) => e.event === "practice_completed")).toHaveLength(1);
+  });
+});
+
 describe("practiceService — flush", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -224,6 +242,63 @@ describe("practiceService — flush", () => {
     expect(global.fetch).toHaveBeenCalledTimes(3);
     expect(JSON.parse(global.fetch.mock.calls[0][1].body).events).toHaveLength(50);
     expect(JSON.parse(global.fetch.mock.calls[2][1].body).events).toHaveLength(20);
+    expect(queue()).toHaveLength(0);
+  });
+
+  // 버그: 4xx를 받아도 큐에 그대로 남아 재전송이 영원히 같은 결과로 정체됐다(2026-09)
+  it("4xx(400)는 재전송해도 같은 결과라 그 배치를 버리고 진행한다", async () => {
+    const session = startPractice("text", null, "acting");
+    await settle();
+    expect(queue()).toHaveLength(1);
+
+    global.fetch = jest.fn(async () => ({ ok: false, status: 400 }));
+    const result = await flushPracticeQueue();
+
+    expect(queue()).toHaveLength(0); // 버려졌다 — 다음에도 똑같이 재전송되지 않는다
+    expect(result.sent).toBe(0); // 버린 건 "보낸 것"으로 세지 않는다
+  });
+
+  it("401은 토큰 문제일 수 있어 버리지 않고 큐에 남긴다", async () => {
+    const session = startPractice("text", null, "acting");
+    await settle();
+
+    global.fetch = jest.fn(async () => ({ ok: false, status: 401 }));
+    const result = await flushPracticeQueue();
+
+    expect(queue()).toHaveLength(1);
+    expect(result.sent).toBe(0);
+  });
+
+  it("한 배치가 4xx여도 다음 배치는 정상 전송한다", async () => {
+    const many = [];
+    for (let i = 0; i < 60; i++) {
+      many.push({
+        clientEventId: `e-${i}`,
+        sessionId: `s-${i}`,
+        event: "practice_completed",
+        kind: "text",
+        subjectKey: null,
+        field: null,
+        occurredAt: "2026-09-13T00:00:00.000Z",
+        deviceId: "device_test_1",
+        language: "ko",
+        platform: "ios",
+        appVersion: "1.11.2",
+      });
+    }
+    AsyncStorage.__store[PRACTICE_QUEUE_KEY] = JSON.stringify(many);
+
+    let call = 0;
+    global.fetch = jest.fn(async () => {
+      call += 1;
+      if (call === 1) return { ok: false, status: 400 };
+      return { ok: true, status: 200 };
+    });
+
+    const result = await flushPracticeQueue();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(result.sent).toBe(10); // 두 번째(마지막 10건) 배치만 성공으로 집계
     expect(queue()).toHaveLength(0);
   });
 

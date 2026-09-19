@@ -53,7 +53,9 @@
     "private": "Privado",
     "retry": "Reintentar",
     "video_ai_retry_msg": "No se recibió el resultado del análisis. Comprueba tu conexión e inténtalo de nuevo; tu nota sigue intacta.",
-    "video_quota_exceeded": "Has agotado tus análisis de vídeo gratuitos. Premium te ofrece 15 análisis al mes."
+    "video_quota_exceeded": "Has agotado tus análisis de vídeo gratuitos. Premium te ofrece 15 análisis al mes.",
+    "text_quota_exceeded": "Ya usaste toda tu retroalimentación de IA gratuita de hoy. Mañana tendrás más, y Premium te da hasta 10 veces al día.",
+    "submit": "Enviar"
   },
   "tabs": {
     "home": "Inicio",
@@ -194,7 +196,11 @@
     "hero_cta": "Registrar y recibir comentario de IA",
     "hero_title_ko_acting": "Graba el diálogo que ensayaste hoy y recibe comentarios",
     "hero_desc_ko_acting": "¿Preparas un casting o una prueba de acceso?\nRegistra escena por escena y recibe un punto que mejorar la próxima vez. Gratis y sin registro.",
-    "hero_cta_ko_acting": "Registrar la práctica y recibir comentarios"
+    "hero_cta_ko_acting": "Registrar la práctica y recibir comentarios",
+    "checkin_already": "Ya registraste tu práctica hoy",
+    "duet_title": "Práctica de escena a dos",
+    "duet_desc": "Un compañero de escena te da la réplica — 30 escenas clásicas, practica el ritmo aunque estés solo",
+    "duet_row": "Práctica de escena a dos — un compañero de escena te da la réplica"
   },
   "notes": {
     "search_placeholder": "Buscar notas...",
@@ -208,7 +214,10 @@
     "no_search_results": "Sin resultados de búsqueda",
     "try_other_search": "Prueba con otra búsqueda",
     "no_notes_yet": "Aún no hay notas",
-    "no_notes_desc": "Pulsa el botón + de la esquina inferior derecha\npara registrar tu primera nota de práctica."
+    "no_notes_desc": "Pulsa el botón + de la esquina inferior derecha\npara registrar tu primera nota de práctica.",
+    "checkin_badge": "Registro",
+    "checkin_placeholder": "¿Qué practicaste? (opcional)",
+    "today_practice": "Nota rápida de práctica de hoy"
   },
   "noteCreate": {
     "draft_keep_failed": "No se pudo guardar el borrador",
@@ -259,7 +268,9 @@
     "hwp_unsupported": "HWP no compatible",
     "hwp_unsupported_msg": "Los archivos HWP no pueden procesarse directamente.\nPor favor, conviértelos a PDF desde Hancom Office y adjúntalos.\n(Archivo → Guardar como → PDF)",
     "audio_file": "Archivo de audio",
-    "voice_label": "Voz {{index}}"
+    "voice_label": "Voz {{index}}",
+    "replace_with_new_title": "¿Reemplazar con el nuevo contenido?",
+    "replace_with_new_message": "Lo que estás escribiendo se reemplazará con el contenido recién recibido."
   },
   "noteDetail": {
     "tab_content": "Contenido",
@@ -311,7 +322,14 @@
     "data_consent_msg": "Si aceptas, tus notas de práctica y tu voz y vídeo se usarán para hacer que la IA de Artlink sea más inteligente, lo que hará que la retroalimentación que recibes sea más precisa. Tus datos se almacenan de forma privada y segura, y solo se usan para mejorar la retroalimentación, nunca para otro fin. Todas las funciones siguen disponibles aunque no participes. Puedes desactivarlo y eliminar tus datos cuando quieras desde Configuración.",
     "data_consent_later": "Más tarde",
     "data_consent_join": "Participar",
-    "voice_label": "Voz {{index}}"
+    "voice_label": "Voz {{index}}",
+    "share_cta": "Compartir",
+    "share_title": "Compartir comentarios",
+    "share_msg": "¿Dónde quieres publicarlo?",
+    "share_feed": "Feed · Threads (vertical)",
+    "share_story": "Historia · TikTok (vertical completo)",
+    "share_failed": "No se pudo crear la imagen para compartir. Inténtalo de nuevo.",
+    "ai_feedback_placeholder": "Cuéntanos qué no te convenció (opcional)"
   },
   "profile": {
     "edit_profile": "Editar perfil",
@@ -346,7 +364,7 @@
     "support_msg": "Si tienes preguntas o necesitas ayuda, contáctanos en el correo electrónico indicado a continuación.\n\nlcy1152@naver.com",
     "send_email": "Enviar correo electrónico",
     "terms_detail": "Términos de uso de ArtLink\n\n1. Esta aplicación aplica una política de tolerancia cero ante contenido inapropiado y conductas abusivas.\n2. Los usuarios pueden denunciar contenido inapropiado, que será revisado en un plazo de 24 horas.\n3. Los usuarios que infrinjan los términos podrán ser expulsados del servicio.\n4. Para consultar los términos completos, revisa el texto que aceptaste al iniciar la aplicación por primera vez.\n\nContacto: lcy1152@naver.com",
-    "privacy_detail": "Política de privacidad de ArtLink\n\n1. Información personal recopilada: nombre, correo electrónico, información de perfil\n2. Finalidad de la recopilación: prestación y mejora del servicio\n3. Período de conservación: hasta la eliminación de la cuenta\n4. Cesión a terceros: ninguna\n5. Los usuarios pueden eliminar su información personal en cualquier momento eliminando su cuenta.\n\nContacto: lcy1152@naver.com",
+    "privacy_detail": "Política de privacidad de ArtLink\n\n1. Información personal recopilada: nombre, correo electrónico, información de perfil, notas de práctica e imágenes/videos adjuntos, grabaciones de voz\n2. Finalidad de la recopilación: prestación del servicio, generación de retroalimentación de IA, mejora del servicio\n3. Período de conservación: hasta la eliminación de la cuenta\n4. Procesamiento por terceros: Anthropic y Google (generación de retroalimentación de IA), OpenAI (conversión de voz a texto), Supabase (almacenamiento de datos)\n5. Los usuarios pueden eliminar su información personal en cualquier momento eliminando su cuenta.\n\nContacto: lcy1152@naver.com",
     "logout_confirm": "¿Cerrar sesión?\nTus notas están guardadas en el servidor y se restaurarán al volver a iniciar sesión.",
     "delete_confirm": "Todos tus datos (notas, perfil, portafolio, etc.) se eliminarán de forma permanente. Esta acción no se puede deshacer.\n\n¿Seguro que quieres eliminar tu cuenta?"
   },
@@ -400,7 +418,8 @@
     "tab_collab": "Colaboración",
     "wait_title": "Un momento",
     "wait_msg": "Conectando a la comunidad. Por favor, inténtalo de nuevo en unos instantes.",
-    "empty_posts": "Aún no hay publicaciones.\n¡Sé el primero en escribir!"
+    "empty_posts": "Aún no hay publicaciones.\n¡Sé el primero en escribir!",
+    "offline_notice": "La conexión no es estable, por eso mostramos publicaciones de ejemplo"
   },
   "communityCreate": {
     "title": "Crear publicación",
@@ -606,7 +625,14 @@
     "portfolio_required_msg": "Por favor, agrega obras a tu portafolio primero.",
     "generate_failed": "Error al generar",
     "card_failed_msg": "Error al generar la tarjeta de perfil.",
-    "bio_failed_msg": "Error al generar el resumen."
+    "bio_failed_msg": "Error al generar el resumen.",
+    "video_profile": "Perfil de Video con IA",
+    "video_profile_badge": "Próximamente",
+    "video_profile_desc": "Con solo unas fotos, creamos automáticamente un perfil de video de actuación listo para castings. Muy pronto.",
+    "video_profile_notify": "Avísame cuando esté disponible",
+    "video_profile_requested": "✓ Registro completo — te avisaremos cuando esté listo",
+    "video_profile_requested_title": "Ya estás en la lista",
+    "video_profile_requested_msg": "¡Te avisaremos en cuanto esté listo!"
   },
   "shareCard": {
     "title": "Tarjeta para compartir",
@@ -637,7 +663,16 @@
     "recording_days": "{{days}} días de registros",
     "recording_weeks": "{{weeks}} semanas de registros",
     "recording_months": "{{months}} meses de registros",
-    "level_value": "Lv {{level}}"
+    "level_value": "Lv {{level}}",
+    "sharing": "Compartiendo...",
+    "brand": "ARTLINK · Coach de IA",
+    "chips_count": "{{count}} puntos analizados por IA",
+    "cta": "Recibe el coaching completo →",
+    "footer": "Artlink · art-link.kr",
+    "section_observation": "📌 Lo que notó la IA",
+    "section_strength": "💪 Lo que salió bien",
+    "section_next": "🎯 Siguiente paso",
+    "practice_title": "Práctica de {{field}}"
   },
   "b2b": {
     "title": "Panel B2B",
@@ -681,7 +716,9 @@
     "min": "Mín.",
     "max": "Máx.",
     "level_value": "Lv {{level}}",
-    "level_mileage": "Lv {{level}} · {{mileage}} puntos"
+    "level_mileage": "Lv {{level}} · {{mileage}} puntos",
+    "video_profile": "Perfil en video",
+    "stat_preparing": "Próximamente"
   },
   "inbox": {
     "title": "Bandeja de propuestas",
@@ -809,7 +846,7 @@
     "article6_title": "Artículo 6 (Sanciones)",
     "article6_body": "1. Los usuarios que violen estos Términos pueden enfrentar las siguientes sanciones:\n   - Eliminación de contenido\n   - Suspensión temporal del servicio\n   - Suspensión permanente de la cuenta\n2. Los usuarios que publiquen contenido inapropiado pueden ser eliminados inmediatamente del servicio.",
     "article7_title": "Artículo 7 (Privacidad y Procesamiento de Datos de IA)",
-    "article7_body": "1. La aplicación recopila solo la información personal mínima necesaria para la prestación del servicio.\n2. La información recopilada se utiliza únicamente para la prestación del servicio.\n3. Al usar la función de análisis de IA, los siguientes datos se envían a través del servidor de Artlink a OpenAI: títulos y contenidos de las notas, imágenes y videos adjuntos, grabaciones de voz (convertidas a texto), texto de documentos (PDF), información del campo, información del perfil (experiencia, referentes, intereses, habilidades especiales) e historial de análisis de IA previo (hasta 10 entradas recientes). Los datos transmitidos se utilizan únicamente para generar retroalimentación de IA.\n4. Después del análisis de IA, se almacenan estadísticas de uso anónimas (identificador del dispositivo, campo, etiquetas, etc.) en Supabase para la mejora del servicio.\n5. Procesamiento de datos por terceros: OpenAI (generación de retroalimentación de IA) y Supabase (almacenamiento de datos) mantienen estándares de protección de datos equivalentes a los de Artlink.\n6. La transmisión de datos para el análisis de IA requiere el consentimiento por separado del usuario la primera vez que utiliza la función de análisis.\n7. Los usuarios pueden eliminar su información personal en cualquier momento eliminando su cuenta.",
+    "article7_body": "1. La aplicación recopila solo la información personal mínima necesaria para la prestación del servicio.\n2. La información recopilada se utiliza únicamente para la prestación del servicio.\n3. Al usar la función de análisis de IA, los siguientes datos se envían a través del servidor de Artlink: títulos y contenidos de las notas, imágenes y videos adjuntos, grabaciones de voz (convertidas a texto), texto de documentos (PDF), información del campo, información del perfil (experiencia, referentes, intereses, habilidades especiales) e historial de análisis de IA previo (hasta 10 entradas recientes). El análisis de texto, imágenes y video lo procesa Anthropic (Claude), y el análisis de video también utiliza Google. Las grabaciones de voz son transcritas a texto por OpenAI antes de enviarse a Anthropic. Los datos transmitidos se utilizan únicamente para generar retroalimentación de IA.\n4. Después del análisis de IA, se almacenan estadísticas de uso anónimas (identificador del dispositivo, campo, etiquetas, etc.) en Supabase para la mejora del servicio.\n5. Procesamiento de datos por terceros: Anthropic y Google (generación de retroalimentación de IA), OpenAI (conversión de voz a texto) y Supabase (almacenamiento de datos) mantienen estándares de protección de datos equivalentes a los de Artlink.\n6. La transmisión de datos para el análisis de IA requiere el consentimiento por separado del usuario la primera vez que utiliza la función de análisis.\n7. Los usuarios pueden eliminar su información personal en cualquier momento eliminando su cuenta.",
     "article8_title": "Artículo 8 (Exención de Responsabilidad)",
     "article8_body": "1. La Aplicación no es responsable de disputas entre usuarios.\n2. La Aplicación no es responsable de daños causados por interrupciones del servicio o pérdida de datos.",
     "article9_title": "Artículo 9 (Contacto)",
@@ -824,7 +861,7 @@
   },
   "aiDisclosure": {
     "title": "Aviso de datos de IA",
-    "message": "Al usar el análisis de IA, los siguientes datos se envían a través del servidor de Artlink a OpenAI para generar retroalimentación.\n\nDatos enviados:\n• Título y contenido de la nota\n• Imágenes y videos adjuntos\n• Grabaciones de voz (convertidas a texto antes del envío)\n• Documentos adjuntos (texto PDF)\n• Información del campo (actuación, música, etc.)\n• Información del perfil (experiencia, referentes, intereses, habilidades especiales)\n• Historial de análisis de IA de notas anteriores (hasta 10 resúmenes recientes)\n\nDespués del análisis de IA, se almacenan estadísticas de uso anónimas (identificador del dispositivo, campo, etiquetas, etc.) en Supabase para la mejora del servicio.\n\nLos datos se utilizan únicamente para generar retroalimentación de IA y mejorar el servicio. OpenAI y Supabase proporcionan niveles equivalentes de protección de datos.\n\nConsulte nuestra Política de Privacidad para más detalles.",
+    "message": "Al usar el análisis de IA, los siguientes datos se envían a través del servidor de Artlink para generar retroalimentación.\n\nDatos enviados:\n• Título y contenido de la nota\n• Imágenes y videos adjuntos\n• Grabaciones de voz (convertidas a texto antes del envío)\n• Documentos adjuntos (texto PDF)\n• Información del campo (actuación, música, etc.)\n• Información del perfil (experiencia, referentes, intereses, habilidades especiales)\n• Historial de análisis de IA de notas anteriores (hasta 10 resúmenes recientes)\n\nEl análisis de texto, imágenes y video lo procesa Anthropic (Claude), y el análisis de archivos de video también utiliza Google. Las grabaciones de voz son transcritas a texto por OpenAI, y ese texto se envía luego a Anthropic.\n\nDespués del análisis de IA, se almacenan estadísticas de uso anónimas (identificador del dispositivo, campo, etiquetas, etc.) en Supabase para la mejora del servicio.\n\nProcesamiento de datos por terceros: Anthropic y Google (generación de retroalimentación de IA), OpenAI (conversión de voz a texto) y Supabase (almacenamiento de datos) aplican estándares de protección de datos equivalentes a los nuestros.\n\nConsulte nuestra Política de Privacidad para más detalles.",
     "accept": "Aceptar y analizar",
     "cancel": "Cancelar"
   },
@@ -844,7 +881,33 @@
     "manage": "Gestionar suscripción",
     "badge": "Premium",
     "limit_text_reached": "Has usado los {{max}} comentarios de texto de hoy. Se renuevan mañana.",
-    "limit_video_reached": "Has usado los {{max}} análisis de vídeo de este mes. Se renuevan el mes que viene."
+    "limit_video_reached": "Has usado los {{max}} análisis de vídeo de este mes. Se renuevan el mes que viene.",
+    "title": "ArtLink Premium",
+    "subtitle": "Texto 10 veces al día · Video 15 veces al mes",
+    "benefit_text": "10 sesiones de retroalimentación de texto con IA al día",
+    "benefit_video": "15 análisis de video con IA al mes — comprensión del video completo",
+    "benefit_model": "Coaching más profundo con nuestro modelo de IA superior",
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "yearly_save": "Ahorra 41%",
+    "cta_subscribe": "Suscribirse",
+    "restore": "Restaurar compras",
+    "purchase_success": "¡Premium activado!",
+    "purchase_fail": "No se pudo completar la compra. Inténtalo de nuevo.",
+    "restore_success": "Compras restauradas.",
+    "restore_none": "No hay compras para restaurar.",
+    "auto_renew_note": "Las suscripciones se renuevan automáticamente a menos que se cancelen al menos 24 horas antes de que finalice el período. Puedes administrarlas en cualquier momento en la configuración de tu cuenta de App Store.",
+    "renew_notice": "Tu suscripción {{plan}} se cobra automáticamente por {{price}}. Se renueva automáticamente a menos que la canceles al menos 24 horas antes de que finalice el período; puedes administrarla en cualquier momento en la configuración de App Store.",
+    "terms": "Términos de uso",
+    "privacy": "Política de privacidad",
+    "not_ready": "Los pagos se están configurando. Inténtalo de nuevo en un momento.",
+    "quota_cta": "Ver Premium",
+    "guest_trial_title": "Has usado toda tu prueba gratuita",
+    "guest_trial_msg": "Regístrate para seguir recibiendo retroalimentación de IA. Es gratis unirse.",
+    "guest_trial_cta": "Registrarse",
+    "login_required_title": "Necesitas iniciar sesión",
+    "login_required_message": "Las suscripciones están vinculadas a tu cuenta. Regístrate gratis o inicia sesión primero.",
+    "renew_notice_android": "Tu suscripción {{plan}} se cobra automáticamente por {{price}}. Se renueva automáticamente a menos que la canceles al menos 24 horas antes de que finalice el período; puedes administrarla en cualquier momento en la configuración de suscripciones de Google Play."
   },
   "focus": {
     "pick_title": "Elige una cosa que mejorar en la próxima práctica",
@@ -859,5 +922,23 @@
     "axis_creativity": "Creatividad",
     "axis_consistency": "Constancia",
     "axis_growth": "Cambio"
+  },
+  "reminder": {
+    "offer_title": "Configurar recordatorio de práctica",
+    "offer_msg": "¿Quieres que te recuerde practicar mañana también a las {{time}}?\nRegistrar a la misma hora cada día construye tu curva de crecimiento.",
+    "offer_yes": "Sí, recuérdamelo",
+    "offer_no": "No, gracias",
+    "push_title": "Es hora de practicar hoy 🎭",
+    "push_body": "Un paso más allá de ayer. Registra tu práctica de hoy y recibe la retroalimentación de tu entrenador de IA."
+  },
+  "onboarding": {
+    "landing_title": "Tu coach de práctica con IA",
+    "landing_body": "Registra tu práctica\nRecibe comentarios personalizados\nSigue tu progreso",
+    "landing_cta": "Empezar",
+    "landing_note": "Gratis para todos los artistas"
+  },
+  "duet": {
+    "note_done": "Se abrió la pantalla de notas",
+    "finished": "Práctica terminada"
   }
 }

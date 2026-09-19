@@ -109,7 +109,15 @@ export function resumePractice(sessionId, kind, subjectKey = null, field = null)
 }
 
 /** 연습 완료. 완료 시점에야 알 수 있는 값(노트 id, 영상 여부)은 overrides로 채운다. */
+// 한 세션의 완료는 한 번만 센다 — 2인 대사 화면이 완료한 세션을 노트 저장이 다시 완료해도 1회.
+const completedSessions = new Set();
 export function completePractice(session, overrides = {}) {
+  const id = session?.sessionId;
+  if (id) {
+    if (completedSessions.has(id)) return Promise.resolve(false);
+    completedSessions.add(id);
+    if (completedSessions.size > 200) completedSessions.delete(completedSessions.values().next().value);
+  }
   return enqueue("practice_completed", session, overrides);
 }
 
@@ -120,7 +128,11 @@ export function aiFeedbackDone(session, kindOverride) {
 
 let flushing = false;
 
-/** 큐를 최대 50건씩 보낸다. 2xx면 그 건만 지우고, 실패하면 남겨 다음에 재전송한다. */
+/**
+ * 큐를 최대 50건씩 보낸다. 2xx면 그 건만 지우고 다음 배치로 진행한다.
+ * 4xx(401 제외)는 재전송해도 같은 결과라 그 배치를 버리고 다음 배치로 진행한다.
+ * 401(토큰 문제일 수 있음)·5xx·네트워크 오류는 큐에 그대로 두고 중단한다.
+ */
 export async function flushPracticeQueue() {
   if (flushing) return { sent: 0, busy: true };
   flushing = true;
@@ -131,17 +143,28 @@ export async function flushPracticeQueue() {
       if (queue.length === 0) break;
       const batch = queue.slice(0, BATCH_SIZE);
       let ok = false;
+      let status = null;
       try {
         const res = await fetch(`${SERVER_URL}/api/practice-event`, {
           method: "POST",
           headers: getApiHeaders(),
           body: JSON.stringify({ events: batch }),
         });
-        ok = !!res && (typeof res.ok === "boolean" ? res.ok : res.status >= 200 && res.status < 300);
+        status = res?.status;
+        ok = !!res && (typeof res.ok === "boolean" ? res.ok : status >= 200 && status < 300);
       } catch (e) {
         ok = false;
       }
-      if (!ok) break; // 실패는 조용히 버리지 않는다 — 큐에 그대로 둔다
+      if (!ok) {
+        const discardable4xx = status && status >= 400 && status < 500 && status !== 401;
+        if (!discardable4xx) break; // 401·5xx·네트워크 오류는 큐에 남기고 중단
+        const dropped = new Set(batch.map((e) => e.clientEventId));
+        await serialize(async () => {
+          const current = await readQueue();
+          await writeQueue(current.filter((e) => !dropped.has(e.clientEventId)));
+        });
+        continue; // 이 배치는 버리고 다음 배치로
+      }
       const posted = new Set(batch.map((e) => e.clientEventId));
       await serialize(async () => {
         const current = await readQueue();

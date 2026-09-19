@@ -25,21 +25,21 @@ import { sendProposal } from "../services/proposalService";
 const SCREEN_W = Dimensions.get("window").width;
 
 const DEMO_ACTORS = [
-  { id: 1, name: "김수현", fields: ["acting"], gender: "male", birthDate: "1998-03-15", height: 178, weight: 72, specialties: ["검도", "수영", "영어"], career: [{ title: "드라마 '별의 시간'", role: "주연", year: "2025", type: "drama" }, { title: "영화 '그림자'", role: "조연", year: "2024", type: "film" }], location: "서울", agency: "스타엔터", score: 94, notes: 156, streak: 45 },
-  { id: 2, name: "이지은", fields: ["music", "acting"], gender: "female", birthDate: "1999-05-20", height: 165, weight: 50, specialties: ["피아노", "영어", "발레"], career: [{ title: "뮤지컬 'Spring'", role: "주연", year: "2025", type: "musical" }], location: "서울", agency: "", score: 91, notes: 203, streak: 32 },
-  { id: 3, name: "박서준", fields: ["acting", "film"], gender: "male", birthDate: "1997-07-10", height: 182, weight: 75, specialties: ["태권도", "운전", "승마"], career: [{ title: "영화 '도시의 밤'", role: "주연", year: "2025", type: "film" }, { title: "드라마 '첫사랑'", role: "주연", year: "2024", type: "drama" }], location: "서울", agency: "아티스트컴퍼니", score: 88, notes: 98, streak: 28 },
-  { id: 4, name: "최예나", fields: ["dance", "music"], gender: "female", birthDate: "2001-11-03", height: 170, weight: 52, specialties: ["발레", "요가", "필라테스"], career: [{ title: "국립무용단 시즌공연", role: "객원", year: "2025", type: "other" }], location: "서울", agency: "", score: 85, notes: 134, streak: 21 },
-  { id: 5, name: "정호연", fields: ["art"], gender: "female", birthDate: "1996-01-22", height: 175, weight: 55, specialties: ["영어", "일본어"], career: [{ title: "서울아트페어", role: "참여작가", year: "2025", type: "other" }], location: "서울", agency: "", score: 82, notes: 67, streak: 15 },
-  { id: 6, name: "한소희", fields: ["film", "acting"], gender: "female", birthDate: "2000-08-18", height: 168, weight: 49, specialties: ["수영", "요가"], career: [{ title: "단편영화 '빛'", role: "주연", year: "2025", type: "short_film" }, { title: "웹드라마 '연결'", role: "주연", year: "2024", type: "web_drama" }], location: "서울", agency: "키이스트", score: 79, notes: 112, streak: 19 },
-  { id: 7, name: "김민재", fields: ["acting"], gender: "male", birthDate: "1995-04-12", height: 185, weight: 80, specialties: ["복싱", "운전", "기타연주"], career: [{ title: "뮤지컬 '시카고'", role: "앙상블", year: "2024", type: "musical" }], location: "부산", agency: "", score: 76, notes: 89, streak: 12 },
-  { id: 8, name: "서윤아", fields: ["literature", "film"], gender: "female", birthDate: "1993-12-05", height: 162, weight: 48, specialties: ["영어", "피아노"], career: [{ title: "문학잡지 '새길' 등단", role: "소설가", year: "2023", type: "other" }], location: "제주", agency: "", score: 73, notes: 210, streak: 60 },
+  { id: 1, name: "강태민", fields: ["acting"], gender: "male", birthDate: "1998-03-15", height: 178, weight: 72, specialties: ["검도", "수영", "영어"], career: [{ title: "드라마 '노을의 방'", role: "주연", year: "2025", type: "drama" }, { title: "영화 '검은 강'", role: "조연", year: "2024", type: "film" }], location: "서울", agency: "블룸엔터테인먼트", score: 94, notes: 156, streak: 45 },
+  { id: 2, name: "윤하은", fields: ["music", "acting"], gender: "female", birthDate: "1999-05-20", height: 165, weight: 50, specialties: ["피아노", "영어", "발레"], career: [{ title: "뮤지컬 'Spring'", role: "주연", year: "2025", type: "musical" }], location: "서울", agency: "", score: 91, notes: 203, streak: 32 },
+  { id: 3, name: "문지호", fields: ["acting", "film"], gender: "male", birthDate: "1997-07-10", height: 182, weight: 75, specialties: ["태권도", "운전", "승마"], career: [{ title: "영화 '한밤의 항구'", role: "주연", year: "2025", type: "film" }, { title: "드라마 '첫눈이 오면'", role: "주연", year: "2024", type: "drama" }], location: "서울", agency: "청명아티스트", score: 88, notes: 98, streak: 28 },
+  { id: 4, name: "오하늘", fields: ["dance", "music"], gender: "female", birthDate: "2001-11-03", height: 170, weight: 52, specialties: ["발레", "요가", "필라테스"], career: [{ title: "무용단 정기공연", role: "객원", year: "2025", type: "other" }], location: "서울", agency: "", score: 85, notes: 134, streak: 21 },
+  { id: 5, name: "배지원", fields: ["art"], gender: "female", birthDate: "1996-01-22", height: 175, weight: 55, specialties: ["영어", "일본어"], career: [{ title: "지역아트페어", role: "참여작가", year: "2025", type: "other" }], location: "서울", agency: "", score: 82, notes: 67, streak: 15 },
+  { id: 6, name: "서은채", fields: ["film", "acting"], gender: "female", birthDate: "2000-08-18", height: 168, weight: 49, specialties: ["수영", "요가"], career: [{ title: "단편영화 '새벽빛'", role: "주연", year: "2025", type: "short_film" }, { title: "웹드라마 '거리'", role: "주연", year: "2024", type: "web_drama" }], location: "서울", agency: "달빛컴퍼니", score: 79, notes: 112, streak: 19 },
+  { id: 7, name: "유단후", fields: ["acting"], gender: "male", birthDate: "1995-04-12", height: 185, weight: 80, specialties: ["복싱", "운전", "기타연주"], career: [{ title: "뮤지컬 '한여름 밤의 노래'", role: "앙상블", year: "2024", type: "musical" }], location: "부산", agency: "", score: 76, notes: 89, streak: 12 },
+  { id: 8, name: "정다솔", fields: ["literature", "film"], gender: "female", birthDate: "1993-12-05", height: 162, weight: 48, specialties: ["영어", "피아노"], career: [{ title: "문학잡지 '새길' 등단", role: "소설가", year: "2023", type: "other" }], location: "제주", agency: "", score: 73, notes: 210, streak: 60 },
 ];
 
 const DEMO_STATS = { registeredArtists: 1247, activeProjects: "-", castingProposals: "-", matchRate: "-" };
 
 const DEMO_ACTIVITIES = [
   { id: 1, type: "casting", text: "'빛의 경계' 프로젝트에 3명의 아티스트가 지원했습니다.", time: "30분 전" },
-  { id: 2, type: "match", text: "김수현 님이 뮤지컬 'Seasons' 캐스팅에 92% 매칭되었습니다.", time: "2시간 전" },
+  { id: 2, type: "match", text: "강태민 님이 뮤지컬 'Seasons' 캐스팅에 92% 매칭되었습니다.", time: "2시간 전" },
   { id: 3, type: "project", text: "새 프로젝트 '도시의 밤' 등록이 완료되었습니다.", time: "5시간 전" },
   { id: 4, type: "casting", text: "'새벽의 문' 오디션에 12명의 지원자가 접수되었습니다.", time: "어제" },
 ];
@@ -485,15 +485,21 @@ export default function B2BDashboardScreen({ navigation }) {
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.registered_artists")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.blue }]}>
-            <Text style={[T.h2, { color: CLight.blue }]}>{DEMO_STATS.activeProjects}</Text>
+            <Text style={[T.h2, { color: CLight.blue }]}>
+              {DEMO_STATS.activeProjects === "-" ? t("b2b.stat_preparing") : DEMO_STATS.activeProjects}
+            </Text>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.active_projects")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.purple }]}>
-            <Text style={[T.h2, { color: CLight.purple }]}>{DEMO_STATS.castingProposals}</Text>
+            <Text style={[T.h2, { color: CLight.purple }]}>
+              {DEMO_STATS.castingProposals === "-" ? t("b2b.stat_preparing") : DEMO_STATS.castingProposals}
+            </Text>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.casting_proposals")}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: CLight.green }]}>
-            <Text style={[T.h2, { color: CLight.green }]}>{DEMO_STATS.matchRate === "-" ? "-" : `${DEMO_STATS.matchRate}%`}</Text>
+            <Text style={[T.h2, { color: CLight.green }]}>
+              {DEMO_STATS.matchRate === "-" ? t("b2b.stat_preparing") : `${DEMO_STATS.matchRate}%`}
+            </Text>
             <Text style={[T.micro, { color: CLight.gray500, marginTop: 2 }]}>{t("b2b.match_rate")}</Text>
           </View>
         </View>

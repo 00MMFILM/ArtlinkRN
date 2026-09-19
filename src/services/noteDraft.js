@@ -3,6 +3,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const DRAFT_KEY = "artlink-note-draft";
+// 초안 유효기간 — 몇 주 뒤 앱을 열었는데 잊은 초안이 되살아나지 않게 7일로 끊는다.
+// savedAt이 없는 구버전 초안(0)은 만료로 보지 않는다.
+export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const TEXT_FIELDS = ["title", "content", "field", "seriesName", "aiComment", "videoAnalysis"];
 const LIST_FIELDS = ["tags", "images", "voiceRecordings", "audioFiles", "pdfFiles"];
@@ -58,6 +61,7 @@ export function validateDraft(raw) {
   draft.aiScores = raw.aiScores && typeof raw.aiScores === "object" ? raw.aiScores : null;
   draft.sessionId = typeof raw.sessionId === "string" ? raw.sessionId : null;
   draft.savedAt = typeof raw.savedAt === "number" ? raw.savedAt : 0;
+  if (draft.savedAt > 0 && Date.now() - draft.savedAt > DRAFT_TTL_MS) return null; // 만료
   return hasSubstance(draft) ? draft : null;
 }
 
@@ -79,7 +83,10 @@ export async function loadDraft() {
   try {
     const json = await AsyncStorage.getItem(DRAFT_KEY);
     if (!json) return null;
-    return validateDraft(JSON.parse(json));
+    const draft = validateDraft(JSON.parse(json));
+    // 만료됐거나 쓸 내용이 없는 초안은 저장소에서도 지운다 (되살아나지 않게)
+    if (!draft) await clearDraft();
+    return draft;
   } catch {
     return null;
   }

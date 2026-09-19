@@ -53,7 +53,9 @@
     "private": "Riêng tư",
     "retry": "Thử lại",
     "video_ai_retry_msg": "Không nhận được kết quả phân tích. Vui lòng kiểm tra kết nối và thử lại — ghi chú của bạn vẫn còn nguyên.",
-    "video_quota_exceeded": "Bạn đã dùng hết lượt phân tích video miễn phí. Bản Premium cho phép sử dụng 15 lượt mỗi tháng."
+    "video_quota_exceeded": "Bạn đã dùng hết lượt phân tích video miễn phí. Bản Premium cho phép sử dụng 15 lượt mỗi tháng.",
+    "text_quota_exceeded": "Bạn đã dùng hết lượt phản hồi AI miễn phí hôm nay. Ngày mai bạn sẽ có thêm lượt, và Premium cho phép tối đa 10 lượt mỗi ngày.",
+    "submit": "Gửi"
   },
   "tabs": {
     "home": "Trang chủ",
@@ -125,7 +127,7 @@
     "usertype_hobby_desc": "Tôi đang tham gia hoạt động nghệ thuật vì đam mê",
     "usertype_industry": "Người trong ngành",
     "usertype_industry_desc": "Công ty sản xuất, công ty quản lý, cơ sở giáo dục, v.v.",
-    "usertype_fan": "Fan",
+    "usertype_fan": "Người hâm mộ",
     "usertype_fan_desc": "Cổ vũ cho nghệ sĩ yêu thích",
     "step_fields": "Lĩnh vực nghệ thuật",
     "step_fields_desc": "Vui lòng chọn tất cả các lĩnh vực bạn quan tâm",
@@ -194,7 +196,11 @@
     "hero_cta": "Ghi lại và nhận phản hồi AI",
     "hero_title_ko_acting": "Ghi âm lời thoại đã tập hôm nay và nhận phản hồi",
     "hero_desc_ko_acting": "Đang chuẩn bị thi tuyển hay casting?\nGhi lại từng cảnh và nhận một điểm cần sửa cho lần sau. Miễn phí, không cần đăng ký.",
-    "hero_cta_ko_acting": "Ghi lại buổi tập và nhận phản hồi"
+    "hero_cta_ko_acting": "Ghi lại buổi tập và nhận phản hồi",
+    "checkin_already": "Bạn đã check-in hôm nay rồi",
+    "duet_title": "Luyện tập lời thoại hai người",
+    "duet_desc": "Bạn diễn sẽ đọc lời thoại đối phương — 30 cảnh kinh điển, luyện nhịp thoại dù chỉ một mình",
+    "duet_row": "Luyện tập lời thoại hai người — bạn diễn sẽ đọc lời thoại đối phương"
   },
   "notes": {
     "search_placeholder": "Tìm kiếm ghi chú...",
@@ -208,7 +214,10 @@
     "no_search_results": "Không tìm thấy kết quả",
     "try_other_search": "Hãy thử từ khóa khác",
     "no_notes_yet": "Chưa có ghi chú nào",
-    "no_notes_desc": "Nhấn nút + ở góc dưới bên phải\nđể ghi lại ghi chú luyện tập đầu tiên!"
+    "no_notes_desc": "Nhấn nút + ở góc dưới bên phải\nđể ghi lại ghi chú luyện tập đầu tiên!",
+    "checkin_badge": "Check-in",
+    "checkin_placeholder": "Bạn đã luyện tập gì? (không bắt buộc)",
+    "today_practice": "Ghi chú nhanh luyện tập hôm nay"
   },
   "noteCreate": {
     "draft_keep_failed": "Không giữ được bản nháp",
@@ -259,7 +268,9 @@
     "hwp_unsupported": "Không hỗ trợ HWP",
     "hwp_unsupported_msg": "Không thể xử lý trực tiếp tệp HWP.\nVui lòng chuyển đổi sang PDF trong Hancom Office rồi đính kèm.\n(Tệp → Lưu dưới dạng → PDF)",
     "audio_file": "Tệp âm thanh",
-    "voice_label": "Giọng nói {{index}}"
+    "voice_label": "Giọng nói {{index}}",
+    "replace_with_new_title": "Thay bằng nội dung mới?",
+    "replace_with_new_message": "Nội dung bạn đang viết sẽ được thay thế bằng nội dung vừa nhận được."
   },
   "noteDetail": {
     "tab_content": "Nội dung",
@@ -311,7 +322,14 @@
     "data_consent_msg": "Nếu bạn đồng ý, ghi chú luyện tập cùng giọng nói và video của bạn sẽ được dùng để giúp AI của Artlink thông minh hơn, nhờ đó phản hồi bạn nhận được cũng chính xác hơn. Dữ liệu được lưu trữ riêng tư và an toàn, chỉ dùng để cải thiện phản hồi, không dùng cho mục đích nào khác. Dù không tham gia, bạn vẫn có thể sử dụng đầy đủ mọi tính năng. Bạn có thể tắt và xóa dữ liệu này bất cứ lúc nào trong phần Cài đặt.",
     "data_consent_later": "Để sau",
     "data_consent_join": "Tham gia",
-    "voice_label": "Giọng nói {{index}}"
+    "voice_label": "Giọng nói {{index}}",
+    "share_cta": "Chia sẻ",
+    "share_title": "Chia sẻ phản hồi",
+    "share_msg": "Bạn muốn đăng ở đâu?",
+    "share_feed": "Bảng feed · Threads (dọc)",
+    "share_story": "Story · TikTok (dọc đầy đủ)",
+    "share_failed": "Không thể tạo ảnh chia sẻ. Vui lòng thử lại.",
+    "ai_feedback_placeholder": "Cho chúng tôi biết điều gì chưa tốt (không bắt buộc)"
   },
   "profile": {
     "edit_profile": "Chỉnh sửa hồ sơ",
@@ -346,7 +364,7 @@
     "support_msg": "Nếu bạn có câu hỏi hoặc cần hỗ trợ, vui lòng liên hệ qua email bên dưới.\n\nlcy1152@naver.com",
     "send_email": "Gửi email",
     "terms_detail": "Điều khoản sử dụng ArtLink\n\n1. Ứng dụng này áp dụng chính sách không khoan nhượng đối với nội dung không phù hợp và hành vi lạm dụng.\n2. Người dùng có thể báo cáo nội dung không phù hợp, và nội dung bị báo cáo sẽ được xem xét trong vòng 24 giờ.\n3. Người dùng vi phạm điều khoản có thể bị loại khỏi dịch vụ.\n4. Vui lòng tham khảo toàn bộ điều khoản đã đồng ý khi khởi động ứng dụng lần đầu tiên để biết thêm chi tiết.\n\nLiên hệ: lcy1152@naver.com",
-    "privacy_detail": "Chính sách bảo mật ArtLink\n\n1. Thông tin cá nhân được thu thập: Tên, email, thông tin hồ sơ\n2. Mục đích thu thập: Cung cấp và cải thiện dịch vụ\n3. Thời gian lưu trữ: Cho đến khi xóa tài khoản\n4. Cung cấp cho bên thứ ba: Không\n5. Người dùng có thể xóa thông tin cá nhân bất kỳ lúc nào bằng cách xóa tài khoản.\n\nLiên hệ: lcy1152@naver.com",
+    "privacy_detail": "Chính sách bảo mật ArtLink\n\n1. Thông tin cá nhân được thu thập: Tên, email, thông tin hồ sơ, ghi chú luyện tập và hình ảnh/video đính kèm, bản ghi âm giọng nói\n2. Mục đích thu thập: Cung cấp dịch vụ, tạo phản hồi AI, cải thiện dịch vụ\n3. Thời gian lưu trữ: Cho đến khi xóa tài khoản\n4. Xử lý bởi bên thứ ba: Anthropic và Google (tạo phản hồi AI), OpenAI (chuyển giọng nói thành văn bản), Supabase (lưu trữ dữ liệu)\n5. Người dùng có thể xóa thông tin cá nhân bất kỳ lúc nào bằng cách xóa tài khoản.\n\nLiên hệ: lcy1152@naver.com",
     "logout_confirm": "Bạn có muốn đăng xuất không?\nGhi chú được lưu trên máy chủ và sẽ được khôi phục khi bạn đăng nhập lại.",
     "delete_confirm": "Tất cả dữ liệu (ghi chú, hồ sơ, danh mục đầu tư, v.v.) sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.\n\nBạn có chắc muốn xóa không?"
   },
@@ -400,7 +418,8 @@
     "tab_collab": "Hợp tác",
     "wait_title": "Vui lòng chờ",
     "wait_msg": "Đang kết nối cộng đồng. Vui lòng thử lại sau.",
-    "empty_posts": "Chưa có bài đăng nào.\nHãy viết bài đầu tiên!"
+    "empty_posts": "Chưa có bài đăng nào.\nHãy viết bài đầu tiên!",
+    "offline_notice": "Kết nối không ổn định nên đang hiển thị bài viết mẫu"
   },
   "communityCreate": {
     "title": "Viết bài",
@@ -438,7 +457,7 @@
     "title": "Ghép cặp",
     "back": "< Quay lại",
     "tab_project": "Dự án",
-    "tab_audition": "Audition",
+    "tab_audition": "Thử vai",
     "tab_collab": "Hợp tác",
     "source_crawled": "Thông báo tuyển dụng",
     "source_user": "Tự đăng",
@@ -606,7 +625,14 @@
     "portfolio_required_msg": "Vui lòng thêm tác phẩm vào danh mục đầu tư trước.",
     "generate_failed": "Tạo thất bại",
     "card_failed_msg": "Tạo thẻ hồ sơ thất bại.",
-    "bio_failed_msg": "Tạo phần giới thiệu thất bại."
+    "bio_failed_msg": "Tạo phần giới thiệu thất bại.",
+    "video_profile": "Hồ sơ video AI",
+    "video_profile_badge": "Sắp ra mắt",
+    "video_profile_desc": "Chỉ với vài bức ảnh, chúng tôi sẽ tự động tạo hồ sơ video diễn xuất mà bạn có thể dùng ngay cho casting. Sắp ra mắt.",
+    "video_profile_notify": "Đăng ký nhận thông báo ra mắt",
+    "video_profile_requested": "✓ Đã đăng ký — chúng tôi sẽ báo khi sẵn sàng",
+    "video_profile_requested_title": "Đã đăng ký",
+    "video_profile_requested_msg": "Chúng tôi sẽ báo cho bạn ngay khi sẵn sàng!"
   },
   "shareCard": {
     "title": "Thẻ chia sẻ",
@@ -630,14 +656,23 @@
     "level_5": "Nghệ sĩ",
     "level_6": "Người biểu diễn",
     "level_7": "Chuyên gia",
-    "level_8": "Virtuoso",
-    "level_9": "Maestro",
-    "level_10": "Luminary",
+    "level_8": "Cao thủ",
+    "level_9": "Bậc thầy",
+    "level_10": "Huyền thoại",
     "started_today": "Bắt đầu hôm nay",
     "recording_days": "Đang ghi chép ngày thứ {{days}}",
     "recording_weeks": "Đang ghi chép tuần thứ {{weeks}}",
     "recording_months": "Đang ghi chép tháng thứ {{months}}",
-    "level_value": "Lv {{level}}"
+    "level_value": "Lv {{level}}",
+    "sharing": "Đang chia sẻ...",
+    "brand": "ARTLINK · Huấn luyện viên AI",
+    "chips_count": "{{count}} mục do AI phân tích",
+    "cta": "Nhận huấn luyện đầy đủ →",
+    "footer": "Artlink · art-link.kr",
+    "section_observation": "📌 Điều AI nhận thấy",
+    "section_strength": "💪 Điểm làm tốt",
+    "section_next": "🎯 Bước tiếp theo",
+    "practice_title": "Luyện tập {{field}}"
   },
   "b2b": {
     "title": "Bảng điều khiển B2B",
@@ -681,7 +716,9 @@
     "min": "Tối thiểu",
     "max": "Tối đa",
     "level_value": "Lv {{level}}",
-    "level_mileage": "Lv {{level}} · {{mileage}} điểm"
+    "level_mileage": "Lv {{level}} · {{mileage}} điểm",
+    "video_profile": "Hồ sơ video",
+    "stat_preparing": "Sắp ra mắt"
   },
   "inbox": {
     "title": "Hộp thư đề xuất",
@@ -809,7 +846,7 @@
     "article6_title": "Điều 6 (Biện pháp xử phạt)",
     "article6_body": "1. Người dùng vi phạm điều khoản có thể phải chịu các biện pháp xử phạt sau:\n   - Xóa nội dung\n   - Tạm ngừng sử dụng dịch vụ\n   - Đình chỉ tài khoản vĩnh viễn\n2. Người dùng đăng tải nội dung không phù hợp có thể bị xóa khỏi dịch vụ ngay lập tức.",
     "article7_title": "Điều 7 (Quyền riêng tư và Xử lý dữ liệu AI)",
-    "article7_body": "1. Ứng dụng chỉ thu thập thông tin cá nhân tối thiểu cần thiết để cung cấp dịch vụ.\n2. Thông tin thu thập được chỉ sử dụng cho mục đích cung cấp dịch vụ.\n3. Khi sử dụng tính năng phân tích AI, các dữ liệu sau đây sẽ được gửi qua máy chủ của Artlink đến OpenAI: tiêu đề và nội dung ghi chú, hình ảnh và video đính kèm, bản ghi âm giọng nói (đã chuyển đổi thành văn bản), văn bản tài liệu (PDF), thông tin lĩnh vực, thông tin hồ sơ (kinh nghiệm, hình mẫu, sở thích, sở trường) và lịch sử phân tích AI trước đây (tối đa 10 mục gần nhất). Dữ liệu truyền đi chỉ được sử dụng để tạo phản hồi AI.\n4. Sau khi phân tích AI, các thống kê sử dụng ẩn danh (mã định danh thiết bị, lĩnh vực, thẻ, v.v.) sẽ được lưu trữ trên Supabase để cải thiện dịch vụ.\n5. Xử lý dữ liệu bởi bên thứ ba: OpenAI (tạo phản hồi AI) và Supabase (lưu trữ dữ liệu) duy trì tiêu chuẩn bảo vệ dữ liệu tương đương với Artlink.\n6. Việc truyền dữ liệu cho phân tích AI yêu cầu sự đồng ý riêng khi người dùng sử dụng tính năng phân tích lần đầu.\n7. Người dùng có thể xóa thông tin cá nhân bất kỳ lúc nào bằng cách xóa tài khoản.",
+    "article7_body": "1. Ứng dụng chỉ thu thập thông tin cá nhân tối thiểu cần thiết để cung cấp dịch vụ.\n2. Thông tin thu thập được chỉ sử dụng cho mục đích cung cấp dịch vụ.\n3. Khi sử dụng tính năng phân tích AI, các dữ liệu sau đây sẽ được gửi qua máy chủ của Artlink: tiêu đề và nội dung ghi chú, hình ảnh và video đính kèm, bản ghi âm giọng nói (đã chuyển đổi thành văn bản), văn bản tài liệu (PDF), thông tin lĩnh vực, thông tin hồ sơ (kinh nghiệm, hình mẫu, sở thích, sở trường) và lịch sử phân tích AI trước đây (tối đa 10 mục gần nhất). Việc phân tích văn bản, hình ảnh và video do Anthropic (Claude) xử lý, phân tích video còn sử dụng cả Google. Bản ghi âm giọng nói được OpenAI chuyển đổi thành văn bản trước khi gửi đến Anthropic. Dữ liệu truyền đi chỉ được sử dụng để tạo phản hồi AI.\n4. Sau khi phân tích AI, các thống kê sử dụng ẩn danh (mã định danh thiết bị, lĩnh vực, thẻ, v.v.) sẽ được lưu trữ trên Supabase để cải thiện dịch vụ.\n5. Xử lý dữ liệu bởi bên thứ ba: Anthropic và Google (tạo phản hồi AI), OpenAI (chuyển giọng nói thành văn bản), Supabase (lưu trữ dữ liệu) duy trì tiêu chuẩn bảo vệ dữ liệu tương đương với Artlink.\n6. Việc truyền dữ liệu cho phân tích AI yêu cầu sự đồng ý riêng khi người dùng sử dụng tính năng phân tích lần đầu.\n7. Người dùng có thể xóa thông tin cá nhân bất kỳ lúc nào bằng cách xóa tài khoản.",
     "article8_title": "Điều 8 (Miễn trừ trách nhiệm)",
     "article8_body": "1. Ứng dụng không chịu trách nhiệm về tranh chấp giữa người dùng.\n2. Ứng dụng không chịu trách nhiệm về thiệt hại do gián đoạn dịch vụ hoặc mất dữ liệu.",
     "article9_title": "Điều 9 (Liên hệ)",
@@ -824,7 +861,7 @@
   },
   "aiDisclosure": {
     "title": "Thông báo dữ liệu AI",
-    "message": "Khi sử dụng phân tích AI, các dữ liệu sau đây sẽ được gửi qua máy chủ của Artlink đến OpenAI để tạo phản hồi.\n\nDữ liệu được gửi:\n• Tiêu đề và nội dung ghi chú\n• Hình ảnh và video đính kèm\n• Bản ghi âm giọng nói (được chuyển đổi thành văn bản trước khi gửi)\n• Tài liệu đính kèm (văn bản PDF)\n• Thông tin lĩnh vực (diễn xuất, âm nhạc, v.v.)\n• Thông tin hồ sơ (kinh nghiệm, hình mẫu, sở thích, sở trường)\n• Lịch sử phân tích AI của các ghi chú trước đây (tối đa 10 bản tóm tắt gần nhất)\n\nSau khi phân tích AI, các thống kê sử dụng ẩn danh (mã định danh thiết bị, lĩnh vực, thẻ, v.v.) sẽ được lưu trữ trên Supabase để cải thiện dịch vụ.\n\nDữ liệu chỉ được sử dụng để tạo phản hồi AI và cải thiện dịch vụ. OpenAI và Supabase cung cấp mức độ bảo vệ dữ liệu tương đương.\n\nVui lòng tham khảo Chính sách Bảo mật của chúng tôi để biết chi tiết.",
+    "message": "Khi sử dụng phân tích AI, các dữ liệu sau đây sẽ được gửi qua máy chủ của Artlink để tạo phản hồi.\n\nDữ liệu được gửi:\n• Tiêu đề và nội dung ghi chú\n• Hình ảnh và video đính kèm\n• Bản ghi âm giọng nói (được chuyển đổi thành văn bản trước khi gửi)\n• Tài liệu đính kèm (văn bản PDF)\n• Thông tin lĩnh vực (diễn xuất, âm nhạc, v.v.)\n• Thông tin hồ sơ (kinh nghiệm, hình mẫu, sở thích, sở trường)\n• Lịch sử phân tích AI của các ghi chú trước đây (tối đa 10 bản tóm tắt gần nhất)\n\nViệc phân tích văn bản, hình ảnh và video do Anthropic (Claude) xử lý, phân tích tệp video còn sử dụng cả Google. Bản ghi âm giọng nói được OpenAI chuyển đổi thành văn bản, sau đó văn bản này được gửi đến Anthropic.\n\nSau khi phân tích AI, các thống kê sử dụng ẩn danh (mã định danh thiết bị, lĩnh vực, thẻ, v.v.) sẽ được lưu trữ trên Supabase để cải thiện dịch vụ.\n\nXử lý dữ liệu bởi bên thứ ba: Anthropic và Google (tạo phản hồi AI), OpenAI (chuyển giọng nói thành văn bản), Supabase (lưu trữ dữ liệu) áp dụng tiêu chuẩn bảo vệ dữ liệu tương đương với chúng tôi.\n\nVui lòng tham khảo Chính sách Bảo mật của chúng tôi để biết chi tiết.",
     "accept": "Đồng ý và phân tích",
     "cancel": "Hủy"
   },
@@ -844,7 +881,33 @@
     "manage": "Quản lý gói đăng ký",
     "badge": "Premium",
     "limit_text_reached": "Bạn đã dùng hết {{max}} lượt phản hồi văn bản hôm nay. Ngày mai sẽ được làm mới.",
-    "limit_video_reached": "Bạn đã dùng hết {{max}} lượt phân tích video tháng này. Tháng sau sẽ được làm mới."
+    "limit_video_reached": "Bạn đã dùng hết {{max}} lượt phân tích video tháng này. Tháng sau sẽ được làm mới.",
+    "title": "ArtLink Premium",
+    "subtitle": "Văn bản 10 lần/ngày · Video 15 lần/tháng",
+    "benefit_text": "10 lượt phản hồi văn bản AI mỗi ngày",
+    "benefit_video": "15 lượt phân tích video AI mỗi tháng — phân tích toàn bộ video",
+    "benefit_model": "Huấn luyện chuyên sâu từ mô hình AI hàng đầu",
+    "monthly": "Hàng tháng",
+    "yearly": "Hàng năm",
+    "yearly_save": "Tiết kiệm 41%",
+    "cta_subscribe": "Bắt đầu đăng ký",
+    "restore": "Khôi phục giao dịch mua",
+    "purchase_success": "Đã kích hoạt Premium!",
+    "purchase_fail": "Không thể hoàn tất giao dịch mua. Vui lòng thử lại.",
+    "restore_success": "Đã khôi phục giao dịch mua.",
+    "restore_none": "Không có giao dịch mua nào để khôi phục.",
+    "auto_renew_note": "Gói đăng ký sẽ tự động gia hạn trừ khi bạn hủy trước khi kết thúc kỳ hạn ít nhất 24 giờ. Bạn có thể quản lý bất cứ lúc nào trong cài đặt tài khoản App Store.",
+    "renew_notice": "Gói {{plan}} sẽ tự động thanh toán {{price}}. Gói sẽ tự động gia hạn trừ khi bạn hủy trước khi kết thúc kỳ hạn ít nhất 24 giờ; bạn có thể hủy bất cứ lúc nào trong cài đặt App Store.",
+    "terms": "Điều khoản sử dụng",
+    "privacy": "Chính sách bảo mật",
+    "not_ready": "Đang thiết lập thanh toán. Vui lòng thử lại sau.",
+    "quota_cta": "Xem Premium",
+    "guest_trial_title": "Bạn đã dùng hết lượt dùng thử miễn phí",
+    "guest_trial_msg": "Đăng ký để tiếp tục nhận phản hồi AI. Đăng ký miễn phí.",
+    "guest_trial_cta": "Đăng ký",
+    "login_required_title": "Cần đăng nhập",
+    "login_required_message": "Gói đăng ký được liên kết với tài khoản. Vui lòng đăng ký miễn phí hoặc đăng nhập trước.",
+    "renew_notice_android": "Gói {{plan}} sẽ tự động thanh toán {{price}}. Gói sẽ tự động gia hạn trừ khi bạn hủy trước khi kết thúc kỳ hạn ít nhất 24 giờ; bạn có thể hủy bất cứ lúc nào trong cài đặt gói đăng ký Google Play."
   },
   "focus": {
     "pick_title": "Chọn một điểm để sửa ở buổi tập sau",
@@ -859,5 +922,23 @@
     "axis_creativity": "Sáng tạo",
     "axis_consistency": "Đều đặn",
     "axis_growth": "Thay đổi"
+  },
+  "reminder": {
+    "offer_title": "Đặt lời nhắc luyện tập",
+    "offer_msg": "Có muốn tôi nhắc bạn luyện tập lúc {{time}} vào ngày mai không?\nGhi chép vào cùng một thời điểm mỗi ngày sẽ tạo nên đường cong phát triển của bạn.",
+    "offer_yes": "Có, hãy nhắc tôi",
+    "offer_no": "Không cần đâu",
+    "push_title": "Đến giờ luyện tập hôm nay rồi 🎭",
+    "push_body": "Tiến thêm một bước so với hôm qua. Hãy ghi lại buổi luyện tập hôm nay và nhận phản hồi từ huấn luyện viên AI."
+  },
+  "onboarding": {
+    "landing_title": "Huấn luyện viên AI luyện tập của riêng bạn",
+    "landing_body": "Ghi lại buổi luyện tập\nNhận phản hồi riêng cho bạn\nTheo dõi sự tiến bộ",
+    "landing_cta": "Bắt đầu",
+    "landing_note": "Miễn phí cho mọi nghệ sĩ"
+  },
+  "duet": {
+    "note_done": "Đã chuyển đến màn hình ghi chú",
+    "finished": "Đã hoàn thành buổi luyện tập"
   }
 }

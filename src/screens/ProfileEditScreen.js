@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Switch,
   Image,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -48,6 +50,49 @@ export default function ProfileEditScreen({ navigation }) {
   const [selectedFields, setSelectedFields] = useState(userProfile.fields || []);
   const [profilePublic, setProfilePublic] = useState(userProfile.profilePublic || false);
   const [photos, setPhotos] = useState(userProfile.photos || []);
+
+  // 변경 여부 가드 — 첫 렌더(프로필 프리필)는 변경으로 치지 않는다
+  const isFirstRender = useRef(true);
+  const hasChangesRef = useRef(false);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    hasChangesRef.current = true;
+  }, [
+    name, gender, birthDate, height, weight, heightPrivate, weightPrivate,
+    specialties, school, location, agency, bio, career, selectedFields,
+    profilePublic, photos,
+  ]);
+
+  const handleCancel = useCallback(() => {
+    if (hasChangesRef.current) {
+      Alert.alert(t("common.discard_title"), t("common.discard_message"), [
+        { text: t("common.keep_editing"), style: "cancel" },
+        { text: t("common.leave"), style: "destructive", onPress: () => { hasChangesRef.current = false; navigation.goBack(); } },
+      ]);
+    } else {
+      navigation.goBack();
+    }
+  }, [navigation, t]);
+
+  // 하드웨어 뒤로가기 / 스와이프 제스처 가로채기
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (!hasChangesRef.current) return;
+      e.preventDefault();
+      Alert.alert(t("common.discard_title"), t("common.discard_message"), [
+        { text: t("common.keep_editing"), style: "cancel" },
+        {
+          text: t("common.leave"),
+          style: "destructive",
+          onPress: () => { hasChangesRef.current = false; navigation.dispatch(e.data.action); },
+        },
+      ]);
+    });
+    return unsubscribe;
+  }, [navigation, t]);
 
   const handleDataConsentChange = useCallback(async (value) => {
     handleSetDataConsent(value);
@@ -120,6 +165,7 @@ export default function ProfileEditScreen({ navigation }) {
       photoUrl: photos[0] || null,
       pendingPhotoUris: localPhotos.length > 0 ? localPhotos : undefined,
     });
+    hasChangesRef.current = false;
     navigation.goBack();
   }, [name, gender, birthDate, height, weight, heightPrivate, weightPrivate, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation]);
 
@@ -150,7 +196,7 @@ export default function ProfileEditScreen({ navigation }) {
       <TopBar
         title={t("profileEdit.title")}
         left={
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={handleCancel}>
             <Text style={styles.cancelBtn}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         }
@@ -161,6 +207,7 @@ export default function ProfileEditScreen({ navigation }) {
         }
       />
 
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* 프로필 사진 */}
         <Text style={styles.sectionTitle}>{t("profileEdit.profile_photos")}</Text>
@@ -364,6 +411,7 @@ export default function ProfileEditScreen({ navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

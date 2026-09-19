@@ -30,6 +30,7 @@ export default function HomeScreen({ navigation }) {
     fieldOrder,
     isKoreanLocale,
     premium,
+    showToast,
   } = useApp();
 
   // 2인 대사 연습 — 한국어 콘텐츠라 KR 로케일만 노출.
@@ -47,9 +48,9 @@ export default function HomeScreen({ navigation }) {
     >
       <Text style={{ fontSize: 28, marginRight: 12 }}>🎭</Text>
       <View style={{ flex: 1 }}>
-        <Text style={[T.titleBold, { color: CLight.gray900 }]}>2인 대사 연습</Text>
+        <Text style={[T.titleBold, { color: CLight.gray900 }]}>{t("home.duet_title")}</Text>
         <Text style={[T.small, { color: CLight.gray500, marginTop: 2 }]}>
-          상대역이 대사를 쳐줘요 — 고전 씬 30개, 혼자서도 호흡 연습
+          {t("home.duet_desc")}
         </Text>
       </View>
       <Text style={[T.title, { color: CLight.gray400 }]}>›</Text>
@@ -57,7 +58,10 @@ export default function HomeScreen({ navigation }) {
   ) : null;
 
   // 한국어 + 노트 0개 = 첫 경험. 입시·오디션 맥락 문구로 바꾸고 2인 대사 진입을 히어로 바로 아래 둔다.
-  const koFirstRun = isKoreanLocale && savedNotes.length === 0;
+  // 단, 분야가 이미 설정돼 있고 그 안에 연기가 없으면(음악·미술 등) 연기 전용 문구는 어색하다 — 일반 히어로로.
+  // 분야 미설정(게스트·신규)은 지금처럼 연기 히어로 유지.
+  const hasFields = (userProfile?.fields || []).length > 0;
+  const koFirstRun = isKoreanLocale && savedNotes.length === 0 && (!hasFields || isActingUser);
 
   const [expandedField, setExpandedField] = useState(null);
   const [checkinMemo, setCheckinMemo] = useState("");
@@ -136,11 +140,24 @@ export default function HomeScreen({ navigation }) {
   const checkinSessionRef = useRef(null);
 
   const handleCheckinTap = useCallback((field) => {
-    const expanding = expandedField !== field;
-    setExpandedField(expanding ? field : null);
-    if (expanding) checkinSessionRef.current = startPractice("checkin", field, field);
+    // 오늘 이미 체크인한 분야는 다시 눌러도 안내만 — 중복 노트 방지
+    if (todayCheckins.has(field)) {
+      showToast(t("home.checkin_already"), "success");
+      return;
+    }
+    if (expandedField === field) {
+      // 같은 원을 다시 눌러 접기 — 세션은 그대로 둔다
+      setExpandedField(null);
+    } else if (expandedField) {
+      // 입력창을 연 채 다른 분야로 바꾼다 — 새 세션을 또 시작하지 않고 기존 세션의 field만 교체
+      checkinSessionRef.current = { ...checkinSessionRef.current, subjectKey: field, field };
+      setExpandedField(field);
+    } else {
+      checkinSessionRef.current = startPractice("checkin", field, field);
+      setExpandedField(field);
+    }
     setCheckinMemo("");
-  }, [expandedField]);
+  }, [expandedField, todayCheckins, t, showToast]);
 
   const handleCheckinSave = useCallback((field) => {
     const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
@@ -178,7 +195,7 @@ export default function HomeScreen({ navigation }) {
       color: CLight.teal,
       route: "Matching",
     },
-  ];
+  ].filter((a) => a.key !== "matching" || isKoreanLocale); // \uB9E4\uCE6D\uC740 \uD55C\uAD6D\uC5B4 \uCF58\uD150\uCE20 \u2014 ProfileScreen\uACFC \uB3D9\uC77C\uD558\uAC8C koOnly
 
   // ===== RENDER =====
   return (
@@ -354,7 +371,8 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           )}
-          {isKoreanLocale && !isActingUser && (
+          {/* 위 duetCard(히어로 아래 전폭 카드)가 이미 떠 있으면 중복이라 숨긴다 */}
+          {isKoreanLocale && !isActingUser && !koFirstRun && (
             <TouchableOpacity
               style={{
                 flexDirection: "row", alignItems: "center", marginTop: 12,
@@ -364,7 +382,7 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <Text style={{ fontSize: 15, marginRight: 8 }}>🎭</Text>
-              <Text style={[T.small, { color: CLight.gray500, flex: 1 }]}>2인 대사 연습 — 상대역이 대사를 쳐줘요</Text>
+              <Text style={[T.small, { color: CLight.gray500, flex: 1 }]}>{t("home.duet_row")}</Text>
               <Text style={[T.small, { color: CLight.gray400 }]}>›</Text>
             </TouchableOpacity>
           )}

@@ -9,6 +9,7 @@ import {
   Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "react-i18next";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -85,6 +86,7 @@ const AnimatedLine = ({ delay, startX, width: lineW }) => {
 };
 
 export default function OnboardingScreen({ onComplete }) {
+  const { t } = useTranslation();
   // Staggered entrance animations
   const logoScale = useRef(new Animated.Value(0.3)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -128,12 +130,12 @@ export default function OnboardingScreen({ onComplete }) {
   }, []);
 
   const FIELDS = [
-    { label: "Acting", color: "#FF2D78" },
-    { label: "Music", color: "#AF52DE" },
-    { label: "Art", color: "#FF9500" },
-    { label: "Dance", color: "#5AC8FA" },
-    { label: "Literature", color: "#34C759" },
-    { label: "Film", color: "#4A6CF7" },
+    { key: "acting", color: "#FF2D78" },
+    { key: "music", color: "#AF52DE" },
+    { key: "art", color: "#FF9500" },
+    { key: "dance", color: "#5AC8FA" },
+    { key: "literature", color: "#34C759" },
+    { key: "film", color: "#4A6CF7" },
   ];
 
   return (
@@ -164,12 +166,12 @@ export default function OnboardingScreen({ onComplete }) {
 
         {/* Title */}
         <Animated.Text style={[styles.title, { opacity: titleOpacity, transform: [{ translateY: titleY }] }]}>
-          {"Your AI Art Coach"}
+          {t("onboarding.landing_title")}
         </Animated.Text>
 
         {/* Subtitle */}
         <Animated.Text style={[styles.subtitle, { opacity: subtitleOpacity, transform: [{ translateY: subtitleY }] }]}>
-          {"Record your practice.\nGet personalized feedback.\nTrack your growth."}
+          {t("onboarding.landing_body")}
         </Animated.Text>
 
         {/* Field tags */}
@@ -177,7 +179,7 @@ export default function OnboardingScreen({ onComplete }) {
           {FIELDS.map((f, i) => (
             <View key={i} style={[styles.tag, { borderColor: f.color + "40" }]}>
               <View style={[styles.tagDot, { backgroundColor: f.color }]} />
-              <Text style={styles.tagText}>{f.label}</Text>
+              <Text style={styles.tagText}>{t("fields." + f.key)}</Text>
             </View>
           ))}
         </Animated.View>
@@ -192,12 +194,12 @@ export default function OnboardingScreen({ onComplete }) {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <Text style={styles.ctaText}>Get Started</Text>
+            <Text style={styles.ctaText}>{t("onboarding.landing_cta")}</Text>
           </LinearGradient>
         </TouchableOpacity>
 
         <Text style={styles.footerText}>
-          Free for all artists
+          {t("onboarding.landing_note")}
         </Text>
       </Animated.View>
     </View>

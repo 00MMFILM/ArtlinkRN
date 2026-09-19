@@ -53,7 +53,9 @@
     "private": "Private",
     "retry": "Try again",
     "video_ai_retry_msg": "The analysis result didn't come through. Check your connection and try again — your note is unchanged.",
-    "video_quota_exceeded": "You've used all your free video analysis trials. Premium gives you 15 analyses a month."
+    "video_quota_exceeded": "You've used all your free video analysis trials. Premium gives you 15 analyses a month.",
+    "text_quota_exceeded": "You've used all your free AI feedback for today. You'll get more tomorrow, and Premium gives you up to 10 a day.",
+    "submit": "Submit"
   },
   "tabs": {
     "home": "Home",
@@ -194,7 +196,11 @@
     "hero_cta": "Write it and get AI feedback",
     "hero_title_ko_acting": "Record today's lines and get feedback",
     "hero_desc_ko_acting": "Preparing for an audition or an entrance exam?\nLog one scene at a time and get one thing to fix next. Free, no sign-up.",
-    "hero_cta_ko_acting": "Log a practice and get feedback"
+    "hero_cta_ko_acting": "Log a practice and get feedback",
+    "checkin_already": "You've already checked in today",
+    "duet_title": "Two-person scene practice",
+    "duet_desc": "A scene partner reads the other role — 30 classic scenes, practice your timing solo",
+    "duet_row": "Two-person scene practice — a scene partner reads the other role"
   },
   "notes": {
     "search_placeholder": "Search notes...",
@@ -262,7 +268,9 @@
     "hwp_unsupported": "HWP not supported",
     "hwp_unsupported_msg": "HWP files cannot be processed directly.\nPlease convert the file to PDF in Hancom Office and attach it.\n(File → Save As → PDF)",
     "audio_file": "Audio file",
-    "voice_label": "Voice {{index}}"
+    "voice_label": "Voice {{index}}",
+    "replace_with_new_title": "Replace with new content?",
+    "replace_with_new_message": "What you're writing will be replaced with the newly received content."
   },
   "noteDetail": {
     "tab_content": "Content",
@@ -320,7 +328,8 @@
     "data_consent_msg": "If you agree, your practice notes, voice, and video help make Artlink AI smarter — so the feedback you get becomes more accurate. Your data is stored privately and securely, and used only to improve feedback, never for anything else. All features work the same even if you don't participate. You can turn this off and delete your data anytime in Settings.",
     "data_consent_later": "Later",
     "data_consent_join": "Participate",
-    "voice_label": "Voice {{index}}"
+    "voice_label": "Voice {{index}}",
+    "ai_feedback_placeholder": "Tell us what fell short (optional)"
   },
   "profile": {
     "edit_profile": "Edit profile",
@@ -355,7 +364,7 @@
     "support_msg": "For inquiries or assistance, please contact us at the email below.\n\nlcy1152@naver.com",
     "send_email": "Send email",
     "terms_detail": "ArtLink Terms of Service\n\n1. This app applies a zero-tolerance policy for inappropriate content and misuse.\n2. Users may report inappropriate content, which will be reviewed within 24 hours.\n3. Users who violate the terms may be removed from the service.\n4. Please refer to the full terms you agreed to upon first launching the app.\n\nContact: lcy1152@naver.com",
-    "privacy_detail": "ArtLink Privacy Policy\n\n1. Personal information collected: name, email, profile information\n2. Purpose of collection: providing and improving the service\n3. Retention period: until account deletion\n4. Third-party sharing: none\n5. Users may delete their personal information at any time by deleting their account.\n\nContact: lcy1152@naver.com",
+    "privacy_detail": "ArtLink Privacy Policy\n\n1. Personal information collected: name, email, profile information, practice notes and attached images/videos, voice recordings\n2. Purpose of collection: providing the service, generating AI feedback, and improving the service\n3. Retention period: until account deletion\n4. Third-party processing: Anthropic and Google (AI feedback generation), OpenAI (voice-to-text conversion), Supabase (data storage)\n5. Users may delete their personal information at any time by deleting their account.\n\nContact: lcy1152@naver.com",
     "logout_confirm": "Are you sure you want to log out?\nYour notes are stored on the server and will be restored when you log back in.",
     "delete_confirm": "All data (notes, profile, portfolio, etc.) will be permanently deleted. This action cannot be undone.\n\nAre you sure you want to delete your account?"
   },
@@ -409,7 +418,8 @@
     "tab_collab": "Collab",
     "wait_title": "Please wait",
     "wait_msg": "Connecting to the community. Please try again in a moment.",
-    "empty_posts": "No posts yet.\nBe the first to write something!"
+    "empty_posts": "No posts yet.\nBe the first to write something!",
+    "offline_notice": "We're showing sample posts because we couldn't connect right now"
   },
   "communityCreate": {
     "title": "Write post",
@@ -653,7 +663,16 @@
     "recording_days": "Recording for {{days}} days",
     "recording_weeks": "Recording for {{weeks}} weeks",
     "recording_months": "Recording for {{months}} months",
-    "level_value": "Lv {{level}}"
+    "level_value": "Lv {{level}}",
+    "sharing": "Sharing...",
+    "brand": "ARTLINK · AI Coach",
+    "chips_count": "{{count}} AI-analyzed points",
+    "cta": "Get full coaching →",
+    "footer": "Artlink · art-link.kr",
+    "section_observation": "📌 What AI noticed",
+    "section_strength": "💪 What went well",
+    "section_next": "🎯 Next step",
+    "practice_title": "{{field}} practice"
   },
   "b2b": {
     "title": "B2B Dashboard",
@@ -698,7 +717,8 @@
     "min": "Min",
     "max": "Max",
     "level_value": "Lv {{level}}",
-    "level_mileage": "Lv {{level}} · {{mileage}} mileage"
+    "level_mileage": "Lv {{level}} · {{mileage}} mileage",
+    "stat_preparing": "Coming soon"
   },
   "inbox": {
     "title": "Inbox",
@@ -826,7 +846,7 @@
     "article6_title": "Article 6 (Sanctions)",
     "article6_body": "1. Users who violate these Terms may face the following sanctions:\n   - Content removal\n   - Temporary suspension of service\n   - Permanent account suspension\n2. Users who post inappropriate content may be immediately removed from the service.",
     "article7_title": "Article 7 (Privacy and AI Data Processing)",
-    "article7_body": "1. The App collects only the minimum personal information necessary for service provision.\n2. Collected information is used solely for service provision.\n3. When using the AI analysis feature, the following data is sent via Artlink's server to OpenAI: note titles and content, attached images and videos, voice recordings (transcribed to text), document (PDF) text, field information, profile information (career, role models, interests, specialties), and previous AI analysis history (up to 10 recent entries). Transmitted data is used solely for generating AI feedback.\n4. After AI analysis, anonymized usage statistics (device identifier, field, tags, etc.) are stored in Supabase for service improvement.\n5. Third-party data processing: OpenAI (AI feedback generation) and Supabase (data storage) maintain data protection standards equivalent to those of Artlink.\n6. Data transmission for AI analysis requires separate user consent upon first use of the analysis feature.\n7. Users may delete their personal information at any time by deleting their account.",
+    "article7_body": "1. The App collects only the minimum personal information necessary for service provision.\n2. Collected information is used solely for service provision.\n3. When using the AI analysis feature, the following data is sent via Artlink's server: note titles and content, attached images and videos, voice recordings (transcribed to text), document (PDF) text, field information, profile information (career, role models, interests, specialties), and previous AI analysis history (up to 10 recent entries). Text, image, and video analysis is handled by Anthropic (Claude), and video analysis also uses Google. Voice recordings are transcribed to text by OpenAI before being sent to Anthropic. Transmitted data is used solely for generating AI feedback.\n4. After AI analysis, anonymized usage statistics (device identifier, field, tags, etc.) are stored in Supabase for service improvement.\n5. Third-party data processing: Anthropic and Google (AI feedback generation), OpenAI (voice-to-text conversion), and Supabase (data storage) maintain data protection standards equivalent to those of Artlink.\n6. Data transmission for AI analysis requires separate user consent upon first use of the analysis feature.\n7. Users may delete their personal information at any time by deleting their account.",
     "article8_title": "Article 8 (Disclaimer)",
     "article8_body": "1. The App is not responsible for disputes between users.\n2. The App is not liable for damages caused by service interruptions or data loss.",
     "article9_title": "Article 9 (Contact)",
@@ -841,7 +861,7 @@
   },
   "aiDisclosure": {
     "title": "AI Analysis Data Notice",
-    "message": "When using AI analysis, the following data is sent via Artlink's server to OpenAI to generate feedback.\n\nData sent:\n• Note title and content\n• Attached images and videos\n• Voice recordings (transcribed to text before sending)\n• Attached documents (PDF text)\n• Field information (acting, music, etc.)\n• Profile information (career, role models, interests, specialties)\n• Previous note AI analysis history (up to 10 recent summaries)\n\nAfter AI analysis, anonymized usage statistics (device identifier, field, tags, etc.) are stored in Supabase for service improvement.\n\nData is used solely for generating AI feedback and improving the service. OpenAI and Supabase provide equivalent levels of data protection.\n\nPlease refer to our Privacy Policy for details.",
+    "message": "When using AI analysis, the following data is sent via Artlink's server to generate feedback.\n\nData sent:\n• Note title and content\n• Attached images and videos\n• Voice recordings (transcribed to text before sending)\n• Attached documents (PDF text)\n• Field information (acting, music, etc.)\n• Profile information (career, role models, interests, specialties)\n• Previous note AI analysis history (up to 10 recent summaries)\n\nText, image, and video analysis is handled by Anthropic (Claude), and video file analysis also uses Google. Voice recordings are transcribed to text by OpenAI, and that text is then sent to Anthropic.\n\nAfter AI analysis, anonymized usage statistics (device identifier, field, tags, etc.) are stored in Supabase for service improvement.\n\nThird-party data processing: Anthropic and Google (AI feedback generation), OpenAI (voice-to-text conversion), and Supabase (data storage) apply data protection standards equivalent to ours.\n\nPlease refer to our Privacy Policy for details.",
     "accept": "Agree and analyze",
     "cancel": "Cancel"
   },
@@ -886,7 +906,10 @@
     "manage": "Manage subscription",
     "badge": "Premium",
     "limit_text_reached": "You've used all {{max}} text feedback sessions for today. They reset tomorrow.",
-    "limit_video_reached": "You've used all {{max}} video analyses this month. They reset next month."
+    "limit_video_reached": "You've used all {{max}} video analyses this month. They reset next month.",
+    "login_required_title": "Login required",
+    "login_required_message": "Subscriptions are linked to your account. Please sign up for free or log in first.",
+    "renew_notice_android": "Your {{plan}} subscription is billed {{price}} automatically. It renews automatically unless cancelled at least 24h before the period ends; manage anytime in Google Play subscription settings."
   },
   "signupNudge": {
     "title": "Want to keep this feedback?",
@@ -907,5 +930,15 @@
     "axis_creativity": "Creativity",
     "axis_consistency": "Consistency",
     "axis_growth": "Change"
+  },
+  "onboarding": {
+    "landing_title": "Your personal AI practice coach",
+    "landing_body": "Record your practice\nGet tailored feedback\nTrack your growth",
+    "landing_cta": "Get started",
+    "landing_note": "Free for every artist"
+  },
+  "duet": {
+    "note_done": "Moved to your notes",
+    "finished": "Practice complete"
   }
 }

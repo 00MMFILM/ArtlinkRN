@@ -29,7 +29,7 @@ const SORT_OPTIONS = [
 
 export default function NotesScreen({ navigation }) {
   const { t } = useTranslation();
-  const { savedNotes, handleDeleteNote, handleToggleStar, fieldOrder, isKoreanLocale } = useApp();
+  const { savedNotes, handleDeleteNote, handleToggleStar, fieldOrder, isKoreanLocale, premium } = useApp();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedField, setSelectedField] = useState("all");
@@ -135,6 +135,8 @@ export default function NotesScreen({ navigation }) {
 
   const keyExtractor = useCallback((item) => String(item.id), []);
 
+  const showBannerAd = !isKoreanLocale && !premium?.active;
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Search Bar */}
@@ -236,8 +238,8 @@ export default function NotesScreen({ navigation }) {
         />
       )}
 
-      {/* Banner Ad — foreign users only */}
-      {!isKoreanLocale && (
+      {/* Banner Ad — foreign, non-premium users only */}
+      {showBannerAd && (
         <View style={styles.bannerContainer}>
           <BannerAd
             unitId={AD_UNITS.BANNER}
@@ -248,7 +250,7 @@ export default function NotesScreen({ navigation }) {
 
       {/* FAB Button */}
       <TouchableOpacity
-        style={[styles.fab, !isKoreanLocale && styles.fabWithBanner]}
+        style={[styles.fab, showBannerAd && styles.fabWithBanner]}
         onPress={handleCreatePress}
         activeOpacity={0.85}
       >

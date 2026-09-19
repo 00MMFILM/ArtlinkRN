@@ -70,25 +70,40 @@ export default function NoteCreateScreen({ navigation, route }) {
     setAuthState("auth");
   }, [setAuthState, t]);
 
+  // 화면이 이미 사라진 뒤(분석 중 뒤로가기 등)에는 알림·상태 변경을 하지 않는다 —
+  // 다른 화면 위에 엉뚱한 실패·한도 안내가 뜨던 문제.
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  const safeAlert = useCallback((...args) => {
+    if (isMountedRef.current) Alert.alert(...args);
+  }, []);
+
   // AI 쿼터 소진: 게스트→로그인 유도, 무료 로그인 유저→프리미엄 안내,
   // 프리미엄 유저→이미 프리미엄이므로 "프리미엄 보기"가 아니라 남은 한도 안내를 보여준다.
   const promptQuotaExceeded = useCallback((kind = "video", info = {}) => {
     if (!userProfile?.authUserId) {
-      Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
+      safeAlert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
         { text: t("premium.guest_trial_cta"), onPress: goToAuthWithDraft },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     } else if (premium?.active) {
       const max = info.max ?? (kind === "text" ? 10 : 15);
       const key = kind === "text" ? "premium.limit_text_reached" : "premium.limit_video_reached";
-      Alert.alert(t("premium.active_title"), t(key, { max }));
+      safeAlert(t("premium.active_title"), t(key, { max }));
     } else {
-      Alert.alert(t("common.video_quota_exceeded"), "", [
+      // 글 피드백 한도와 영상 분석 한도는 문구가 다르다 (횟수·주기가 다름)
+      const quotaKey = kind === "text" ? "common.text_quota_exceeded" : "common.video_quota_exceeded";
+      safeAlert(t(quotaKey), "", [
         { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     }
-  }, [userProfile?.authUserId, premium?.active, goToAuthWithDraft, navigation, t]);
+  }, [userProfile?.authUserId, premium?.active, goToAuthWithDraft, navigation, t, safeAlert]);
 
   // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
   const prefill = route?.params?.prefill || null;
@@ -99,10 +114,6 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [field, setField] = useState(prefill?.field && FIELDS.includes(prefill.field) ? prefill.field : FIELDS[0]);
   // 사용자가 제목을 한 번이라도 편집했으면 기본 제목으로 덮어쓰지 않는다
   const titleEditedRef = useRef(!!prefill?.title);
-  const handleChangeTitle = useCallback((v) => {
-    titleEditedRef.current = true;
-    setTitle(v);
-  }, []);
   const [tags, setTags] = useState(Array.isArray(prefill?.tags) ? prefill.tags : []);
   const [tagInput, setTagInput] = useState("");
   const [seriesName, setSeriesName] = useState(prefill?.seriesName || "");
@@ -138,10 +149,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [audioFiles, setAudioFiles] = useState(Array.isArray(prefill?.audioFiles) ? prefill.audioFiles : []); // [{ uri, name, duration }]
   const [pdfFiles, setPdfFiles] = useState(Array.isArray(prefill?.pdfFiles) ? prefill.pdfFiles : []); // [{ uri, name }]
 
-  // 화면이 이미 떠 있는 상태에서 새 딥링크/복원 prefill이 오면 params만 갱신됨 → 반영
-  useEffect(() => {
-    const p = route?.params?.prefill;
-    if (!p) return;
+  const applyPrefill = useCallback((p) => {
     if (p.title) setTitle(p.title);
     if (p.content) setContent(p.content);
     if (p.field && FIELDS.includes(p.field)) setField(p.field);
@@ -155,13 +163,41 @@ export default function NoteCreateScreen({ navigation, route }) {
     if (Array.isArray(p.audioFiles) && p.audioFiles.length > 0) setAudioFiles(p.audioFiles);
     if (Array.isArray(p.pdfFiles) && p.pdfFiles.length > 0) setPdfFiles(p.pdfFiles);
     if (p.title) titleEditedRef.current = true;
-  }, [route?.params?.prefill]);
+  }, []);
+
+  // 화면이 이미 떠 있는 상태에서 새 딥링크/복원 prefill이 오면 params만 갱신됨 → 반영.
+  // 단, 이미 쓰고 있던 내용이 있으면 말없이 덮어쓰지 않고 먼저 물어본다.
+  const appliedPrefillRef = useRef(route?.params?.prefill || null);
+  useEffect(() => {
+    const p = route?.params?.prefill;
+    if (!p || p === appliedPrefillRef.current) return; // 마운트 때 쓴 최초 prefill은 이미 반영됨
+    appliedPrefillRef.current = p;
+    const hasWork = !!title.trim() || !!content.trim() || hasAttachments;
+    if (!hasWork) {
+      applyPrefill(p);
+      return;
+    }
+    Alert.alert(
+      t("noteCreate.replace_with_new_title"),
+      t("noteCreate.replace_with_new_message"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("common.confirm"), onPress: () => applyPrefill(p) },
+      ]
+    );
+  }, [route?.params?.prefill]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
   const recordingTimerRef = useRef(null);
   const [playingSound, setPlayingSound] = useState(null);
   const [playingIdx, setPlayingIdx] = useState(null);
+  // 언마운트 cleanup은 []로 걸려 있어 최초 렌더의 playingSound(null)만 본다 →
+  // ref로 최신 재생 객체를 따라가야 화면을 나갈 때 소리가 실제로 멈춘다.
+  const playingSoundRef = useRef(null);
+  useEffect(() => {
+    playingSoundRef.current = playingSound;
+  }, [playingSound]);
 
   // Recording blink animation
   const recordBlink = useRef(new Animated.Value(1)).current;
@@ -201,7 +237,10 @@ export default function NoteCreateScreen({ navigation, route }) {
   // Cleanup sound on unmount
   useEffect(() => {
     return () => {
-      if (playingSound) playingSound.unloadAsync();
+      if (playingSoundRef.current) {
+        playingSoundRef.current.unloadAsync?.();
+        playingSoundRef.current = null;
+      }
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
@@ -234,12 +273,30 @@ export default function NoteCreateScreen({ navigation, route }) {
   // (장면 id > 체인의 최초 노트 id > 직전 노트 id). 없으면 저장 시 노트 id로 채운다.
   const practiceSubjectKey = sceneId || rootNoteId || parentNoteId || null;
   const practiceRef = useRef(null);
-  if (!practiceRef.current) {
-    const keptSessionId = route?.params?.prefill?.sessionId;
-    practiceRef.current = keptSessionId
-      ? resumePractice(keptSessionId, "text", practiceSubjectKey, field)
-      : startPractice("text", practiceSubjectKey, field);
+  // 초안 복원·2인 대사에서 넘어온 세션은 그대로 이어받는다 (계측용 객체 생성뿐 — 이벤트는 안 보낸다)
+  const keptSessionId = route?.params?.prefill?.sessionId || null;
+  if (!practiceRef.current && keptSessionId) {
+    practiceRef.current = resumePractice(keptSessionId, "text", practiceSubjectKey, field);
   }
+  // 화면을 열기만 한 건 연습이 아니다 — 사용자가 내용을 넣거나 분석·저장을 누를 때 세션을 시작한다
+  const ensurePracticeSession = useCallback(() => {
+    if (!practiceRef.current) {
+      practiceRef.current = startPractice("text", practiceSubjectKey, field);
+    }
+    return practiceRef.current;
+  }, [practiceSubjectKey, field]);
+
+  // 첫 입력이 곧 연습 시작
+  const handleChangeTitle = useCallback((v) => {
+    titleEditedRef.current = true;
+    if (v.trim()) ensurePracticeSession();
+    setTitle(v);
+  }, [ensurePracticeSession]);
+  const handleChangeContent = useCallback((v) => {
+    if (v.trim()) ensurePracticeSession();
+    setContent(v);
+  }, [ensurePracticeSession]);
+
   useEffect(() => {
     if (practiceRef.current) practiceRef.current.field = field;
   }, [field]);
@@ -305,8 +362,8 @@ export default function NoteCreateScreen({ navigation, route }) {
     setAiLoading(true);
     const previousComment = aiCommentRef.current;
     try {
-      // Foreign users: show interstitial ad from 2nd AI use per day
-      if (!isKoreanLocale) {
+      // Foreign users: show interstitial ad from 2nd AI use per day (프리미엄은 광고 없음)
+      if (!isKoreanLocale && !premium?.active) {
         const count = await incrementDailyAICount();
         if (shouldShowInterstitial(isKoreanLocale, count)) {
           await showInterstitialAd();
@@ -320,30 +377,36 @@ export default function NoteCreateScreen({ navigation, route }) {
         (partial) => setAiComment(partial),
         { focus, previous: buildPreviousContext(parentNote) }
       );
+      if (!isMountedRef.current) return; // 화면을 나갔으면 결과를 반영하지 않는다
       setAiComment(result.analysis || result);
       if (result.scores) setAiScores(result.scores);
-      setFocusOptions(result.focusOptions || []);
+      const newOptions = result.focusOptions || [];
+      setFocusOptions(newOptions);
+      // 재분석이면 옛 선택이 새 후보에 없을 수 있다 — 남겨두면 엉뚱한 초점으로 재연습하게 된다
+      setChosenFocus((prev) => (prev && newOptions.includes(prev) ? prev : null));
       trackFunnelEvent("ai_feedback_done", i18n.language);
       aiFeedbackDone(practiceRef.current, "text");
       maybeOfferReminder();
     } catch (e) {
+      if (!isMountedRef.current) return;
       // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
       setAiComment(previousComment);
       if (e?.message === "AI_QUOTA") promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed });
-      else Alert.alert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
+      else safeAlert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
     } finally {
-      setAiLoading(false);
+      if (isMountedRef.current) setAiLoading(false);
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, t, i18n.language, promptQuotaExceeded, focus, parentNote]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, premium?.active, t, i18n.language, promptQuotaExceeded, focus, parentNote, safeAlert]);
 
   // 첫 AI 피드백 직후 딱 한 번 — 게스트는 가입 유도, 로그인 유저는 연습 알림 제안 (Calm 패턴)
   const maybeOfferReminder = useCallback(async () => {
     try {
       if (!userProfile?.authUserId) {
         if (await hasAskedSignupNudge()) return;
+        if (!isMountedRef.current) return;
         await markSignupNudgeAsked();
         trackFunnelEvent("signup_nudge_shown", i18n.language);
-        Alert.alert(
+        safeAlert(
           t("signupNudge.title"),
           t("signupNudge.msg"),
           [
@@ -360,13 +423,14 @@ export default function NoteCreateScreen({ navigation, route }) {
         return;
       }
       if (await hasAskedReminder()) return;
+      if (!isMountedRef.current) return;
       await markReminderAsked();
       const now = new Date();
       const hour = now.getHours();
       const minute = now.getMinutes();
       const hh = `${hour}`.padStart(2, "0");
       const mm = `${minute}`.padStart(2, "0");
-      Alert.alert(
+      safeAlert(
         t("reminder.offer_title"),
         t("reminder.offer_msg", { time: `${hh}:${mm}` }),
         [
@@ -385,13 +449,19 @@ export default function NoteCreateScreen({ navigation, route }) {
         ]
       );
     } catch {}
-  }, [t, i18n.language, userProfile?.authUserId, goToAuthWithDraft]);
+  }, [t, i18n.language, userProfile?.authUserId, goToAuthWithDraft, safeAlert]);
 
   const handleAnalyze = useCallback(async () => {
-    if (!content.trim()) {
+    // 글이 없어도 녹음·오디오·문서·사진이 있으면 글 분석의 재료가 있다 (2인 대사 녹음 등).
+    // 영상은 글 분석에 실리지 않으므로(영상 AI 분석이 따로 있음) 영상만 있을 때는 막는다 — 빈 분석으로 횟수만 쓰게 된다.
+    const hasTextMaterial =
+      voiceRecordings.length > 0 || audioFiles.length > 0 || pdfFiles.length > 0 ||
+      images.some((i) => i.type !== "video");
+    if (!content.trim() && !hasTextMaterial) {
       Alert.alert(t("noteCreate.ai_content_required"), t("noteCreate.ai_content_required_msg"));
       return;
     }
+    ensurePracticeSession(); // AI 분석 요청 = 연습 시작
     if (!aiDisclosureAccepted) {
       Alert.alert(
         t("aiDisclosure.title"),
@@ -404,7 +474,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       return;
     }
     runAnalyze();
-  }, [content, aiDisclosureAccepted, handleAcceptAIDisclosure, runAnalyze, t]);
+  }, [content, voiceRecordings, audioFiles, pdfFiles, images, aiDisclosureAccepted, handleAcceptAIDisclosure, runAnalyze, t, ensurePracticeSession]);
 
   // Video AI Analysis
   const noteVideos = images.filter((i) => i.type === "video");
@@ -428,8 +498,8 @@ export default function NoteCreateScreen({ navigation, route }) {
         return;
       }
     } catch {}
-    // Foreign users: must watch rewarded ad before video AI
-    if (!isKoreanLocale) {
+    // Foreign users: must watch rewarded ad before video AI (프리미엄은 광고 없이 바로 분석)
+    if (!isKoreanLocale && !premium?.active) {
       const rewarded = await showRewardedAd();
       if (!rewarded) {
         Alert.alert(t("common.error"), t("ads.rewarded_required"));
@@ -437,9 +507,10 @@ export default function NoteCreateScreen({ navigation, route }) {
       }
     }
     startVideoAnalysis();
-  }, [noteVideos, field, content, title, userProfile, isKoreanLocale, t]);
+  }, [noteVideos, field, content, title, userProfile, isKoreanLocale, premium?.active, t]);
 
   const handleVideoAnalyze = useCallback(async () => {
+    ensurePracticeSession(); // 영상 AI 분석 요청 = 연습 시작
     if (!aiDisclosureAccepted) {
       Alert.alert(
         t("aiDisclosure.title"),
@@ -452,7 +523,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       return;
     }
     runVideoAnalyzeFlow();
-  }, [aiDisclosureAccepted, handleAcceptAIDisclosure, runVideoAnalyzeFlow, t]);
+  }, [aiDisclosureAccepted, handleAcceptAIDisclosure, runVideoAnalyzeFlow, t, ensurePracticeSession]);
 
   // 재시도 버튼에서 자신을 다시 부르기 위한 참조 (useCallback 자기참조 회피)
   const startVideoAnalysisRef = useRef(null);
@@ -470,16 +541,23 @@ export default function NoteCreateScreen({ navigation, route }) {
         (progress) => setVideoAiProgress(progress),
         { focus, previous: buildPreviousContext(parentNote) }
       );
+      if (!isMountedRef.current) return; // 화면을 나갔으면 결과를 반영하지 않는다
       setVideoAnalysis(result);
-      if (lastAiMeta.focusOptions?.length) setFocusOptions(lastAiMeta.focusOptions);
+      if (lastAiMeta.focusOptions?.length) {
+        const newOptions = lastAiMeta.focusOptions;
+        setFocusOptions(newOptions);
+        // 재분석이면 옛 선택이 새 후보에 없을 수 있다
+        setChosenFocus((prev) => (prev && newOptions.includes(prev) ? prev : null));
+      }
       aiFeedbackDone(practiceRef.current, "video");
     } catch (e) {
+      if (!isMountedRef.current) return;
       // 실패는 결과로 채우지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
       if (quota) {
         promptQuotaExceeded("video", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
       } else {
-        Alert.alert(
+        safeAlert(
           t("noteCreate.ai_failed"),
           t("common.video_ai_retry_msg"),
           [
@@ -489,10 +567,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         );
       }
     } finally {
-      setVideoAiLoading(false);
-      setVideoAiProgress({ phase: "", percent: 0, message: "" });
+      if (isMountedRef.current) {
+        setVideoAiLoading(false);
+        setVideoAiProgress({ phase: "", percent: 0, message: "" });
+      }
     }
-  }, [noteVideos, field, content, title, userProfile, t, promptQuotaExceeded, focus, parentNote]);
+  }, [noteVideos, field, content, title, userProfile, t, promptQuotaExceeded, focus, parentNote, safeAlert]);
 
   useEffect(() => {
     startVideoAnalysisRef.current = startVideoAnalysis;
@@ -518,6 +598,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       const ext = asset.uri.split(".").pop()?.split("?")[0] || "jpg";
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const destUri = mediaDir + fileName;
+      ensurePracticeSession(); // 첫 첨부 = 연습 시작
       try {
         await FileSystem.copyAsync({ from: asset.uri, to: destUri });
         setImages((prev) => [...prev, { uri: destUri, type: "image", width: asset.width, height: asset.height }]);
@@ -525,7 +606,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         setImages((prev) => [...prev, { uri: asset.uri, type: "image", width: asset.width, height: asset.height }]);
       }
     }
-  }, []);
+  }, [ensurePracticeSession]);
 
   const handlePickMedia = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -571,9 +652,10 @@ export default function NoteCreateScreen({ navigation, route }) {
         }
         newItems.push({ uri: finalUri, type: isVideo ? "video" : "image", width: asset.width, height: asset.height, duration: asset.duration, thumbnail });
       }
+      ensurePracticeSession(); // 첫 첨부 = 연습 시작
       setImages((prev) => [...prev, ...newItems]);
     }
-  }, []);
+  }, [ensurePracticeSession]);
 
   const handleRemoveMedia = useCallback((index) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -615,12 +697,13 @@ export default function NoteCreateScreen({ navigation, route }) {
       recordingRef.current = null;
       setIsRecording(false);
       if (uri) {
+        ensurePracticeSession(); // 녹음 첨부 = 연습 시작
         setVoiceRecordings((prev) => [...prev, { uri, duration: finalDuration }]);
       }
     } catch (e) {
       setIsRecording(false);
     }
-  }, [recordingDuration]);
+  }, [recordingDuration, ensurePracticeSession]);
 
   const handleRemoveRecording = useCallback((index) => {
     setVoiceRecordings((prev) => prev.filter((_, i) => i !== index));
@@ -678,12 +761,13 @@ export default function NoteCreateScreen({ navigation, route }) {
           }
           newFiles.push({ uri: finalUri, name: asset.name || t("noteCreate.audio_file") });
         }
+        ensurePracticeSession(); // 첫 첨부 = 연습 시작
         setAudioFiles((prev) => [...prev, ...newFiles]);
       }
     } catch (e) {
       Alert.alert(t("noteCreate.file_select_error"), t("noteCreate.audio_select_error"));
     }
-  }, [t]);
+  }, [t, ensurePracticeSession]);
 
   const handlePlayAudio = useCallback(async (uri, index) => {
     try {
@@ -742,13 +826,14 @@ export default function NoteCreateScreen({ navigation, route }) {
             uri: asset.uri,
             name: asset.name || `${t("noteCreate.document")}.pdf`,
           }));
+          ensurePracticeSession(); // 첫 첨부 = 연습 시작
           setPdfFiles((prev) => [...prev, ...newFiles]);
         }
       }
     } catch (e) {
       Alert.alert(t("noteCreate.file_select_error"), t("noteCreate.document_select_error"));
     }
-  }, [t]);
+  }, [t, ensurePracticeSession]);
 
   const handleRemovePdf = useCallback((index) => {
     setPdfFiles((prev) => prev.filter((_, i) => i !== index));
@@ -760,8 +845,12 @@ export default function NoteCreateScreen({ navigation, route }) {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // AI 분석이 도는 중에는 저장을 막는다 — 반쪽 피드백이 노트로 굳어버린다
+  const aiBusy = aiLoading || videoAiLoading;
+
   // Save note
   const handleSave = useCallback(() => {
+    if (aiBusy) return;
     if (!title.trim()) {
       Alert.alert(t("noteCreate.title_required"), t("noteCreate.title_required_msg"));
       return;
@@ -801,12 +890,13 @@ export default function NoteCreateScreen({ navigation, route }) {
     const savedNoteId = handleSaveNote(noteData);
     clearDraft(); // 노트로 남았으니 보관된 초안은 지운다 (복원으로 중복 생성되지 않게)
     trackFunnelEvent("note_saved", i18n.language);
-    completePractice(practiceRef.current, {
+    // 세션 없이 완료 이벤트가 나가지 않게 — 저장 시점에 없으면 여기서 시작한다
+    completePractice(ensurePracticeSession(), {
       subjectKey: practiceSubjectKey || savedNoteId,
       kind: noteVideos.length > 0 ? "video" : "text",
     });
     navigation.goBack();
-  }, [title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions, practiceSubjectKey]);
+  }, [aiBusy, title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions, practiceSubjectKey, ensurePracticeSession]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -829,8 +919,8 @@ export default function NoteCreateScreen({ navigation, route }) {
           </TouchableOpacity>
         }
         right={
-          <TouchableOpacity onPress={handleSave} activeOpacity={0.7}>
-            <Text style={styles.topBarSave}>{t("common.save")}</Text>
+          <TouchableOpacity onPress={handleSave} activeOpacity={0.7} disabled={aiBusy}>
+            <Text style={[styles.topBarSave, aiBusy && styles.topBarSaveDisabled]}>{t("common.save")}</Text>
           </TouchableOpacity>
         }
       />
@@ -872,7 +962,7 @@ export default function NoteCreateScreen({ navigation, route }) {
           placeholder={t("noteCreate.content_placeholder")}
           placeholderTextColor={CLight.gray400}
           value={content}
-          onChangeText={setContent}
+          onChangeText={handleChangeContent}
           multiline
           textAlignVertical="top"
           scrollEnabled={false}
@@ -1141,13 +1231,17 @@ export default function NoteCreateScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
-        {/* AI Result */}
-        {aiComment ? (
+        {/* AI Result — 영상 AI만 돌린 노트에도 고칠 점 칩이 떠야 한다 */}
+        {aiComment || (videoAnalysis && focusOptions.length > 0) ? (
           <View style={styles.aiResultCard}>
-            <View style={styles.aiResultHeader}>
-              <Text style={styles.aiResultHeaderText}>{t("noteCreate.ai_result")}</Text>
-            </View>
-            <Text style={styles.aiResultContent}>{aiComment}</Text>
+            {aiComment ? (
+              <>
+                <View style={styles.aiResultHeader}>
+                  <Text style={styles.aiResultHeaderText}>{t("noteCreate.ai_result")}</Text>
+                </View>
+                <Text style={styles.aiResultContent}>{aiComment}</Text>
+              </>
+            ) : null}
             <FocusPicker
               title={t("focus.pick_title")}
               options={focusOptions}
@@ -1183,6 +1277,9 @@ const styles = StyleSheet.create({
   topBarSave: {
     ...T.bodyBold,
     color: CLight.pink,
+  },
+  topBarSaveDisabled: {
+    color: CLight.gray400,
   },
 
   // Scroll

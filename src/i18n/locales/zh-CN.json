@@ -53,7 +53,9 @@
     "private": "私密",
     "retry": "重试",
     "video_ai_retry_msg": "未能收到分析结果。请检查网络连接后重试，笔记内容保持不变。",
-    "video_quota_exceeded": "您已用完免费视频分析次数。升级高级版每月可使用15次。"
+    "video_quota_exceeded": "您已用完免费视频分析次数。升级高级版每月可使用15次。",
+    "text_quota_exceeded": "今天的免费AI反馈次数已用完。明天可以再次使用，高级会员每天最多可用10次。",
+    "submit": "提交"
   },
   "tabs": {
     "home": "首页",
@@ -194,7 +196,11 @@
     "hero_cta": "记录并获取 AI 反馈",
     "hero_title_ko_acting": "把今天练的台词录下来，拿到反馈",
     "hero_desc_ko_acting": "正在准备艺考或试镜？\n一场戏一场戏地记录，拿到下次要改的一点。无需注册，免费。",
-    "hero_cta_ko_acting": "记录练习并获取反馈"
+    "hero_cta_ko_acting": "记录练习并获取反馈",
+    "checkin_already": "今天已经打过卡了",
+    "duet_title": "双人台词练习",
+    "duet_desc": "对手会为你念台词 — 30个经典场景，一个人也能练节奏",
+    "duet_row": "双人台词练习 — 对手会为你念台词"
   },
   "notes": {
     "search_placeholder": "搜索笔记...",
@@ -208,7 +214,10 @@
     "no_search_results": "没有搜索结果",
     "try_other_search": "请尝试其他关键词",
     "no_notes_yet": "还没有笔记",
-    "no_notes_desc": "点击右下角的 + 按钮\n记录第一篇练习笔记吧！"
+    "no_notes_desc": "点击右下角的 + 按钮\n记录第一篇练习笔记吧！",
+    "checkin_badge": "打卡",
+    "checkin_placeholder": "练习了什么？（选填）",
+    "today_practice": "今日练习快速笔记"
   },
   "noteCreate": {
     "draft_keep_failed": "未能保留草稿",
@@ -259,7 +268,9 @@
     "hwp_unsupported": "不支持HWP",
     "hwp_unsupported_msg": "无法直接处理HWP文件。\n请在韩文办公室中转换为PDF后附加。\n（文件 → 另存为 → PDF）",
     "audio_file": "音频文件",
-    "voice_label": "语音 {{index}}"
+    "voice_label": "语音 {{index}}",
+    "replace_with_new_title": "要替换为新内容吗？",
+    "replace_with_new_message": "正在编写的内容将被新收到的内容替换。"
   },
   "noteDetail": {
     "tab_content": "内容",
@@ -311,7 +322,14 @@
     "data_consent_msg": "同意后，您的练习笔记以及语音、视频将用于提升Artlink AI的能力，您收到的反馈也会因此更精准。数据将私密安全地保存，仅用于改进反馈，不做其他用途。即使不参与，所有功能也可正常使用。您可以随时在设置中关闭并删除数据。",
     "data_consent_later": "稍后",
     "data_consent_join": "参与",
-    "voice_label": "语音 {{index}}"
+    "voice_label": "语音 {{index}}",
+    "share_cta": "分享",
+    "share_title": "分享反馈",
+    "share_msg": "要发布到哪里？",
+    "share_feed": "动态·Threads（竖版）",
+    "share_story": "限时动态·TikTok（全竖版）",
+    "share_failed": "未能生成分享图片，请重试。",
+    "ai_feedback_placeholder": "请告诉我们哪里不够好（选填）"
   },
   "profile": {
     "edit_profile": "编辑资料",
@@ -346,7 +364,7 @@
     "support_msg": "如有疑问或需要帮助，请发送邮件至以下地址。\n\nlcy1152@naver.com",
     "send_email": "发送邮件",
     "terms_detail": "ArtLink用户协议\n\n1. 本应用对不当内容及滥用行为采取零容忍政策。\n2. 用户可举报不当内容，被举报的内容将在24小时内进行审核。\n3. 违反协议的用户可能被移出服务。\n4. 详细协议请参阅首次启动应用时同意的完整条款。\n\n联系：lcy1152@naver.com",
-    "privacy_detail": "ArtLink隐私政策\n\n1. 收集的个人信息：姓名、邮箱、个人资料信息\n2. 收集目的：提供及改善服务\n3. 保留期限：直至账号删除\n4. 第三方提供：不提供\n5. 用户可随时通过删除账号来删除个人信息。\n\n联系：lcy1152@naver.com",
+    "privacy_detail": "ArtLink隐私政策\n\n1. 收集的个人信息：姓名、邮箱、个人资料信息、练习笔记及附件图片·视频、语音录音\n2. 收集目的：提供服务、生成AI反馈、改善服务\n3. 保留期限：直至账号删除\n4. 第三方处理：Anthropic和Google（AI反馈生成）、OpenAI（语音转文字）、Supabase（数据存储）\n5. 用户可随时通过删除账号来删除个人信息。\n\n联系：lcy1152@naver.com",
     "logout_confirm": "确定要退出登录吗？\n笔记已保存在服务器上，重新登录后可恢复。",
     "delete_confirm": "所有数据（笔记、个人资料、作品集等）将被永久删除。此操作无法撤销。\n\n确定要删除吗？"
   },
@@ -400,7 +418,8 @@
     "tab_collab": "合作",
     "wait_title": "请稍候",
     "wait_msg": "正在连接社区，请稍后重试。",
-    "empty_posts": "还没有帖子。\n来写第一篇帖子吧！"
+    "empty_posts": "还没有帖子。\n来写第一篇帖子吧！",
+    "offline_notice": "网络连接不稳定，正在显示示例帖子"
   },
   "communityCreate": {
     "title": "发帖",
@@ -606,7 +625,14 @@
     "portfolio_required_msg": "请先在作品集中添加作品。",
     "generate_failed": "生成失败",
     "card_failed_msg": "个人资料卡生成失败。",
-    "bio_failed_msg": "简介生成失败。"
+    "bio_failed_msg": "简介生成失败。",
+    "video_profile": "AI形象视频",
+    "video_profile_badge": "即将上线",
+    "video_profile_desc": "只需几张照片，就能自动生成可直接用于试镜的表演形象视频。敬请期待。",
+    "video_profile_notify": "申请上线提醒",
+    "video_profile_requested": "✓ 已申请 — 准备好后会通知您",
+    "video_profile_requested_title": "已申请",
+    "video_profile_requested_msg": "准备好后会第一时间通知您！"
   },
   "shareCard": {
     "title": "分享卡片",
@@ -637,7 +663,16 @@
     "recording_days": "已记录{{days}}天",
     "recording_weeks": "已记录{{weeks}}周",
     "recording_months": "已记录{{months}}个月",
-    "level_value": "Lv {{level}}"
+    "level_value": "Lv {{level}}",
+    "sharing": "分享中...",
+    "brand": "ARTLINK · AI 教练",
+    "chips_count": "AI 分析 {{count}} 项",
+    "cta": "获取完整指导 →",
+    "footer": "Artlink · art-link.kr",
+    "section_observation": "📌 AI 观察到的",
+    "section_strength": "💪 做得好的地方",
+    "section_next": "🎯 下一步",
+    "practice_title": "{{field}}练习"
   },
   "b2b": {
     "title": "B2B仪表板",
@@ -681,7 +716,9 @@
     "min": "最小",
     "max": "最大",
     "level_value": "Lv {{level}}",
-    "level_mileage": "Lv {{level}} · 积分{{mileage}}"
+    "level_mileage": "Lv {{level}} · 积分{{mileage}}",
+    "video_profile": "形象视频",
+    "stat_preparing": "准备中"
   },
   "inbox": {
     "title": "提案箱",
@@ -809,7 +846,7 @@
     "article6_title": "第6条（处罚措施）",
     "article6_body": "1. 违反本条款的用户可能面临以下处罚：\n   - 删除内容\n   - 暂停服务使用\n   - 永久封禁账号\n2. 发布不当内容的用户可能被立即从服务中移除。",
     "article7_title": "第七条（隐私与AI数据处理）",
-    "article7_body": "1. 应用仅收集服务提供所需的最少个人信息。\n2. 收集的信息仅用于服务提供。\n3. 使用AI分析功能时，以下数据将通过Artlink的服务器发送至OpenAI：笔记标题和内容、附件图片和视频、语音录音（已转换为文字）、文档（PDF）文本、领域信息、个人资料信息（经历、榜样、兴趣领域、特长）以及历史AI分析记录（最近10条）。传输的数据仅用于生成AI反馈。\n4. AI分析后，匿名化的使用统计数据（设备标识符、领域、标签等）将存储在Supabase中，用于服务改进。\n5. 第三方数据处理：OpenAI（AI反馈生成）和Supabase（数据存储）维持与Artlink同等的数据保护标准。\n6. AI分析的数据传输需在用户首次使用分析功能时获得单独同意。\n7. 用户可随时通过删除账户来删除个人信息。",
+    "article7_body": "1. 应用仅收集服务提供所需的最少个人信息。\n2. 收集的信息仅用于服务提供。\n3. 使用AI分析功能时，以下数据将通过Artlink的服务器发送：笔记标题和内容、附件图片和视频、语音录音（已转换为文字）、文档（PDF）文本、领域信息、个人资料信息（经历、榜样、兴趣领域、特长）以及历史AI分析记录（最近10条）。文字、图片、视频分析由Anthropic（Claude）处理，视频分析还会使用Google。语音录音由OpenAI转换为文字后发送给Anthropic。传输的数据仅用于生成AI反馈。\n4. AI分析后，匿名化的使用统计数据（设备标识符、领域、标签等）将存储在Supabase中，用于服务改进。\n5. 第三方数据处理：Anthropic和Google（AI反馈生成）、OpenAI（语音转文字）、Supabase（数据存储）维持与Artlink同等的数据保护标准。\n6. AI分析的数据传输需在用户首次使用分析功能时获得单独同意。\n7. 用户可随时通过删除账户来删除个人信息。",
     "article8_title": "第8条（免责声明）",
     "article8_body": "1. 本应用不对用户之间的纠纷承担责任。\n2. 本应用不对因服务中断或数据丢失造成的损失承担责任。",
     "article9_title": "第9条（联系方式）",
@@ -824,7 +861,7 @@
   },
   "aiDisclosure": {
     "title": "AI分析数据说明",
-    "message": "使用AI分析时，以下数据将通过Artlink的服务器发送至OpenAI以生成反馈。\n\n发送的数据：\n• 笔记标题和内容\n• 附件图片和视频\n• 语音录音（发送前转换为文字）\n• 附件文档（PDF文本）\n• 领域信息（表演、音乐等）\n• 个人资料信息（经历、榜样、兴趣领域、特长）\n• 历史笔记AI分析记录（最近10条摘要）\n\nAI分析后，匿名化的使用统计数据（设备标识符、领域、标签等）将存储在Supabase中，用于服务改进。\n\n数据仅用于生成AI反馈和改进服务。OpenAI和Supabase提供同等水平的数据保护。\n\n详情请参阅我们的隐私政策。",
+    "message": "使用AI分析时，以下数据将通过Artlink的服务器发送以生成反馈。\n\n发送的数据：\n• 笔记标题和内容\n• 附件图片和视频\n• 语音录音（发送前转换为文字）\n• 附件文档（PDF文本）\n• 领域信息（表演、音乐等）\n• 个人资料信息（经历、榜样、兴趣领域、特长）\n• 历史笔记AI分析记录（最近10条摘要）\n\n文字、图片、视频分析由Anthropic（Claude）处理，视频文件分析还会使用Google。语音录音由OpenAI转换为文字后，该文字会发送给Anthropic。\n\nAI分析后，匿名化的使用统计数据（设备标识符、领域、标签等）将存储在Supabase中，用于服务改进。\n\n第三方数据处理：Anthropic和Google（生成AI反馈）、OpenAI（语音转文字）、Supabase（数据存储）适用与我方同等水平的数据保护政策。\n\n详情请参阅我们的隐私政策。",
     "accept": "同意并分析",
     "cancel": "取消"
   },
@@ -844,7 +881,33 @@
     "manage": "管理订阅",
     "badge": "高级版",
     "limit_text_reached": "今天的文字反馈 {{max}} 次已用完，明天可以继续使用。",
-    "limit_video_reached": "本月的视频分析 {{max}} 次已用完，下个月会重新计算。"
+    "limit_video_reached": "本月的视频分析 {{max}} 次已用完，下个月会重新计算。",
+    "title": "ArtLink 高级会员",
+    "subtitle": "文字每日10次 · 视频每月15次",
+    "benefit_text": "每日10次AI文字反馈",
+    "benefit_video": "每月15次AI视频分析 — 完整视频分析",
+    "benefit_model": "顶级AI模型带来的深度指导",
+    "monthly": "月度",
+    "yearly": "年度",
+    "yearly_save": "节省41%",
+    "cta_subscribe": "开始订阅",
+    "restore": "恢复购买",
+    "purchase_success": "高级会员已激活！",
+    "purchase_fail": "未能完成购买，请重试。",
+    "restore_success": "购买已恢复。",
+    "restore_none": "没有可恢复的购买记录。",
+    "auto_renew_note": "除非在订阅期结束前至少24小时取消，否则将自动续订。您可以随时在App Store账户设置中管理。",
+    "renew_notice": "{{plan}}订阅将自动扣款{{price}}。除非在订阅期结束前至少24小时取消，否则将自动续订，您可以随时在App Store设置中取消。",
+    "terms": "使用条款",
+    "privacy": "隐私政策",
+    "not_ready": "支付功能正在准备中，请稍后再试。",
+    "quota_cta": "查看高级会员",
+    "guest_trial_title": "您已用完免费试用次数",
+    "guest_trial_msg": "注册后可以继续获得AI反馈。注册是免费的。",
+    "guest_trial_cta": "立即注册",
+    "login_required_title": "需要登录",
+    "login_required_message": "订阅与账户绑定。请先免费注册或登录。",
+    "renew_notice_android": "{{plan}}订阅将自动扣款{{price}}。除非在订阅期结束前至少24小时取消，否则将自动续订，您可以随时在Google Play订阅设置中取消。"
   },
   "focus": {
     "pick_title": "选一个下次练习要改的点",
@@ -859,5 +922,23 @@
     "axis_creativity": "创意",
     "axis_consistency": "坚持",
     "axis_growth": "变化"
+  },
+  "reminder": {
+    "offer_title": "设置练习提醒",
+    "offer_msg": "明天也在{{time}}提醒您练习吗？\n每天同一时间记录能塑造你的成长曲线。",
+    "offer_yes": "好的，提醒我",
+    "offer_no": "不用了",
+    "push_title": "今天的练习时间到了 🎭",
+    "push_body": "比昨天的自己更进一步。记录今天的练习，获取AI教练的反馈吧。"
+  },
+  "onboarding": {
+    "landing_title": "属于你的AI练习教练",
+    "landing_body": "记录练习\n获得专属反馈\n见证成长",
+    "landing_cta": "开始使用",
+    "landing_note": "所有艺术家均可免费使用"
+  },
+  "duet": {
+    "note_done": "已跳转到记录页面",
+    "finished": "练习已完成"
   }
 }

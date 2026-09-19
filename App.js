@@ -16,6 +16,7 @@ import { supabase } from "./src/services/supabaseClient";
 import { trackFunnelEvent } from "./src/services/mauService";
 import { loadDraft } from "./src/services/noteDraft";
 import { flushPracticeQueue } from "./src/services/practiceService";
+import { normalizeDeeplinkSource } from "./src/utils/deeplinkSource";
 import Toast from "./src/components/Toast";
 
 // Screens
@@ -300,7 +301,7 @@ function AppNavigator() {
             content: typeof qp.content === "string" ? qp.content.slice(0, 2000) : "",
             field: typeof qp.field === "string" ? qp.field : "acting",
           };
-          trackFunnelEvent(`deeplink_${typeof qp.source === "string" && qp.source ? qp.source : "external"}`);
+          trackFunnelEvent(`deeplink_${normalizeDeeplinkSource(qp.source)}`);
           openNoteCreateWhenReady(prefill);
           return;
         }

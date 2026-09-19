@@ -25,6 +25,15 @@ export default function GoalsScreen({ navigation }) {
   const [formTarget, setFormTarget] = useState("");
   const [formDeadline, setFormDeadline] = useState("");
 
+  const getDefaultDeadline = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const handleAddGoal = () => {
     if (!formTitle.trim()) {
       Alert.alert(t("common.error"), t("goals.goal_required"));
@@ -37,7 +46,7 @@ export default function GoalsScreen({ navigation }) {
       field: formField,
       targetCount: target,
       currentCount: 0,
-      deadline: formDeadline.trim() || "2026-06-30",
+      deadline: formDeadline.trim() || getDefaultDeadline(),
       completed: false,
       createdAt: new Date().toISOString(),
     };

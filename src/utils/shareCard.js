@@ -1,7 +1,8 @@
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import i18n from "../i18n";
 
-// 분야별 뱃지(이모지+라벨)와 카드 상단 분석 항목 칩
+// 분야별 뱃지(이모지)와 카드 상단 분석 항목 칩. 라벨은 기존 fields.* 번역 키를 쓴다.
 export const FIELD_META = {
   acting: { emoji: "🎭", label: "연기" },
   music: { emoji: "🎵", label: "음악" },
@@ -41,20 +42,22 @@ function truncate(s, n) {
 // 노트 → 카드 컴포넌트 props (feed=2블록, story=3블록)
 export function buildCardProps(note, variant) {
   const meta = FIELD_META[note.field] || FIELD_META.general;
+  const fieldLabel = i18n.t(`fields.${note.field}`, { defaultValue: meta.label });
   const s = parseSections(note.aiComment);
   const chips = (FIELD_CHIPS[note.field] || FIELD_CHIPS.general).slice(0, variant === "story" ? 6 : 5);
-  const B_OBS = { h: "📌 AI가 본 것", b: truncate(s.observation, variant === "story" ? 120 : 95) };
-  const B_STR = { h: "💪 잘한 점", b: truncate(s.strength, 110) };
-  const B_NEXT = { h: "🎯 다음 스텝", b: truncate(s.nextStep, variant === "story" ? 120 : 95) };
+  const B_OBS = { h: i18n.t("shareCard.section_observation"), b: truncate(s.observation, variant === "story" ? 120 : 95) };
+  const B_STR = { h: i18n.t("shareCard.section_strength"), b: truncate(s.strength, 110) };
+  const B_NEXT = { h: i18n.t("shareCard.section_next"), b: truncate(s.nextStep, variant === "story" ? 120 : 95) };
   const blocks = variant === "story" ? [B_OBS, B_STR, B_NEXT] : [B_OBS, B_NEXT];
   const now = new Date();
+  const practiceTitle = i18n.t("shareCard.practice_title", { field: fieldLabel });
   return {
     variant,
     fieldEmoji: meta.emoji,
-    fieldLabel: meta.label,
-    dateLabel: `${now.getMonth() + 1}월 ${now.getDate()}일`,
-    title: note.title || `${meta.label} 연습`,
-    subtitle: note.title ? `${meta.label} 연습` : "",
+    fieldLabel,
+    dateLabel: now.toLocaleDateString(i18n.language, { month: "long", day: "numeric" }),
+    title: note.title || practiceTitle,
+    subtitle: note.title ? practiceTitle : "",
     chips,
     blocks: blocks.filter((b) => b.b), // 내용 없는 섹션 제외
   };
@@ -62,13 +65,13 @@ export function buildCardProps(note, variant) {
 
 // 카드 View ref를 이미지로 캡처 → 공유 시트 (인스타·스레드·틱톡). 앨범 저장은 권한 이슈로 미사용.
 export async function shareCardImage(ref, variant) {
-  const width = 1080;
-  const height = variant === "story" ? 1920 : 1350;
-  const uri = await captureRef(ref, { format: "png", quality: 1, width, height, result: "tmpfile" });
+  // "auto"는 뷰의 실제 크기대로 캡처한다 — 고정 비율이 아닌 카드에 1080×1350을 강제하면 찌그러진다
+  const size = variant === "auto" ? {} : { width: 1080, height: variant === "story" ? 1920 : 1350 };
+  const uri = await captureRef(ref, { format: "png", quality: 1, result: "tmpfile", ...size });
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "피드백 공유" });
     return { shared: true };
   }
-  return { shared: false, uri };
+  return { shared: false, reason: "unavailable", uri };
 }

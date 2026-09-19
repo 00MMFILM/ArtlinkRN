@@ -58,7 +58,7 @@ function formatTimeAgo(dateStr, t) {
 }
 
 // ─── Post Card ───────────────────────────────────────────────
-function PostCard({ post, onReport, onPress, isPremiumAuthor }) {
+function PostCard({ post, onReport, onPress, isPremiumAuthor, isOwnPost }) {
   const { t } = useTranslation();
   const field = post.author_field || post.field;
   const emoji = FIELD_EMOJIS[field] || "";
@@ -80,14 +80,16 @@ function PostCard({ post, onReport, onPress, isPremiumAuthor }) {
             {timeAgo}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.reportBtn}
-          onPress={() => onReport(post)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={styles.reportBtnIcon}>⚠</Text>
-          <Text style={styles.reportBtnText}>{t("common.report")}</Text>
-        </TouchableOpacity>
+        {isOwnPost ? null : (
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={() => onReport(post)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.reportBtnIcon}>⚠</Text>
+            <Text style={styles.reportBtnText}>{t("common.report")}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Type Badge */}
@@ -205,7 +207,13 @@ export default function CommunityScreen() {
     navigation.navigate("CommunityPostDetail", { post, isDemo: usingDemo });
   }, [navigation, usingDemo]);
 
+  const isOwnPost = useCallback(
+    (post) => !!(post.user_id && deviceUserId && post.user_id === deviceUserId),
+    [deviceUserId]
+  );
+
   const handlePostAction = useCallback((post) => {
+    if (isOwnPost(post)) return; // 본인 글은 신고·차단 대상이 아니다 (아이콘도 숨김)
     const author = post.author_name || post.author;
     Alert.alert(t("common.post_management"), null, [
       {
@@ -230,7 +238,7 @@ export default function CommunityScreen() {
       },
       { text: t("common.cancel"), style: "cancel" },
     ]);
-  }, [handleBlockUser, handleReportContent, t]);
+  }, [isOwnPost, handleBlockUser, handleReportContent, t]);
 
   const handleCreatePost = useCallback(() => {
     if (!deviceUserId) {
@@ -308,6 +316,7 @@ export default function CommunityScreen() {
               onReport={handlePostAction}
               onPress={handlePostPress}
               isPremiumAuthor={!!(item.user_id && premiumUserIds?.has(item.user_id))}
+              isOwnPost={isOwnPost(item)}
             />
           )}
           contentContainerStyle={styles.list}
@@ -319,6 +328,20 @@ export default function CommunityScreen() {
               tintColor={CLight.pink}
               colors={[CLight.pink]}
             />
+          }
+          ListHeaderComponent={
+            usingDemo ? (
+              <View style={styles.offlineBanner}>
+                <Text style={[T.small, { color: CLight.gray700, flex: 1 }]}>
+                  {t("community.offline_notice")}
+                </Text>
+                <TouchableOpacity onPress={handleRefresh}>
+                  <Text style={[T.smallBold, { color: CLight.pink }]}>
+                    {t("common.retry")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -377,6 +400,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CLight.gray100,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 12,
   },
 
   // Card

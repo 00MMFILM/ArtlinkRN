@@ -99,24 +99,37 @@ export function showInterstitialAd() {
 }
 
 // ─── Rewarded Ad ───
+const REWARDED_WATCHDOG_MS = 5 * 60 * 1000;
 
 export function showRewardedAd() {
   return new Promise((resolve) => {
     const ad = RewardedAd.createForAdRequest(AD_UNITS.REWARDED);
     let rewarded = false;
-
-    const timeoutId = setTimeout(() => {
+    let watchdogId = null;
+    const finish = (value) => {
+      clearTimeout(timeoutId);
+      clearTimeout(watchdogId);
       unsubLoaded();
       unsubEarned();
       unsubClosed();
       unsubError();
-      resolve(false);
-    }, AD_TIMEOUT_MS);
+      resolve(value);
+    };
+
+    const timeoutId = setTimeout(() => finish(false), AD_TIMEOUT_MS);
 
     const unsubLoaded = ad.addAdEventListener(
       RewardedAdEventType.LOADED,
       () => {
-        ad.show();
+        // 로드까지만 20초 제한 — 시청 자체는 20초를 넘어도 실패 처리하면 안 된다.
+        // 대신 SDK가 닫힘·오류를 끝내 안 알려줄 때 영원히 멈추지 않게 5분 안전망을 둔다.
+        clearTimeout(timeoutId);
+        watchdogId = setTimeout(() => finish(rewarded), REWARDED_WATCHDOG_MS);
+        try {
+          ad.show();
+        } catch {
+          finish(false);
+        }
       }
     );
 
@@ -127,23 +140,8 @@ export function showRewardedAd() {
       }
     );
 
-    const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
-      clearTimeout(timeoutId);
-      unsubLoaded();
-      unsubEarned();
-      unsubClosed();
-      unsubError();
-      resolve(rewarded);
-    });
-
-    const unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
-      clearTimeout(timeoutId);
-      unsubLoaded();
-      unsubEarned();
-      unsubClosed();
-      unsubError();
-      resolve(false);
-    });
+    const unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => finish(rewarded));
+    const unsubError = ad.addAdEventListener(AdEventType.ERROR, () => finish(false));
 
     ad.load();
   });

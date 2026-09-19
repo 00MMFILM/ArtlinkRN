@@ -131,3 +131,38 @@ describe("고칠 점 후보·선택 보존", () => {
     expect(draft.chosenFocus).toBe("시선 고정");
   });
 });
+
+describe("초안 만료 (7일)", () => {
+  const { DRAFT_TTL_MS } = require("../noteDraft");
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
+  });
+
+  it("7일보다 오래된 초안은 validateDraft가 null", () => {
+    const stale = { ...buildDraft(fullState), savedAt: Date.now() - DRAFT_TTL_MS - 1000 };
+    expect(validateDraft(stale)).toBeNull();
+  });
+
+  it("7일 안쪽이면 그대로 살아 있다", () => {
+    const fresh = { ...buildDraft(fullState), savedAt: Date.now() - DRAFT_TTL_MS + 60000 };
+    expect(validateDraft(fresh)).not.toBeNull();
+  });
+
+  it("savedAt이 없거나 0인 구버전 초안은 유효로 본다", () => {
+    expect(validateDraft({ content: "본문" })).not.toBeNull();
+    expect(validateDraft({ content: "본문", savedAt: 0 })).not.toBeNull();
+  });
+
+  it("만료된 초안은 loadDraft가 저장소에서도 지운다", async () => {
+    AsyncStorage.__store[DRAFT_KEY] = JSON.stringify({
+      ...buildDraft(fullState),
+      savedAt: Date.now() - DRAFT_TTL_MS - 1,
+    });
+
+    expect(await loadDraft()).toBeNull();
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(DRAFT_KEY);
+    expect(AsyncStorage.__store[DRAFT_KEY]).toBeUndefined();
+  });
+});

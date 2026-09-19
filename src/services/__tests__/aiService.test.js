@@ -6,7 +6,9 @@ jest.mock("expo-file-system/legacy", () => ({
   readAsStringAsync: jest.fn(async () => "base64"),
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 1 })),
   deleteAsync: jest.fn(async () => {}),
+  uploadAsync: jest.fn(async () => ({ status: 500, body: "" })),
   EncodingType: { Base64: "base64" },
+  FileSystemUploadType: { MULTIPART: "multipart", BINARY_CONTENT: "binary" },
 }));
 jest.mock("expo-image-manipulator", () => ({ manipulateAsync: jest.fn(async (u) => ({ uri: u })), SaveFormat: { JPEG: "jpeg" } }));
 jest.mock("react-native-compressor", () => ({ Video: { compress: jest.fn() } }));
@@ -126,5 +128,148 @@ describe("parseFocus — 마커 없는 응답", () => {
   });
   it("끝에 걸린 미완성 마커만 지운다", () => {
     expect(parseFocus("좋아요\n[[FOC").analysis).toBe("좋아요");
+  });
+});
+
+// ─── 버그 수정 회귀 테스트 ───
+
+const FileSystem = require("expo-file-system/legacy");
+const { extractPdfText, stripMarkerLines, analyzeVideoFrames, PDF_EXTRACT_TIMEOUT_MS } = require("../aiService");
+const { extractVideoFrames } = require("../../utils/videoFrames");
+
+describe("항목5 — PDF 추출 타임아웃 (무한 로딩 방지)", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.clearAllMocks();
+  });
+
+  it("60초를 넘기면 null을 주고 끝난다", async () => {
+    jest.useFakeTimers();
+    FileSystem.uploadAsync.mockReturnValue(new Promise(() => {})); // 영영 응답 없음
+
+    const promise = extractPdfText("file:///a.pdf");
+    await jest.advanceTimersByTimeAsync(PDF_EXTRACT_TIMEOUT_MS);
+
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it("PDF가 매달려도 analyzeNote는 PDF 텍스트 없이 끝까지 진행한다", async () => {
+    jest.useFakeTimers();
+    FileSystem.uploadAsync.mockReturnValue(new Promise(() => {}));
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ analysis: "피드백 본문" }) }));
+
+    const promise = analyzeNote("acting", "본문", [], { title: "제목", pdfFiles: [{ uri: "file:///a.pdf", name: "a.pdf" }] }, {});
+    await jest.advanceTimersByTimeAsync(PDF_EXTRACT_TIMEOUT_MS);
+    const result = await promise;
+
+    expect(result.analysis).toBe("피드백 본문");
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body.prompt).toContain("본문");
+    expect(body.prompt).not.toContain("a.pdf");
+  });
+
+  it("제때 응답하면 그대로 쓴다", async () => {
+    FileSystem.uploadAsync.mockResolvedValue({ status: 200, body: JSON.stringify({ text: "대본 내용", pageCount: 2 }) });
+    await expect(extractPdfText("file:///a.pdf")).resolves.toEqual({ text: "대본 내용", pageCount: 2 });
+  });
+});
+
+describe("항목13 — 남은 [[SCORES]]·[[FOCUS]] 줄 최종 제거", () => {
+  it("구분자가 어긋나 파싱에 실패한 줄도 통째로 지운다", () => {
+    expect(stripMarkerLines("피드백 본문\n[[SCORES]] technique=6 expression=?")).toBe("피드백 본문");
+    expect(stripMarkerLines("피드백 본문\n[[FOCUS]]\n다음 줄")).toBe("피드백 본문\n\n다음 줄");
+  });
+
+  it("본문 중간의 [[대사]] 같은 표기는 건드리지 않는다", () => {
+    const text = "각본에 [[대사]] 표기가 있네요. 좋습니다.";
+    expect(stripMarkerLines(text)).toBe(text);
+  });
+
+  it("마커가 없으면 원문 그대로 (공백도 안 건드린다)", () => {
+    expect(stripMarkerLines("본문\n\n\n여백 유지")).toBe("본문\n\n\n여백 유지");
+    expect(stripMarkerLines("")).toBe("");
+    expect(stripMarkerLines(null)).toBeNull();
+  });
+
+  it("analyzeNote 응답에 깨진 마커가 와도 화면에 새지 않는다", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ analysis: "피드백 본문\n[[SCORES]] technique=6 expression=7" }), // 5축이 안 맞아 파싱 실패
+    }));
+    const result = await analyzeNote("acting", "본문", [], { title: "제목" }, {});
+    expect(result.analysis).toBe("피드백 본문");
+    expect(result.analysis).not.toContain("[[SCORES]]");
+  });
+});
+
+describe("항목14 — 타임아웃·재시도 정책", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    extractVideoFrames.mockResolvedValue({ frames: ["b64"], times: [0] });
+    FileSystem.uploadAsync.mockResolvedValue({ status: 500, body: "" }); // 전사 생략
+  });
+
+  it("글 분석은 90초에 끊지 않고 130초까지 기다린다", async () => {
+    jest.useFakeTimers();
+    global.fetch = jest.fn((url, opts) => new Promise((_, reject) => {
+      opts.signal.addEventListener("abort", () => {
+        const e = new Error("Aborted");
+        e.name = "AbortError";
+        reject(e);
+      });
+    }));
+
+    const promise = analyzeNote("acting", "본문", [], { title: "제목" }, {});
+    const settled = jest.fn();
+    promise.then(settled, settled);
+
+    await jest.advanceTimersByTimeAsync(90000);
+    expect(settled).not.toHaveBeenCalled(); // 예전 90초 타임아웃이면 여기서 끝났다
+
+    await jest.advanceTimersByTimeAsync(40000);
+    await expect(promise).rejects.toThrow();
+    jest.useRealTimers();
+  });
+
+  it("영상 분석 504는 재시도하지 않는다 (쿼터 이중 차감 방지)", async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 504, json: async () => ({}) }));
+
+    await expect(
+      analyzeVideoFrames("acting", "본문", "제목", [{ uri: "file:///a.mov", duration: 5000 }], {})
+    ).rejects.toMatchObject({ videoAiReason: "TIMEOUT" });
+
+    const analyzeCalls = global.fetch.mock.calls.filter((c) => String(c[0]).includes("/api/analyze-video"));
+    expect(analyzeCalls).toHaveLength(1);
+  });
+
+  it("영상 분석 클라이언트 타임아웃(abort)도 재시도하지 않는다", async () => {
+    global.fetch = jest.fn((url, opts) => {
+      if (!String(url).includes("/api/analyze-video")) return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+      const e = new Error("Aborted");
+      e.name = "AbortError";
+      return Promise.reject(e);
+    });
+
+    await expect(
+      analyzeVideoFrames("acting", "본문", "제목", [{ uri: "file:///a.mov", duration: 5000 }], {})
+    ).rejects.toMatchObject({ videoAiReason: "TIMEOUT" });
+
+    const analyzeCalls = global.fetch.mock.calls.filter((c) => String(c[0]).includes("/api/analyze-video"));
+    expect(analyzeCalls).toHaveLength(1);
+  });
+
+  it("그 밖의 5xx는 예전처럼 1회 재시도한다", async () => {
+    global.fetch = jest.fn(async (url) => {
+      if (!String(url).includes("/api/analyze-video")) return { ok: true, status: 200, json: async () => ({}) };
+      return { ok: false, status: 500, json: async () => ({}) };
+    });
+
+    await expect(
+      analyzeVideoFrames("acting", "본문", "제목", [{ uri: "file:///a.mov", duration: 5000 }], {})
+    ).rejects.toMatchObject({ videoAiReason: "NETWORK" });
+
+    const analyzeCalls = global.fetch.mock.calls.filter((c) => String(c[0]).includes("/api/analyze-video"));
+    expect(analyzeCalls).toHaveLength(2);
   });
 });

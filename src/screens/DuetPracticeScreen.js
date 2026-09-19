@@ -11,7 +11,9 @@ import {
   StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
+import { useApp } from "../context/AppContext";
 import bundledData from "../data/duet-scenes.json";
 import { startPractice, completePractice } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
@@ -23,8 +25,21 @@ try { Speech = require("expo-speech"); } catch (e) { Speech = null; }
 
 const REMOTE_URL = "https://actraw.kr/duet-scenes.json";
 
+// 원격 씬 데이터 방어 — roles·lines가 있고 모든 line.r이 roles 범위 안이어야 신뢰한다.
+// 하나라도 어긋나면 번들 데이터를 그대로 쓴다 (예: 배역 인덱스가 깨진 대사로 앱이 죽는 사고 방지).
+function isValidRemoteData(j) {
+  if (!j || !Array.isArray(j.scenes) || j.scenes.length === 0) return false;
+  return j.scenes.every((s) => {
+    if (!s || !Array.isArray(s.roles) || s.roles.length === 0) return false;
+    if (!Array.isArray(s.lines) || s.lines.length === 0) return false;
+    return s.lines.every((l) => l && Number.isInteger(l.r) && l.r >= 0 && l.r < s.roles.length);
+  });
+}
+
 export default function DuetPracticeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { showToast } = useApp();
   const [data, setData] = useState(bundledData);
   const [scene, setScene] = useState(null);
   const [myRole, setMyRole] = useState(0);
@@ -50,13 +65,13 @@ export default function DuetPracticeScreen({ navigation }) {
   };
   const stopSpeak = () => { try { canSpeak && Speech.stop(); } catch (e) {} };
 
-  // 원격 갱신 — 실패해도 번들 데이터로 동작
+  // 원격 갱신 — 실패하거나 데이터가 이상하면 번들 데이터로 동작
   useEffect(() => {
     let alive = true;
     fetch(REMOTE_URL)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (alive && j?.scenes?.length && j.version >= bundledData.version) setData(j);
+        if (alive && j && j.version >= bundledData.version && isValidRemoteData(j)) setData(j);
       })
       .catch(() => {});
     return () => { alive = false; };
@@ -70,8 +85,10 @@ export default function DuetPracticeScreen({ navigation }) {
   // 연습 세션 — 모드를 고르면 시작, 마지막 줄에 닿으면 딱 1회 완료 (대사 내용은 보내지 않는다)
   const practiceRef = useRef(null);
   const completedRef = useRef(false);
+  const [noteSent, setNoteSent] = useState(false); // "연습 기록 남기기"를 이미 눌렀다 — 같은 씬 세션 안에서 재클릭 방지
   const beginPractice = (s) => {
     completedRef.current = false;
+    setNoteSent(false);
     practiceRef.current = startPractice("duet", s?.id, "acting");
   };
 
@@ -83,9 +100,12 @@ export default function DuetPracticeScreen({ navigation }) {
     }
   };
 
-  // 방금 연습한 장면을 기록으로 — 노트 작성 화면이 장면 제목·연기·시리즈·sceneId로 채워져 열린다
+  // 방금 연습한 장면을 기록으로 — 노트 작성 화면이 장면 제목·연기·시리즈·sceneId로 채워져 열린다.
+  // 노트 화면은 같은 sessionId를 이어받는다 — 별도 세션을 새로 시작하지 않아 연습 1회가 2회로 세이지 않는다.
   const goToNote = () => {
-    finishPractice();
+    if (noteSent) return;
+    setNoteSent(true);
+    finishPractice(); // 연습은 여기서 끝났다 — 노트를 취소해도 완료가 남는다. 같은 sessionId의 재완료는 practiceService가 1회로 막는다
     trackFunnelEvent("duet_to_note", i18n?.language);
     navigation.navigate("NoteCreate", {
       prefill: {
@@ -93,8 +113,16 @@ export default function DuetPracticeScreen({ navigation }) {
         field: "acting",
         seriesName: scene.play,
         sceneId: scene.id,
+        sessionId: practiceRef.current?.sessionId,
       },
     });
+  };
+
+  // 대본 모드 "연습 끝" — 완료만 되고 화면상 아무 반응이 없던 버그. 토스트 + 뒤로가기로 마무리를 보여준다.
+  const finishScript = () => {
+    finishPractice();
+    showToast(t("duet.finished"), "success");
+    navigation.goBack();
   };
 
   const openScene = (s) => { setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
@@ -199,7 +227,7 @@ export default function DuetPracticeScreen({ navigation }) {
     return (
       <View style={[styles.container, { backgroundColor: CLight.bg }]}>
         <Header title={`${scene.play} · ${scene.roles[myRole].name} 역`} onBack={() => setMode(null)} />
-        <View style={styles.stageWrap}>
+        <View testID="duet-cue-stage" style={[styles.stageWrap, { paddingBottom: 20 + insets.bottom }]}>
           <Text style={[T.micro, { color: CLight.gray400, letterSpacing: 1 }]}>
             {idx + 1} / {lines.length}
           </Text>
@@ -253,8 +281,10 @@ export default function DuetPracticeScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           {idx >= lines.length - 1 ? (
-            <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85}>
-              <Text style={[T.bodyBold, { color: CLight.white }]}>연습 기록 남기기</Text>
+            <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85} disabled={noteSent}>
+              <Text style={[T.bodyBold, { color: CLight.white }]}>
+                {noteSent ? t("duet.note_done") : "연습 기록 남기기"}
+              </Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -276,7 +306,10 @@ export default function DuetPracticeScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
+      >
         {lines.map((L, i) => {
           const mine = L.r === myRole;
           const masked = mine && hideMine && !peeked[i];
@@ -300,10 +333,12 @@ export default function DuetPracticeScreen({ navigation }) {
             </TouchableOpacity>
           );
         })}
-        <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85}>
-          <Text style={[T.bodyBold, { color: CLight.white }]}>연습 기록 남기기</Text>
+        <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85} disabled={noteSent}>
+          <Text style={[T.bodyBold, { color: CLight.white }]}>
+            {noteSent ? t("duet.note_done") : "연습 기록 남기기"}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.finishBtn} onPress={finishPractice} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.finishBtn} onPress={finishScript} activeOpacity={0.85}>
           <Text style={[T.bodyBold, { color: CLight.gray700 }]}>연습 끝</Text>
         </TouchableOpacity>
         <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 18 }]}>

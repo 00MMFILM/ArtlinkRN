@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
 import TopBar from "../components/TopBar";
+import { shareCardImage } from "../utils/shareCard";
 
 const CARD_STYLES = [
   { key: "minimal", labelKey: "shareCard.style_minimal", bg: "#FFFFFF", text: CLight.gray900, accent: CLight.pink },
@@ -56,6 +57,8 @@ export default function ShareCardScreen({ navigation }) {
   const { t } = useTranslation();
   const { artistProfile, userProfile, savedNotes } = useApp();
   const [selectedStyle, setSelectedStyle] = useState("minimal");
+  const [sharing, setSharing] = useState(false);
+  const cardRef = useRef(null);
 
   const topSkills = artistProfile.radarLabels
     .map((label, i) => ({ label, value: artistProfile.radarValues[i] }))
@@ -124,17 +127,20 @@ export default function ShareCardScreen({ navigation }) {
     return "#FFFFFF";
   };
 
-  const handleShare = () => {
-    Alert.alert(t("shareCard.share"), t("shareCard.share_coming_soon"), [
-      { text: t("common.confirm") },
-    ]);
-  };
-
-  const handleSaveImage = () => {
-    Alert.alert(t("shareCard.save_image"), t("shareCard.save_coming_soon"), [
-      { text: t("common.confirm") },
-    ]);
-  };
+  const handleShare = useCallback(async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const result = await shareCardImage(cardRef, "auto");
+      if (!result?.shared) {
+        Alert.alert(t("common.error"), t("noteDetail.share_failed"));
+      }
+    } catch (_) {
+      Alert.alert(t("common.error"), t("noteDetail.share_failed"));
+    } finally {
+      setSharing(false);
+    }
+  }, [sharing, t]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -153,7 +159,7 @@ export default function ShareCardScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Card preview */}
-        <View style={[styles.previewCard, { backgroundColor: getCardBg() }]}>
+        <View ref={cardRef} collapsable={false} style={[styles.previewCard, { backgroundColor: getCardBg() }]}>
           {/* Header: avatar + name + level badge */}
           <View style={styles.previewHeader}>
             <View
@@ -332,12 +338,10 @@ export default function ShareCardScreen({ navigation }) {
         </View>
 
         {/* Action buttons */}
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleShare}>
-          <Text style={[T.captionBold, { color: CLight.white }]}>{t("shareCard.share")}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.secondaryBtn} onPress={handleSaveImage}>
-          <Text style={[T.captionBold, { color: CLight.pink }]}>{t("shareCard.save_image")}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={handleShare} disabled={sharing}>
+          <Text style={[T.captionBold, { color: CLight.white }]}>
+            {sharing ? t("shareCard.sharing") : t("shareCard.share")}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

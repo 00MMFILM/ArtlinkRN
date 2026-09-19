@@ -52,7 +52,14 @@ jest.mock("expo-image-picker", () => ({
   VideoExportPreset: { Passthrough: 0, MediumQuality: 1 },
 }));
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
-jest.mock("expo-av", () => ({ Audio: { Recording: jest.fn(), Sound: {}, setAudioModeAsync: jest.fn() } }));
+jest.mock("expo-av", () => ({
+  Audio: {
+    Recording: jest.fn(),
+    Sound: { createAsync: jest.fn() },
+    setAudioModeAsync: jest.fn(),
+    requestPermissionsAsync: jest.fn(),
+  },
+}));
 jest.mock("expo-video-thumbnails", () => ({ getThumbnailAsync: jest.fn() }));
 jest.mock("expo-file-system/legacy", () => ({
   documentDirectory: "file:///doc/",
@@ -71,7 +78,9 @@ jest.mock("../../components/TopBar", () => {
   return ({ left, right }) => React.createElement(RN.View, null, left, right);
 });
 
-const { analyzeNote, analyzeVideoFrames } = require("../../services/aiService");
+const { analyzeNote, analyzeVideoFrames, lastAiMeta } = require("../../services/aiService");
+const { Audio } = require("expo-av");
+const { showInterstitialAd, showRewardedAd, incrementDailyAICount, shouldShowInterstitial } = require("../../services/adService");
 const ImagePicker = require("expo-image-picker");
 const VideoThumbnails = require("expo-video-thumbnails");
 const AsyncStorage = require("@react-native-async-storage/async-storage");
@@ -122,6 +131,15 @@ const resetAll = () => {
   analyzeNote.mockResolvedValue({ analysis: "좋아요", scores: null });
   analyzeVideoFrames.mockResolvedValue("영상 분석 결과");
   hasAskedReminder.mockResolvedValue(false);
+  Object.keys(lastAiMeta).forEach((k) => delete lastAiMeta[k]);
+};
+
+// 해결 시점을 테스트가 쥐고 있는 약속 (분석 진행 중 상태를 만들기 위해)
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
 };
 
 describe("NoteCreateScreen — 첫 AI 피드백 직후 안내", () => {
@@ -334,15 +352,17 @@ describe("항목2 — 가입 왕복 시 초안 보존·복원", () => {
 describe("NoteCreateScreen — 연습 세션", () => {
   beforeEach(resetAll);
 
-  it("(a) 마운트 시 세션이 시작되고, 저장 시 같은 세션이 노트 id로 완료된다", async () => {
+  it("(a) 첫 입력에서 세션이 시작되고, 저장 시 같은 세션이 노트 id로 완료된다", async () => {
     const ctx = buildCtx("u1");
     ctx.handleSaveNote = jest.fn(() => 1757740000000);
     useApp.mockReturnValue(ctx);
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
 
-    expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
+    // 열기만 한 상태에선 아직 연습이 아니다
+    expect(startPractice).not.toHaveBeenCalled();
 
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
     fireEvent.press(utils.getByText("common.save"));
 
@@ -444,9 +464,29 @@ describe("NoteCreateScreen — 쿼터 소진 안내", () => {
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
     await runAi(utils);
 
-    const call = Alert.alert.mock.calls.find((c) => c[0] === "common.video_quota_exceeded");
+    // 글 피드백 한도 초과에 영상 문구를 쓰면 안 된다
+    const call = Alert.alert.mock.calls.find((c) => c[0] === "common.text_quota_exceeded");
     expect(call).toBeTruthy();
     expect(call[2].some((b) => b.text === "premium.quota_cta")).toBe(true);
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "common.video_quota_exceeded")).toBe(false);
+  });
+
+  it("영상 분석 한도 초과에는 영상 문구를 쓴다", async () => {
+    useApp.mockReturnValue(buildCtx("u1", { active: false }));
+    const err = new Error("video ai failed");
+    err.videoAiReason = "QUOTA";
+    analyzeVideoFrames.mockRejectedValue(err);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await attachVideo(utils);
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.video_ai_analyze"));
+    });
+
+    await waitFor(() =>
+      expect(Alert.alert.mock.calls.some((c) => c[0] === "common.video_quota_exceeded")).toBe(true)
+    );
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "common.text_quota_exceeded")).toBe(false);
   });
 });
 
@@ -483,6 +523,9 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     const utils = render(<NoteCreateScreen navigation={navigation} route={repracticeRoute} />);
 
     expect(utils.getByText("focus.current: 첫 문장 호흡 늦추기")).toBeTruthy();
+    // 열기만 해서는 시작되지 않고, 첫 입력에서 장면 id로 묶여 시작된다
+    expect(startPractice).not.toHaveBeenCalled();
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "연습함");
     expect(startPractice).toHaveBeenCalledWith("text", "hamlet-1", "acting");
   });
 
@@ -549,11 +592,352 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     ctx.handleSaveNote = jest.fn(() => 5);
     useApp.mockReturnValue(ctx);
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
-    expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
 
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
     fireEvent.press(utils.getByText("common.save"));
     expect(completePractice.mock.calls[0][1].subjectKey).toBe(5);
+  });
+});
+
+// ─── 버그 수정 회귀 테스트 ───
+
+describe("항목1 — 글 없이 녹음·첨부만 있어도 AI 분석", () => {
+  beforeEach(resetAll);
+
+  const withVoice = { params: { prefill: { voiceRecordings: [{ uri: "file:///a.m4a", duration: 7 }] } } };
+
+  it("녹음만 있으면 분석이 막히지 않는다 (2인 대사에서 온 화면)", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={withVoice} />);
+
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.ai_analyze"));
+    });
+
+    expect(analyzeNote).toHaveBeenCalledTimes(1);
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "noteCreate.ai_content_required")).toBe(false);
+  });
+
+  it("영상만 있으면 글 분석은 막는다 — 영상은 글 분석에 실리지 않아 빈 분석으로 횟수만 쓴다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const onlyVideo = { params: { prefill: { images: [{ uri: "file:///v.mp4", type: "video" }] } } };
+    const utils = render(<NoteCreateScreen navigation={navigation} route={onlyVideo} />);
+
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.ai_analyze"));
+    });
+
+    expect(analyzeNote).not.toHaveBeenCalled();
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "noteCreate.ai_content_required")).toBe(true);
+  });
+
+  it("글도 첨부도 없으면 예전처럼 막는다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.ai_analyze"));
+    });
+
+    expect(analyzeNote).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith("noteCreate.ai_content_required", "noteCreate.ai_content_required_msg");
+  });
+});
+
+describe("항목2 — 영상 AI만 돌려도 고칠 점 칩이 뜬다", () => {
+  beforeEach(resetAll);
+
+  it("영상 분석 결과에 후보가 오면 FocusPicker가 보인다 (글 피드백 없이)", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 11);
+    useApp.mockReturnValue(ctx);
+    lastAiMeta.focusOptions = ["시선 고정", "손 동작 줄이기"];
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await attachVideo(utils);
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.video_ai_analyze"));
+    });
+    await waitFor(() => utils.getByText("noteCreate.video_ai_result"));
+
+    expect(utils.queryByText("noteCreate.ai_result")).toBeNull(); // 글 피드백은 없다
+    expect(utils.getByText("focus.pick_title")).toBeTruthy();
+    fireEvent.press(utils.getByText("시선 고정"));
+
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote.mock.calls[0][0].chosenFocus).toBe("시선 고정");
+  });
+});
+
+describe("항목3 — 재생 중 화면을 나가면 소리가 멈춘다", () => {
+  beforeEach(resetAll);
+
+  it("언마운트 시 재생 중인 sound를 unload한다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const sound = { playAsync: jest.fn(), unloadAsync: jest.fn(), setOnPlaybackStatusUpdate: jest.fn() };
+    Audio.Sound.createAsync.mockResolvedValue({ sound });
+
+    const utils = render(
+      <NoteCreateScreen
+        navigation={navigation}
+        route={{ params: { prefill: { voiceRecordings: [{ uri: "file:///a.m4a", duration: 3 }] } } }}
+      />
+    );
+    await act(async () => {
+      fireEvent.press(utils.getAllByText("▶️")[0]);
+    });
+    expect(sound.playAsync).toHaveBeenCalled();
+
+    utils.unmount();
+    expect(sound.unloadAsync).toHaveBeenCalled();
+  });
+});
+
+describe("항목4 — 분석 중에는 저장이 막힌다", () => {
+  beforeEach(resetAll);
+
+  it("글 분석이 도는 동안 저장을 눌러도 노트가 저장되지 않는다", async () => {
+    const ctx = buildCtx("u1");
+    useApp.mockReturnValue(ctx);
+    const d = deferred();
+    analyzeNote.mockReturnValue(d.promise);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.ai_analyze"));
+    });
+    expect(utils.getByText("noteCreate.ai_analyzing")).toBeTruthy();
+
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote).not.toHaveBeenCalled();
+
+    // 분석이 끝나면 다시 저장된다
+    await act(async () => { d.resolve({ analysis: "완료", scores: null }); });
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("영상 분석이 도는 동안에도 저장이 막힌다", async () => {
+    const ctx = buildCtx("u1");
+    useApp.mockReturnValue(ctx);
+    const d = deferred();
+    analyzeVideoFrames.mockReturnValue(d.promise);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await attachVideo(utils);
+    await act(async () => {
+      fireEvent.press(utils.getByText("noteCreate.video_ai_analyze"));
+    });
+
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote).not.toHaveBeenCalled();
+
+    await act(async () => { d.resolve("영상 분석 결과"); });
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("항목6 — 새 prefill이 작성 중인 글을 덮어쓰기 전에 묻는다", () => {
+  beforeEach(resetAll);
+
+  const newPrefill = { title: "새 대본", content: "새 내용", field: "acting" };
+
+  it("쓰던 내용이 있으면 확인 후에만 바뀐다", () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "내가 쓰던 글");
+
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: newPrefill } }} />);
+
+    // 확인 전에는 그대로
+    expect(utils.getByPlaceholderText("noteCreate.content_placeholder").props.value).toBe("내가 쓰던 글");
+    const call = Alert.alert.mock.calls.find((c) => c[0] === "noteCreate.replace_with_new_title");
+    expect(call).toBeTruthy();
+    expect(call[1]).toBe("noteCreate.replace_with_new_message");
+
+    act(() => { call[2].find((b) => b.text === "common.confirm").onPress(); });
+    expect(utils.getByPlaceholderText("noteCreate.content_placeholder").props.value).toBe("새 내용");
+    expect(utils.getByPlaceholderText("noteCreate.title_placeholder").props.value).toBe("새 대본");
+  });
+
+  it("비어 있으면 묻지 않고 바로 반영한다", () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: newPrefill } }} />);
+
+    expect(utils.getByPlaceholderText("noteCreate.content_placeholder").props.value).toBe("새 내용");
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "noteCreate.replace_with_new_title")).toBe(false);
+  });
+
+  it("마운트할 때 받은 prefill에는 확인창이 뜨지 않는다", () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    render(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: newPrefill } }} />);
+    expect(Alert.alert.mock.calls.some((c) => c[0] === "noteCreate.replace_with_new_title")).toBe(false);
+  });
+});
+
+describe("항목7 — 재분석하면 옛 고칠 점 선택이 남지 않는다", () => {
+  beforeEach(resetAll);
+
+  it("새 후보에 없는 chosenFocus는 비워진다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 9);
+    useApp.mockReturnValue(ctx);
+    analyzeNote.mockResolvedValue({ analysis: "1차", scores: null, focusOptions: ["시선 고정", "호흡"] });
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+    fireEvent.press(utils.getByText("시선 고정"));
+
+    analyzeNote.mockResolvedValue({ analysis: "2차", scores: null, focusOptions: ["발음", "속도"] });
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+
+    expect(utils.queryByText("시선 고정")).toBeNull();
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote.mock.calls[0][0].chosenFocus).toBeUndefined();
+  });
+
+  it("새 후보에도 있으면 선택이 유지된다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 9);
+    useApp.mockReturnValue(ctx);
+    analyzeNote.mockResolvedValue({ analysis: "1차", scores: null, focusOptions: ["시선 고정", "호흡"] });
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+    fireEvent.press(utils.getByText("시선 고정"));
+
+    analyzeNote.mockResolvedValue({ analysis: "2차", scores: null, focusOptions: ["시선 고정", "속도"] });
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
+    fireEvent.press(utils.getByText("common.save"));
+    expect(ctx.handleSaveNote.mock.calls[0][0].chosenFocus).toBe("시선 고정");
+  });
+});
+
+describe("항목9 — 화면을 나간 뒤에는 알림이 뜨지 않는다", () => {
+  beforeEach(resetAll);
+
+  it("분석 실패가 언마운트 뒤에 와도 Alert를 띄우지 않는다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const d = deferred();
+    analyzeNote.mockReturnValue(d.promise);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+
+    utils.unmount();
+    Alert.alert.mockClear();
+    await act(async () => { d.reject(new Error("AI_SERVER_ERROR")); });
+
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("한도 초과 알림도 언마운트 뒤에는 뜨지 않는다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const d = deferred();
+    analyzeNote.mockReturnValue(d.promise);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+
+    utils.unmount();
+    Alert.alert.mockClear();
+    await act(async () => { d.reject(new Error("AI_QUOTA")); });
+
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+});
+
+describe("항목10 — 화면을 열기만 하면 연습으로 세지 않는다", () => {
+  beforeEach(resetAll);
+
+  it("열어서 보기만 하고 나가면 practice_started가 없다", () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    utils.unmount();
+    expect(startPractice).not.toHaveBeenCalled();
+    expect(resumePractice).not.toHaveBeenCalled();
+  });
+
+  it("첨부만 해도 세션이 시작된다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    expect(startPractice).not.toHaveBeenCalled();
+
+    await attachVideo(utils);
+    expect(startPractice).toHaveBeenCalledTimes(1);
+  });
+
+  it("세션 없이 저장해도 completePractice는 세션을 들고 간다", () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 3);
+    useApp.mockReturnValue(ctx);
+    // 사용자가 입력하지 않은 prefill 상태에서 바로 저장
+    const utils = render(
+      <NoteCreateScreen navigation={navigation} route={{ params: { prefill: { title: "대본", content: "내용" } } }} />
+    );
+    expect(startPractice).not.toHaveBeenCalled();
+
+    fireEvent.press(utils.getByText("common.save"));
+    expect(startPractice).toHaveBeenCalledTimes(1);
+    expect(completePractice.mock.calls[0][0]).toEqual(expect.objectContaining({ sessionId: "sess-new" }));
+  });
+});
+
+describe("항목16 — 프리미엄에게는 광고를 띄우지 않는다", () => {
+  beforeEach(resetAll);
+
+  it("해외 프리미엄 유저는 전면 광고 없이 글 분석이 진행된다", async () => {
+    const ctx = buildCtx("u1", { active: true });
+    ctx.isKoreanLocale = false;
+    useApp.mockReturnValue(ctx);
+    shouldShowInterstitial.mockReturnValue(true);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
+
+    expect(showInterstitialAd).not.toHaveBeenCalled();
+    expect(incrementDailyAICount).not.toHaveBeenCalled();
+    expect(analyzeNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("해외 프리미엄 유저는 보상형 광고 없이 영상 분석이 진행된다", async () => {
+    const ctx = buildCtx("u1", { active: true });
+    ctx.isKoreanLocale = false;
+    useApp.mockReturnValue(ctx);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await attachVideo(utils);
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.video_ai_analyze")); });
+
+    expect(showRewardedAd).not.toHaveBeenCalled();
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(1);
+  });
+
+  it("해외 무료 유저는 예전처럼 광고를 본다", async () => {
+    const ctx = buildCtx("u1", { active: false });
+    ctx.isKoreanLocale = false;
+    useApp.mockReturnValue(ctx);
+    showRewardedAd.mockResolvedValue(true);
+
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await attachVideo(utils);
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.video_ai_analyze")); });
+
+    expect(showRewardedAd).toHaveBeenCalled();
   });
 });

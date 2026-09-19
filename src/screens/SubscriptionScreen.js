@@ -39,8 +39,18 @@ function manageUrl(planCode) {
 
 export default function SubscriptionScreen({ navigation }) {
   const { t } = useTranslation();
-  const { premium, markPremiumActive, refreshPremium } = useApp();
+  const { premium, markPremiumActive, refreshPremium, userProfile, setAuthState } = useApp();
   const isActive = !!premium?.active;
+
+  // 게스트(비로그인) 결제 방지 — RevenueCat 익명 ID로 결제하면 서버 웹훅이 계정과 못 묶어 프리미엄이 안 켜진다
+  const requireLogin = () => {
+    if (userProfile?.authUserId) return false;
+    Alert.alert(t("premium.login_required_title"), t("premium.login_required_message"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.confirm"), onPress: () => setAuthState("auth") },
+    ]);
+    return true;
+  };
 
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
@@ -64,6 +74,7 @@ export default function SubscriptionScreen({ navigation }) {
   const selectedPkg = selected === "yearly" ? yearlyPkg : monthlyPkg;
 
   const handlePurchase = async () => {
+    if (requireLogin()) return;
     if (!selectedPkg) {
       Alert.alert(t("premium.title"), t("premium.not_ready"));
       return;
@@ -83,6 +94,7 @@ export default function SubscriptionScreen({ navigation }) {
     }
   };
 
+  // 복원은 로그인 없이도 열어 둔다 — 재설치한 유료 사용자와 스토어 심사가 계정 없이 복원을 시도한다
   const handleRestore = async () => {
     setBuying(true);
     const restored = await restorePurchases();
@@ -247,7 +259,7 @@ export default function SubscriptionScreen({ navigation }) {
         </TouchableOpacity>
 
         <Text style={[T.caption, styles.note]}>
-          {t("premium.renew_notice", {
+          {t(Platform.OS === "android" ? "premium.renew_notice_android" : "premium.renew_notice", {
             plan: selected === "yearly" ? t("premium.yearly") : t("premium.monthly"),
             price: selectedPkg?.product?.priceString || (selected === "yearly" ? "₩49,000" : "₩6,900"),
           })}
