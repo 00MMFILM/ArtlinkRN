@@ -84,3 +84,22 @@ describe("mergeNotes — 기기 로컬 전용 재연습 체인 보존", () => {
     expect(merged[0].images).toEqual([{ uri: "file:///a.jpg" }]);
   });
 });
+
+describe("mergeNotes — 연습 세션 표식 보존 (다른 기기 수정 후 2회 집계 방지)", () => {
+  it("서버가 더 최신이어도 practiceSessionId와 체크인 type은 로컬 값을 유지한다", () => {
+    const local = [{
+      id: 1,
+      title: "local",
+      content: "local",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      practiceSessionId: "sess-1",
+      type: "checkin",
+    }];
+    const merged = mergeNotes(local, [serverRow(1, { title: "server newer", updatedAt: "2026-05-01T00:00:00.000Z" })]);
+
+    expect(merged[0].title).toBe("server newer");
+    expect(merged[0].practiceSessionId).toBe("sess-1");
+    expect(merged[0].type).toBe("checkin");
+  });
+});

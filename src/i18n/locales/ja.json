@@ -583,7 +583,7 @@
     "streak_value": "{{count}}日",
     "streak_sub": "コツコツ記録中！",
     "this_week": "今週",
-    "this_week_value": "{{count}}件",
+    "this_week_value": "{{count}}回",
     "week_compare": "先週比 {{label}}",
     "monthly_activity": "月別活動",
     "field_distribution": "分野別分布",
@@ -595,7 +595,8 @@
     "level": "レベル",
     "level_value": "Lv {{level}}",
     "mileage": "練習マイレージ",
-    "next_level": "次のレベルまで{{n}}"
+    "next_level": "次のレベルまで{{n}}",
+    "duet_count": "二人芝居の練習 {{count}}回"
   },
   "portfolio": {
     "title": "ポートフォリオ",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "記録画面に移動しました",
     "finished": "練習が終わりました",
-    "voice_unavailable": "この端末で音声を再生できません。端末の読み上げ(TTS)設定を確認してください。"
+    "voice_unavailable": "この端末で音声を再生できません。端末の読み上げ(TTS)設定を確認してください。",
+    "record_start": "録音しながら練習",
+    "record_stop": "録音停止",
+    "record_permission": "録音にはマイクの許可が必要です。設定でマイクを許可してください。",
+    "record_failed": "録音を開始できませんでした。しばらくしてからもう一度お試しください。",
+    "record_note_hint": "「{{play}}」の{{role}}役で練習した録音です。",
+    "record_note_hint_voice": "相手役のセリフはアプリの音声で一緒に録音されています。"
   }
 }

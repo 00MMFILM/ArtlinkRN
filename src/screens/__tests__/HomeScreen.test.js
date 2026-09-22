@@ -1,9 +1,9 @@
 import React from "react";
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, fireEvent, act } from "@testing-library/react-native";
 import HomeScreen from "../HomeScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
-import { startPractice, completePractice } from "../../services/practiceService";
+import { startPractice, completePractice, getPracticeLog } from "../../services/practiceService";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
@@ -13,6 +13,7 @@ jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/practiceService", () => ({
   startPractice: jest.fn(() => ({ sessionId: "sess-home", kind: "checkin" })),
   completePractice: jest.fn(),
+  getPracticeLog: jest.fn(() => Promise.resolve([])),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -29,7 +30,7 @@ const buildCtx = (savedNotes, premium = { active: false }) => ({
   showToast: jest.fn(),
 });
 
-const navigation = { navigate: jest.fn(), goBack: jest.fn() };
+const navigation = { navigate: jest.fn(), goBack: jest.fn(), addListener: jest.fn(() => jest.fn()) };
 
 describe("HomeScreen — 0노트 히어로 카드", () => {
   beforeEach(() => jest.clearAllMocks());
@@ -73,6 +74,97 @@ describe("HomeScreen — 빠른 체크인 계측", () => {
       expect.objectContaining({ field: "music", type: "checkin" })
     );
     expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
+  });
+
+  // 체크인 노트에도 세션 id가 실려야 요약·성장 리포트가 연습 기록과 중복 집계하지 않는다
+  it("체크인 노트에 체크인 세션의 practiceSessionId가 실린다", () => {
+    const ctx = buildCtx([]);
+    useApp.mockReturnValue(ctx);
+    const { getByText } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music"));
+    fireEvent.press(getByText("common.save"));
+
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(
+      expect.objectContaining({ practiceSessionId: "sess-home" })
+    );
+  });
+});
+
+// 반복 연습 측정 3단계 — 2인 대사처럼 노트를 안 남기는 연습도 이번 주 요약·연속 기록에 잡혀야 한다
+describe("HomeScreen — 이번 주 요약이 연습 기록(노트 없는 2인 대사 포함)을 센다", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("(a) 노트 없이 2인 대사만 3회 완료하면 이번 주 연습 수가 3이다", async () => {
+    const now = new Date().toISOString();
+    getPracticeLog.mockResolvedValueOnce([
+      { sessionId: "d1", kind: "duet", at: now },
+      { sessionId: "d2", kind: "duet", at: now },
+      { sessionId: "d3", kind: "duet", at: now },
+    ]);
+    useApp.mockReturnValue(buildCtx([]));
+    const { queryByText, findByText } = render(<HomeScreen navigation={navigation} />);
+
+    await findByText("home.weekly_summary"); // 노트 0개라도 연습 기록이 있으면 히어로 대신 요약이 뜬다
+    expect(queryByText("home.hero_title")).toBeNull();
+    expect(queryByText("3")).toBeTruthy();
+  });
+
+  it("(b) 2인 대사 → 같은 세션 id로 노트 저장 = 1회로만 센다(중복 방지)", async () => {
+    const now = new Date().toISOString();
+    getPracticeLog.mockResolvedValueOnce([{ sessionId: "d1", kind: "duet", at: now }]);
+    useApp.mockReturnValue(
+      buildCtx([{ id: "n1", field: "acting", createdAt: now, practiceSessionId: "d1" }])
+    );
+    const { queryByText, findByText } = render(<HomeScreen navigation={navigation} />);
+
+    await findByText("home.weekly_summary");
+    expect(queryByText("1")).toBeTruthy();
+    expect(queryByText("2")).toBeNull();
+  });
+
+  it("(c) 예전 노트 2개(practiceSessionId 없음) + 2인 대사 1회 = 3", async () => {
+    const now = new Date().toISOString();
+    getPracticeLog.mockResolvedValueOnce([{ sessionId: "d1", kind: "duet", at: now }]);
+    useApp.mockReturnValue(
+      buildCtx([
+        { id: "n1", field: "acting", createdAt: now },
+        { id: "n2", field: "acting", createdAt: now },
+      ])
+    );
+    const { queryByText, findByText } = render(<HomeScreen navigation={navigation} />);
+
+    await findByText("home.weekly_summary");
+    expect(queryByText("3")).toBeTruthy();
+  });
+
+  it("(d) 연속 기록이 노트 날짜와 2인 대사 날짜의 합집합으로 계산된다", async () => {
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86400000);
+    getPracticeLog.mockResolvedValueOnce([
+      { sessionId: "d1", kind: "duet", at: yesterday.toISOString() },
+    ]);
+    useApp.mockReturnValue(
+      buildCtx([{ id: "n1", field: "acting", createdAt: today.toISOString() }])
+    );
+    const { queryByText, findByText } = render(<HomeScreen navigation={navigation} />);
+
+    await findByText("home.weekly_summary");
+    // 오늘(노트)+어제(2인 대사)가 이어져 연속 2일
+    expect(queryByText("2")).toBeTruthy();
+  });
+
+  it("포커스로 돌아올 때 연습 기록을 다시 읽는다", async () => {
+    getPracticeLog.mockResolvedValueOnce([]);
+    useApp.mockReturnValue(buildCtx([]));
+    render(<HomeScreen navigation={navigation} />);
+
+    expect(navigation.addListener).toHaveBeenCalledWith("focus", expect.any(Function));
+    const focusHandler = navigation.addListener.mock.calls.find((c) => c[0] === "focus")[1];
+    getPracticeLog.mockResolvedValueOnce([{ sessionId: "d1", kind: "duet", at: new Date().toISOString() }]);
+    await act(async () => { focusHandler(); });
+
+    expect(getPracticeLog).toHaveBeenCalledTimes(2);
   });
 });
 

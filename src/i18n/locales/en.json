@@ -583,7 +583,7 @@
     "streak_value": "{{count}} days",
     "streak_sub": "Keeping up the streak!",
     "this_week": "This week",
-    "this_week_value": "{{count}} notes",
+    "this_week_value": "{{count}} times",
     "week_compare": "{{label}} vs last week",
     "monthly_activity": "Monthly activity",
     "field_distribution": "Field distribution",
@@ -595,7 +595,8 @@
     "level": "Level",
     "level_value": "Lv {{level}}",
     "mileage": "Practice Mileage",
-    "next_level": "{{n}} to next level"
+    "next_level": "{{n}} to next level",
+    "duet_count": "Two-person scene practice ×{{count}}"
   },
   "portfolio": {
     "title": "Portfolio",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "Moved to your notes",
     "finished": "Practice complete",
-    "voice_unavailable": "This device couldn't play the voice. Please check its text-to-speech settings."
+    "voice_unavailable": "This device couldn't play the voice. Please check its text-to-speech settings.",
+    "record_start": "Record while practicing",
+    "record_stop": "Stop recording",
+    "record_permission": "Microphone access is needed to record. Please allow it in Settings.",
+    "record_failed": "Couldn't start recording. Please try again shortly.",
+    "record_note_hint": "Recording of my practice as {{role}} in \"{{play}}\".",
+    "record_note_hint_voice": "The partner's lines were recorded from the app's voice."
   }
 }

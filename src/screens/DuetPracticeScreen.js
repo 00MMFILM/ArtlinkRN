@@ -17,6 +17,7 @@ import { useApp } from "../context/AppContext";
 import bundledData from "../data/duet-scenes.json";
 import { startPractice, completePractice } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
+import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
 import i18n from "i18next";
 
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
@@ -24,6 +25,34 @@ let Speech = null;
 try { Speech = require("expo-speech"); } catch (e) { Speech = null; }
 let AudioMode = null;
 try { AudioMode = require("expo-av").Audio; } catch (e) { AudioMode = null; }
+const canPlayFile = !!(AudioMode && AudioMode.Sound && AudioMode.Sound.createAsync);
+const canRecord = !!(AudioMode && AudioMode.Recording && AudioMode.Recording.createAsync && AudioMode.requestPermissionsAsync);
+const noop = () => {};
+
+// 성우 음성 파일 — 멈추고 메모리에서 내린다 (실패는 무시)
+const releaseSound = (s) => {
+  Promise.resolve()
+    .then(() => s.stopAsync && s.stopAsync())
+    .catch(noop)
+    .then(() => s.unloadAsync && s.unloadAsync())
+    .catch(noop);
+};
+// 느린 네트워크에서 선로드 안 된 줄(음성 켠 순간·첫 줄·처음부터)이 무한정 무음이 되지 않게 3초 타임아웃 —
+// 넘기면 null(호출부가 TTS로 대체)을 주고, 늦게 도착한 Sound는 못 쓰니 바로 내린다(누수 방지).
+const LOAD_TIMEOUT_MS = 3000;
+const loadSound = (url) => {
+  let timedOut = false;
+  let timer;
+  const createP = AudioMode.Sound.createAsync({ uri: url }, { shouldPlay: false })
+    .then((r) => (r && r.sound) || null)
+    .catch(() => null);
+  createP.then((s) => { if (timedOut && s) releaseSound(s); });
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => { timedOut = true; resolve(null); }, LOAD_TIMEOUT_MS);
+  });
+  return Promise.race([createP.then((s) => { clearTimeout(timer); return s; }), timeout]);
+};
+const mmss = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 
 const REMOTE_URL = "https://actraw.kr/duet-scenes.json";
 
@@ -54,32 +83,180 @@ export default function DuetPracticeScreen({ navigation }) {
   const [rate, setRate] = useState(1.0);
   const canSpeak = !!(Speech && Speech.speak);
 
-  // force: 음성을 막 켠 순간에는 voiceOn 상태가 아직 반영 전이라 직접 넘긴다
-  const speakLine = (text, onDone, force = false) => {
-    if (!canSpeak || !(voiceOn || force)) { onDone && onDone(); return; }
+  // 재생 상태는 전부 ref — 비동기 로드가 끝났을 때 옛 클로저가 아니라 지금 상태를 본다
+  const soundRef = useRef(null);        // 지금 재생 중인 성우 음성
+  const playTokenRef = useRef(0);       // 줄 넘김·음성 끔·이탈마다 +1 → 늦게 도착한 로드는 버린다
+  const preloadRef = useRef(null);      // 다음 상대 대사 선로드 { url, promise } (최대 1개)
+  const voiceUsedRef = useRef(false);   // 지금 보관 중인 녹음이 상대 음성 켜진 채로 진행된 적 있는지 — 노트 안내문 문구에 씀
+  const rateRef = useRef(rate);
+  rateRef.current = rate;
+  const mountedRef = useRef(true);
+  const [voiceReady, setVoiceReady] = useState(false); // manifest 도착 → 선로드 다시 계산
+
+  const discardPreload = () => {
+    const p = preloadRef.current;
+    preloadRef.current = null;
+    if (p) p.promise.then((s) => s && releaseSound(s));
+  };
+
+  const speakTTS = (text, onDone) => {
+    if (!canSpeak) { onDone && onDone(); return; }
     const failed = () => { showToast(t("duet.voice_unavailable"), "error"); onDone && onDone(); };
     try {
       Speech.stop();
       Speech.speak(text.replace(/\([^)]*\)/g, ""), {
-        language: "ko-KR", rate,
+        language: "ko-KR", rate: rateRef.current,
         onDone: () => onDone && onDone(),
         onError: failed,
       });
     } catch (e) { failed(); }
   };
+
+  // 성우 음성 파일 재생 — 로드·재생이 실패하면 조용히 기기 TTS로 대체
+  const playFile = (url, text, onDone) => {
+    stopSpeak();
+    const token = playTokenRef.current;
+    const pre = preloadRef.current;
+    let p;
+    if (pre && pre.url === url) { preloadRef.current = null; p = pre.promise; } else p = loadSound(url);
+    p.then(async (sound) => {
+      if (!sound) throw new Error("load");
+      if (token !== playTokenRef.current) { releaseSound(sound); return; }
+      soundRef.current = sound;
+      try {
+        await sound.setRateAsync(rateRef.current, true); // 피치 보정
+        if (token !== playTokenRef.current) return; // 그 사이 멈춤 — stopSpeak가 이미 내렸다
+        if (sound.setOnPlaybackStatusUpdate) {
+          sound.setOnPlaybackStatusUpdate((st) => {
+            if (!st || !st.didJustFinish) return;
+            if (soundRef.current === sound) { soundRef.current = null; releaseSound(sound); }
+            onDone && onDone();
+          });
+        }
+        await sound.playAsync();
+      } catch (e) {
+        if (soundRef.current === sound) { soundRef.current = null; releaseSound(sound); }
+        throw e;
+      }
+    }).catch(() => { if (token === playTokenRef.current) speakTTS(text, onDone); });
+  };
+
+  // force: 음성을 막 켠 순간에는 voiceOn 상태가 아직 반영 전이라 직접 넘긴다
+  const speakLine = (text, onDone, force = false, url = null) => {
+    if (!(voiceOn || force)) { onDone && onDone(); return; }
+    if (url && canPlayFile) { playFile(url, text, onDone); return; }
+    speakTTS(text, onDone);
+  };
   // 상대 대사면 읽는다 — "다음"으로 넘어갈 때뿐 아니라 첫 줄·음성을 켠 순간에도
   const speakIfPartner = (n, role, force = false) => {
     const L = lines[n];
-    if (L && L.r !== role) speakLine(L.t, null, force);
+    if (L && L.r !== role) speakLine(L.t, null, force, voiceUrlFor(scene?.id, n, L.t));
   };
   const toggleVoice = () => {
     if (voiceOn) { stopSpeak(); setVoiceOn(false); return; }
     setVoiceOn(true);
-    // 아이폰 무음 스위치가 켜져 있어도 들리게 (기본은 무음 모드에서 소리가 안 난다)
-    try { AudioMode?.setAudioModeAsync?.({ playsInSilentModeIOS: true })?.catch?.(() => {}); } catch (e) {}
+    // 아이폰 무음 스위치가 켜져 있어도 들리게 (기본은 무음 모드에서 소리가 안 난다).
+    // 녹음 중이면 녹음 허용을 유지해야 한다 — 빠진 값은 기본값(false)으로 덮여 녹음이 끊긴다
+    const audioMode = recordingRef.current
+      ? { allowsRecordingIOS: true, playsInSilentModeIOS: true }
+      : { playsInSilentModeIOS: true };
+    try { AudioMode?.setAudioModeAsync?.(audioMode)?.catch?.(() => {}); } catch (e) {}
     speakIfPartner(idx, myRole, true);
   };
-  const stopSpeak = () => { try { canSpeak && Speech.stop(); } catch (e) {} };
+  // ref만 쓴다 — 언마운트 cleanup(첫 렌더 클로저)에서 불러도 안전
+  const stopSpeak = () => {
+    playTokenRef.current += 1;
+    const s = soundRef.current;
+    soundRef.current = null;
+    if (s) releaseSound(s);
+    try { canSpeak && Speech.stop(); } catch (e) {}
+  };
+
+  // ---- 연습하면서 녹음 ----
+  const recordingRef = useRef(null);
+  const recordingsRef = useRef([]); // 보관한 녹음 [{ uri, duration(초) }]
+  const recStartRef = useRef(0);
+  const recTimerRef = useRef(null);
+  const recBusyRef = useRef(false);
+  const [recording, setRecording] = useState(false);
+  const [recElapsed, setRecElapsed] = useState(0);
+
+  // 녹음 중에 상대 음성이 켜져 있던 적이 한 번이라도 있으면 표시 — 순서(먼저 켬/녹음 중 켬) 상관없이 잡는다
+  useEffect(() => {
+    if (recording && voiceOn) voiceUsedRef.current = true;
+  }, [recording, voiceOn]);
+
+  const startRecording = async () => {
+    if (!canRecord || recBusyRef.current || recordingRef.current) return;
+    recBusyRef.current = true;
+    try {
+      const perm = await AudioMode.requestPermissionsAsync();
+      if (!perm || !perm.granted) { showToast(t("duet.record_permission"), "error"); return; }
+      await AudioMode.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording: rec } = await AudioMode.Recording.createAsync(AudioMode.RecordingOptionsPresets.HIGH_QUALITY);
+      if (!mountedRef.current) { // 준비 중 화면을 나갔다 — 바로 버린다
+        rec.stopAndUnloadAsync().catch(noop);
+        AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(noop);
+        return;
+      }
+      recordingRef.current = rec;
+      recStartRef.current = Date.now();
+      setRecElapsed(0);
+      setRecording(true);
+      recTimerRef.current = setInterval(() => {
+        setRecElapsed(Math.floor((Date.now() - recStartRef.current) / 1000));
+      }, 1000);
+    } catch (e) {
+      showToast(t("duet.record_failed"), "error");
+      try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e2) {}
+    } finally {
+      recBusyRef.current = false;
+    }
+  };
+
+  // keep=false면 멈추고 파일을 보관하지 않는다 (화면 이탈·씬 변경)
+  // 멈추는 중에 또 불리면(토글 연타·기록 버튼) 같은 작업을 기다린다
+  const stoppingRef = useRef(null);
+  const stopRecording = (keep = true) => {
+    if (stoppingRef.current) return stoppingRef.current;
+    const rec = recordingRef.current;
+    if (!rec) return Promise.resolve();
+    const elapsed = Math.round((Date.now() - recStartRef.current) / 1000);
+    stoppingRef.current = (async () => {
+      try {
+        const st = await rec.stopAndUnloadAsync();
+        const uri = rec.getURI && rec.getURI();
+        const duration = st && st.durationMillis ? Math.round(st.durationMillis / 1000) : elapsed;
+        if (keep && uri) recordingsRef.current = [...recordingsRef.current, { uri, duration }];
+      } catch (e) {
+        // 멈춤 실패 — 파일은 못 쓴다
+      } finally {
+        recordingRef.current = null;
+        stoppingRef.current = null;
+        clearInterval(recTimerRef.current);
+        recTimerRef.current = null;
+        if (mountedRef.current) setRecording(false);
+        try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e) {}
+      }
+    })();
+    return stoppingRef.current;
+  };
+  const discardRecordings = () => {
+    recordingsRef.current = [];
+    voiceUsedRef.current = false;
+    stopRecording(false).then(() => { recordingsRef.current = []; });
+  };
+
+  const recordChip = () => (canRecord ? (
+    <TouchableOpacity
+      style={[styles.chip, recording && styles.chipOn]}
+      onPress={() => (recording ? stopRecording(true) : startRecording())}
+    >
+      <Text style={[T.smallBold, { color: recording ? CLight.white : CLight.gray700 }]}>
+        {recording ? `⏹ ${t("duet.record_stop")} ${mmss(recElapsed)}` : `🎙 ${t("duet.record_start")}`}
+      </Text>
+    </TouchableOpacity>
+  ) : null);
 
   // 원격 갱신 — 실패하거나 데이터가 이상하면 번들 데이터로 동작
   useEffect(() => {
@@ -90,6 +267,8 @@ export default function DuetPracticeScreen({ navigation }) {
         if (alive && j && j.version >= bundledData.version && isValidRemoteData(j)) setData(j);
       })
       .catch(() => {});
+    // 성우 음성 목록 — 실패해도 TTS로 동작, 다음 화면 진입 때 다시 받는다
+    loadVoiceManifest().then((m) => { if (alive && m) setVoiceReady(true); });
     return () => { alive = false; };
   }, []);
 
@@ -123,15 +302,32 @@ export default function DuetPracticeScreen({ navigation }) {
     setNoteSent(true);
     finishPractice(); // 연습은 여기서 끝났다 — 노트를 취소해도 완료가 남는다. 같은 sessionId의 재완료는 practiceService가 1회로 막는다
     trackFunnelEvent("duet_to_note", i18n?.language);
-    navigation.navigate("NoteCreate", {
-      prefill: {
-        title: `${scene.play} 2인 대사`,
-        field: "acting",
-        seriesName: scene.play,
-        sceneId: scene.id,
-        sessionId: practiceRef.current?.sessionId,
-      },
-    });
+    const s = scene;
+    const roleName = s.roles[myRole]?.name;
+    const prefill = {
+      title: `${s.play} 2인 대사`,
+      field: "acting",
+      seriesName: s.play,
+      sceneId: s.id,
+      sessionId: practiceRef.current?.sessionId,
+    };
+    const go = () => {
+      const recs = recordingsRef.current;
+      if (recs.length > 0) {
+        prefill.voiceRecordings = recs;
+        // AI가 상대역(앱 음성)을 사용자 연기로 착각하지 않게 — 실제로 음성이 켜져 있던 적 있을 때만 그 문장을 붙인다
+        let hint = t("duet.record_note_hint", { play: s.play, role: roleName });
+        if (voiceUsedRef.current) hint += ` ${t("duet.record_note_hint_voice")}`;
+        prefill.content = hint;
+        recordingsRef.current = [];
+        voiceUsedRef.current = false;
+      }
+      // 녹음 중지가 끝나기 전에 화면을 나갔으면(mountedRef=false) 이미 떠난 화면에서 이동하지 않는다
+      if (!mountedRef.current) return;
+      navigation.navigate("NoteCreate", { prefill });
+    };
+    // 녹음 중이면 먼저 멈추고 파일을 받아서 넘긴다
+    if (recordingRef.current || stoppingRef.current) stopRecording(true).then(go); else go();
   };
 
   // 대본 모드 "연습 끝" — 완료만 되고 화면상 아무 반응이 없던 버그. 토스트 + 뒤로가기로 마무리를 보여준다.
@@ -141,7 +337,11 @@ export default function DuetPracticeScreen({ navigation }) {
     navigation.goBack();
   };
 
-  const openScene = (s) => { setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
+  const openScene = (s) => { stopSpeak(); discardRecordings(); setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
+  // 모드에서 나가기(설정으로) — 소리는 멈추고, 녹음은 멈춰서 보관한다(같은 씬)
+  const leaveMode = () => { stopSpeak(); stopRecording(true); setMode(null); };
+  // 씬 목록으로 — 다른 씬의 녹음이 섞이지 않게 버린다
+  const leaveScene = () => { stopSpeak(); discardRecordings(); setScene(null); };
   const advance = (d) => {
     stopSpeak();
     const n = Math.min(Math.max(idx + d, 0), lines.length - 1);
@@ -150,7 +350,28 @@ export default function DuetPracticeScreen({ navigation }) {
     if (d > 0 && n === lines.length - 1) finishPractice();
   };
 
-  useEffect(() => stopSpeak, []); // 화면 이탈 시 음성 정지
+  // 다음 상대 대사 파일 선로드 (최대 1개) — 큐 모드·음성 켬일 때만, 아니면 내린다
+  useEffect(() => {
+    if (!(mode === "cue" && voiceOn && canPlayFile && scene)) { discardPreload(); return; }
+    let m = idx + 1;
+    while (m < lines.length && lines[m].r === myRole) m++;
+    const L = lines[m];
+    const url = L ? voiceUrlFor(scene.id, m, L.t) : null;
+    if (preloadRef.current && preloadRef.current.url === url) return;
+    discardPreload();
+    if (url) preloadRef.current = { url, promise: loadSound(url) };
+  }, [mode, voiceOn, scene, idx, myRole, voiceReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 화면 이탈 — 음성 정지·선로드 해제, 녹음은 멈추고 버린다 (전부 ref 기반이라 첫 렌더 클로저로 안전)
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopSpeak();
+      discardPreload();
+      discardRecordings();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- 헤더 ----
   const Header = ({ title, onBack }) => (
@@ -196,7 +417,7 @@ export default function DuetPracticeScreen({ navigation }) {
   if (!mode) {
     return (
       <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-        <Header title={scene.play} onBack={() => setScene(null)} />
+        <Header title={scene.play} onBack={leaveScene} />
         <ScrollView contentContainerStyle={styles.listContent}>
           <View style={styles.setupCard}>
             <Text style={[T.smallBold, { color: CLight.gray500, marginBottom: 8 }]}>내 배역</Text>
@@ -241,7 +462,7 @@ export default function DuetPracticeScreen({ navigation }) {
     const prev = idx > 0 ? lines[idx - 1] : null;
     return (
       <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-        <Header title={`${scene.play} · ${scene.roles[myRole].name} 역`} onBack={() => setMode(null)} />
+        <Header title={`${scene.play} · ${scene.roles[myRole].name} 역`} onBack={leaveMode} />
         <View testID="duet-cue-stage" style={[styles.stageWrap, { paddingBottom: 20 + insets.bottom }]}>
           <Text style={[T.micro, { color: CLight.gray400, letterSpacing: 1 }]}>
             {idx + 1} / {lines.length}
@@ -270,13 +491,20 @@ export default function DuetPracticeScreen({ navigation }) {
               <Text style={[T.small, { color: CLight.gray500, marginTop: 10, fontStyle: "italic" }]}>({line.d})</Text>
             ) : null}
           </ScrollView>
-          {canSpeak ? (
+          {canSpeak || canRecord ? (
             <View style={[styles.chipRow, { paddingTop: 8 }]}>
-              <TouchableOpacity style={[styles.chip, voiceOn && styles.chipOn]} onPress={toggleVoice}>
-                <Text style={[T.smallBold, { color: voiceOn ? CLight.white : CLight.gray700 }]}>🔊 상대 대사 음성</Text>
-              </TouchableOpacity>
-              {voiceOn ? [0.8, 1.0, 1.2].map((r) => (
-                <TouchableOpacity key={r} style={[styles.chip, rate === r && styles.chipOn]} onPress={() => setRate(r)}>
+              {canSpeak ? (
+                <TouchableOpacity style={[styles.chip, voiceOn && styles.chipOn]} onPress={toggleVoice}>
+                  <Text style={[T.smallBold, { color: voiceOn ? CLight.white : CLight.gray700 }]}>🔊 상대 대사 음성</Text>
+                </TouchableOpacity>
+              ) : null}
+              {recordChip()}
+              {canSpeak && voiceOn ? [0.8, 1.0, 1.2].map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.chip, rate === r && styles.chipOn]}
+                  onPress={() => { setRate(r); soundRef.current?.setRateAsync?.(r, true)?.catch?.(noop); }}
+                >
                   <Text style={[T.smallBold, { color: rate === r ? CLight.white : CLight.gray700 }]}>{r}x</Text>
                 </TouchableOpacity>
               )) : null}
@@ -310,7 +538,7 @@ export default function DuetPracticeScreen({ navigation }) {
   // ================= 대본 보기 모드 =================
   return (
     <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-      <Header title={`${scene.play} · 대본`} onBack={() => setMode(null)} />
+      <Header title={`${scene.play} · 대본`} onBack={leaveMode} />
       <View style={styles.scriptTools}>
         <TouchableOpacity
           style={[styles.chip, hideMine && styles.chipOn]}
@@ -320,6 +548,7 @@ export default function DuetPracticeScreen({ navigation }) {
             내 대사 가리기 ({scene.roles[myRole].name})
           </Text>
         </TouchableOpacity>
+        {recordChip()}
       </View>
       <ScrollView
         contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
@@ -400,7 +629,7 @@ const styles = StyleSheet.create({
     backgroundColor: CLight.gray100,
   },
   ctlMain: { flex: 1.6, backgroundColor: CLight.pink },
-  scriptTools: { paddingHorizontal: 16, paddingTop: 12, flexDirection: "row" },
+  scriptTools: { paddingHorizontal: 16, paddingTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 8 },
   lineRow: {
     backgroundColor: CLight.surface, borderRadius: 12, padding: 13, marginBottom: 8,
   },

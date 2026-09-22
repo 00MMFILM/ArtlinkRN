@@ -583,7 +583,7 @@
     "streak_value": "{{count}}일",
     "streak_sub": "꾸준히 기록 중!",
     "this_week": "이번 주",
-    "this_week_value": "{{count}}개",
+    "this_week_value": "{{count}}회",
     "week_compare": "지난 주 대비 {{label}}",
     "monthly_activity": "월별 활동",
     "field_distribution": "분야별 분포",
@@ -595,7 +595,8 @@
     "level": "레벨",
     "level_value": "Lv {{level}}",
     "mileage": "연습 마일리지",
-    "next_level": "다음 레벨까지 {{n}}"
+    "next_level": "다음 레벨까지 {{n}}",
+    "duet_count": "2인 대사 연습 {{count}}회"
   },
   "portfolio": {
     "title": "포트폴리오",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "기록 화면으로 이동했어요",
     "finished": "연습을 마쳤어요",
-    "voice_unavailable": "이 기기에서 음성을 재생할 수 없어요. 기기의 음성 읽기(TTS) 설정을 확인해 주세요."
+    "voice_unavailable": "이 기기에서 음성을 재생할 수 없어요. 기기의 음성 읽기(TTS) 설정을 확인해 주세요.",
+    "record_start": "녹음하며 연습",
+    "record_stop": "녹음 중지",
+    "record_permission": "녹음하려면 마이크 권한이 필요해요. 설정에서 마이크를 허용해 주세요.",
+    "record_failed": "녹음을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    "record_note_hint": "「{{play}}」 {{role}} 역으로 연습한 녹음이에요.",
+    "record_note_hint_voice": "상대역 대사는 앱 음성으로 함께 녹음됐어요."
   }
 }

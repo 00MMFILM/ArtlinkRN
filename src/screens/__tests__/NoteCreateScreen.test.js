@@ -63,6 +63,7 @@ jest.mock("expo-av", () => ({
 jest.mock("expo-video-thumbnails", () => ({ getThumbnailAsync: jest.fn() }));
 jest.mock("expo-file-system/legacy", () => ({
   documentDirectory: "file:///doc/",
+  cacheDirectory: "file:///cache/",
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 1024 })),
   makeDirectoryAsync: jest.fn(async () => {}),
   copyAsync: jest.fn(async () => {}),
@@ -372,6 +373,8 @@ describe("NoteCreateScreen — 연습 세션", () => {
     expect(overrides.subjectKey).toBe(1757740000000);
     expect(overrides.kind).toBe("text");
     expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
+    // 저장되는 노트에 세션 id가 실려야 홈/성장 리포트가 연습 기록과 중복 집계하지 않는다
+    expect(ctx.handleSaveNote.mock.calls[0][0].practiceSessionId).toBe("sess-new");
   });
 
   it("(b) 영상이 붙어 있으면 완료 종류가 video", async () => {
@@ -420,6 +423,8 @@ describe("NoteCreateScreen — 연습 세션", () => {
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
     fireEvent.press(utils.getByText("common.save"));
     expect(completePractice.mock.calls[0][0].sessionId).toBe("sess-kept");
+    // 2인 대사에서 넘어온 세션의 sessionId도 노트에 그대로 실린다
+    expect(ctx.handleSaveNote.mock.calls[0][0].practiceSessionId).toBe("sess-kept");
   });
 
   it("(e) 가입 왕복으로 보관되는 초안에 sessionId가 들어간다", async () => {
@@ -939,5 +944,51 @@ describe("항목16 — 프리미엄에게는 광고를 띄우지 않는다", () 
     await act(async () => { fireEvent.press(utils.getByText("noteCreate.video_ai_analyze")); });
 
     expect(showRewardedAd).toHaveBeenCalled();
+  });
+});
+
+describe("녹음 파일 캐시 → 문서 폴더 보존 (OS 캐시 정리로 녹음 유실 방지)", () => {
+  const FileSystem = require("expo-file-system/legacy");
+  beforeEach(() => { jest.clearAllMocks(); });
+  const cacheRec = { params: { prefill: { title: "햄릿 2인 대사", voiceRecordings: [
+    { uri: "file:///cache/Audio/recording-1.m4a", duration: 5 },
+    { uri: "file:///doc/media/kept.m4a", duration: 3 },
+  ] } } };
+
+  it("캐시 uri 녹음은 저장 시 document/media로 복사되고 노트엔 새 uri가 저장된다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 1);
+    useApp.mockReturnValue(ctx);
+    FileSystem.getInfoAsync.mockResolvedValueOnce({ exists: false });
+    const utils = render(<NoteCreateScreen navigation={navigation} route={cacheRec} />);
+
+    fireEvent.press(utils.getByText("common.save"));
+    await waitFor(() => expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1));
+
+    expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith("file:///doc/media/", { intermediates: true });
+    expect(FileSystem.copyAsync).toHaveBeenCalledTimes(1); // 이미 문서 폴더인 녹음은 복사하지 않는다
+    const { from, to } = FileSystem.copyAsync.mock.calls[0][0];
+    expect(from).toBe("file:///cache/Audio/recording-1.m4a");
+    expect(to.startsWith("file:///doc/media/")).toBe(true);
+    expect(to.endsWith(".m4a")).toBe(true);
+    const recs = ctx.handleSaveNote.mock.calls[0][0].voiceRecordings;
+    expect(recs).toEqual([{ uri: to, duration: 5 }, { uri: "file:///doc/media/kept.m4a", duration: 3 }]);
+  });
+
+  it("복사에 실패해도 원래 uri로 저장은 계속된다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 1);
+    useApp.mockReturnValue(ctx);
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    FileSystem.copyAsync.mockRejectedValueOnce(new Error("disk full"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={cacheRec} />);
+
+    fireEvent.press(utils.getByText("common.save"));
+    await waitFor(() => expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1));
+
+    expect(ctx.handleSaveNote.mock.calls[0][0].voiceRecordings[0].uri).toBe("file:///cache/Audio/recording-1.m4a");
+    expect(warn).toHaveBeenCalled();
+    expect(navigation.goBack).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

@@ -583,7 +583,7 @@
     "streak_value": "{{count}} ngày",
     "streak_sub": "Đang ghi chép đều đặn!",
     "this_week": "Tuần này",
-    "this_week_value": "{{count}} mục",
+    "this_week_value": "{{count}} lần",
     "week_compare": "{{label}} so với tuần trước",
     "monthly_activity": "Hoạt động theo tháng",
     "field_distribution": "Phân bố theo lĩnh vực",
@@ -595,7 +595,8 @@
     "level": "Cấp độ",
     "level_value": "Lv {{level}}",
     "mileage": "Điểm luyện tập",
-    "next_level": "Còn {{n}} để lên cấp tiếp theo"
+    "next_level": "Còn {{n}} để lên cấp tiếp theo",
+    "duet_count": "Tập thoại hai người {{count}} lần"
   },
   "portfolio": {
     "title": "Danh mục đầu tư",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "Đã chuyển đến màn hình ghi chú",
     "finished": "Đã hoàn thành buổi luyện tập",
-    "voice_unavailable": "Thiết bị này không phát được giọng đọc. Vui lòng kiểm tra cài đặt chuyển văn bản thành giọng nói (TTS)."
+    "voice_unavailable": "Thiết bị này không phát được giọng đọc. Vui lòng kiểm tra cài đặt chuyển văn bản thành giọng nói (TTS).",
+    "record_start": "Vừa luyện vừa ghi âm",
+    "record_stop": "Dừng ghi âm",
+    "record_permission": "Cần quyền micro để ghi âm. Vui lòng cho phép trong Cài đặt.",
+    "record_failed": "Không thể bắt đầu ghi âm. Vui lòng thử lại sau.",
+    "record_note_hint": "Bản ghi âm khi tôi luyện vai {{role}} trong \"{{play}}\".",
+    "record_note_hint_voice": "Lời thoại của bạn diễn là giọng của ứng dụng được ghi cùng."
   }
 }

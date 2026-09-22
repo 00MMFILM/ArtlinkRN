@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-av/ios/EXAV/EXAV.m b/node_modules/expo-av/ios/EXAV/EXAV.m
+index 7153d28..177d5c4 100644
+--- a/node_modules/expo-av/ios/EXAV/EXAV.m
++++ b/node_modules/expo-av/ios/EXAV/EXAV.m
+@@ -326,6 +326,8 @@ - (NSError *)_updateAudioSessionCategoryForAudioSessionMode:(EXAVAudioSessionMod
+   if (_allowsAudioRecording) {
+     // Bluetooth input is only available when recording is allowed
+     requiredAudioCategoryOptions = requiredAudioCategoryOptions | AVAudioSessionCategoryOptionAllowBluetooth;
++    // ArtLink: PlayAndRecord는 기본 출력이 수화기라, 녹음하며 재생하면 소리가 귀 스피커로 작게 나온다 — 하단 스피커로
++    requiredAudioCategoryOptions = requiredAudioCategoryOptions | AVAudioSessionCategoryOptionDefaultToSpeaker;
+   }
+   
+   return [_kernelAudioSessionManagerDelegate setCategory:requiredAudioCategory withOptions:requiredAudioCategoryOptions forModule:self];

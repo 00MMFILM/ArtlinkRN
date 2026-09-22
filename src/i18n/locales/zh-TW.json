@@ -583,7 +583,7 @@
     "streak_value": "{{count}} 天",
     "streak_sub": "持續記錄中！",
     "this_week": "本週",
-    "this_week_value": "{{count}} 篇",
+    "this_week_value": "{{count}} 次",
     "week_compare": "與上週相比 {{label}}",
     "monthly_activity": "每月活動",
     "field_distribution": "領域分布",
@@ -595,7 +595,8 @@
     "level": "等級",
     "level_value": "Lv {{level}}",
     "mileage": "練習積分",
-    "next_level": "距下一等級還需{{n}}"
+    "next_level": "距下一等級還需{{n}}",
+    "duet_count": "雙人對白練習 {{count}} 次"
   },
   "portfolio": {
     "title": "作品集",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "已跳轉至記錄畫面",
     "finished": "練習已完成",
-    "voice_unavailable": "此裝置無法播放語音，請檢查裝置的文字轉語音(TTS)設定。"
+    "voice_unavailable": "此裝置無法播放語音，請檢查裝置的文字轉語音(TTS)設定。",
+    "record_start": "邊錄音邊練習",
+    "record_stop": "停止錄音",
+    "record_permission": "錄音需要麥克風權限，請在設定中允許麥克風。",
+    "record_failed": "無法開始錄音，請稍後再試。",
+    "record_note_hint": "這是我以「{{play}}」中{{role}}一角練習的錄音。",
+    "record_note_hint_voice": "對手的台詞是由應用程式語音一起錄進去的。"
   }
 }

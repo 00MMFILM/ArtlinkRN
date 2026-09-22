@@ -6,6 +6,8 @@ import {
   completePractice,
   aiFeedbackDone,
   flushPracticeQueue,
+  getPracticeLog,
+  PRACTICE_LOG_KEY,
 } from "../practiceService";
 
 jest.mock("@react-native-async-storage/async-storage", () => {
@@ -320,5 +322,38 @@ describe("practiceService — flush", () => {
     await first;
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(queue()).toHaveLength(0);
+  });
+});
+
+describe("practiceService — 기기 로컬 연습 기록", () => {
+  beforeEach(() => {
+    Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
+    global.fetch = offline();
+  });
+
+  it("완료한 세션만 한 번씩 남고, 내용은 남기지 않는다", async () => {
+    const duet = startPractice("duet", "hamlet-1", "acting");
+    const opened = startPractice("text", null, "acting"); // 시작만 하고 끝내지 않은 연습
+    await settle();
+    completePractice(duet);
+    completePractice(duet); // 중복 완료
+    await settle();
+    const log = await getPracticeLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]).toEqual(expect.objectContaining({ sessionId: duet.sessionId, kind: "duet", field: "acting" }));
+    expect(Object.keys(log[0]).sort()).toEqual(["at", "field", "kind", "sessionId"]);
+    expect(log.some((e) => e.sessionId === opened.sessionId)).toBe(false);
+  });
+
+  it("완료 직후 바로 읽어도 방금 연습이 들어 있다 (홈으로 즉시 돌아가는 경우)", async () => {
+    const duet = startPractice("duet", "hamlet-1", "acting");
+    completePractice(duet); // 기다리지 않고
+    const log = await getPracticeLog(); // 곧바로 읽는다
+    expect(log.map((e) => e.sessionId)).toContain(duet.sessionId);
+  });
+
+  it("저장소가 깨져 있으면 빈 배열", async () => {
+    AsyncStorage.__store[PRACTICE_LOG_KEY] = "{broken";
+    await expect(getPracticeLog()).resolves.toEqual([]);
   });
 });

@@ -583,7 +583,7 @@
     "streak_value": "{{count}} días",
     "streak_sub": "¡Sigue registrando con constancia!",
     "this_week": "Esta semana",
-    "this_week_value": "{{count}} entradas",
+    "this_week_value": "{{count}} veces",
     "week_compare": "{{label}} respecto a la semana pasada",
     "monthly_activity": "Actividad mensual",
     "field_distribution": "Distribución por disciplina",
@@ -595,7 +595,8 @@
     "level": "Nivel",
     "level_value": "Lv {{level}}",
     "mileage": "Puntos de práctica",
-    "next_level": "{{n}} para el siguiente nivel"
+    "next_level": "{{n}} para el siguiente nivel",
+    "duet_count": "Práctica de diálogo a dos ×{{count}}"
   },
   "portfolio": {
     "title": "Portafolio",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "Se abrió la pantalla de notas",
     "finished": "Práctica terminada",
-    "voice_unavailable": "Este dispositivo no pudo reproducir la voz. Revisa los ajustes de texto a voz (TTS)."
+    "voice_unavailable": "Este dispositivo no pudo reproducir la voz. Revisa los ajustes de texto a voz (TTS).",
+    "record_start": "Grabar mientras practico",
+    "record_stop": "Detener grabación",
+    "record_permission": "Se necesita acceso al micrófono para grabar. Permítelo en Ajustes.",
+    "record_failed": "No se pudo iniciar la grabación. Inténtalo de nuevo en un momento.",
+    "record_note_hint": "Grabación de mi práctica como {{role}} en «{{play}}».",
+    "record_note_hint_voice": "Las líneas del otro personaje son la voz de la app, grabada a la vez."
   }
 }

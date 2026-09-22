@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from "react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { trackFunnelEvent } from "../services/mauService";
-import { startPractice, completePractice } from "../services/practiceService";
+import { startPractice, completePractice, getPracticeLog } from "../services/practiceService";
+import { buildPracticeActivities } from "../utils/practiceStats";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
 import PremiumBadge from "../components/PremiumBadge";
@@ -66,10 +67,32 @@ export default function HomeScreen({ navigation }) {
   const [expandedField, setExpandedField] = useState(null);
   const [checkinMemo, setCheckinMemo] = useState("");
 
+  // ---- 연습 기록(2인 대사 등, 노트를 안 남기는 연습) ----
+  // 노트 저장만 세면 2인 대사 연습이 대시보드에 안 잡힌다 — 기기 기록을 합쳐서 쓴다.
+  // 화면 포커스마다 다시 읽어서, 2인 대사를 마치고 홈으로 돌아오면 바로 반영되게 한다.
+  const [practiceLog, setPracticeLog] = useState([]);
+  useEffect(() => {
+    const loadPracticeLog = () => {
+      getPracticeLog().then(setPracticeLog).catch(() => {});
+    };
+    loadPracticeLog();
+    const unsub = navigation.addListener("focus", loadPracticeLog);
+    return unsub;
+  }, [navigation]);
+
+  // 노트 + 연습 기록을 합친 "연습 활동" 목록 — 같은 세션(practiceSessionId)의 노트가 있으면
+  // 연습 기록 쪽은 중복이라 뺀다(2인 대사 → 노트 저장은 1회로).
+  const practiceActivities = useMemo(
+    () => buildPracticeActivities(savedNotes, practiceLog),
+    [savedNotes, practiceLog]
+  );
+
   // ---- Computed data ----
   const recentNotes = useMemo(() => savedNotes.slice(0, 5), [savedNotes]);
-  // 노트가 하나도 없으면 빈 통계 대신 핵심 가치(AI 피드백)를 먼저 보여준다
+  // 최근 노트 섹션은 실제 저장된 노트 기준 그대로 유지
   const hasNotes = savedNotes.length > 0;
+  // 요약 카드 표시 여부는 연습 활동(노트 없이 끝낸 2인 대사 포함) 기준 — 2인 대사만 한 사용자도 요약이 보여야 한다
+  const hasPracticeActivity = practiceActivities.length > 0;
 
   const weeklySummary = useMemo(() => {
     const now = new Date();
@@ -80,19 +103,19 @@ export default function HomeScreen({ navigation }) {
     const prevWeekStart = new Date(weekStart);
     prevWeekStart.setDate(prevWeekStart.getDate() - 7);
 
-    const thisWeekNotes = savedNotes.filter(
+    const thisWeekActivities = practiceActivities.filter(
       (n) => new Date(n.createdAt) >= weekStart
     );
-    const prevWeekNotes = savedNotes.filter(
+    const prevWeekActivities = practiceActivities.filter(
       (n) => new Date(n.createdAt) >= prevWeekStart && new Date(n.createdAt) < weekStart
     );
 
-    const thisCount = thisWeekNotes.length;
-    const prevCount = prevWeekNotes.length;
+    const thisCount = thisWeekActivities.length;
+    const prevCount = prevWeekActivities.length;
     const weekGrowth =
       prevCount > 0 ? Math.round(((thisCount - prevCount) / prevCount) * 100) : thisCount > 0 ? 100 : 0;
 
-    // Calculate streak (consecutive days with notes, counting back from today)
+    // Calculate streak (consecutive days with practice activity, counting back from today)
     let streak = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -100,8 +123,8 @@ export default function HomeScreen({ navigation }) {
       const day = new Date(today);
       day.setDate(day.getDate() - i);
       const dayStr = toLocalDateKey(day);
-      const hasNote = savedNotes.some((n) => n.createdAt && toLocalDateKey(n.createdAt) === dayStr);
-      if (hasNote) {
+      const hasActivity = practiceActivities.some((n) => n.createdAt && toLocalDateKey(n.createdAt) === dayStr);
+      if (hasActivity) {
         streak++;
       } else if (i > 0) {
         break;
@@ -109,7 +132,7 @@ export default function HomeScreen({ navigation }) {
     }
 
     return { count: thisCount, streak, weekGrowth };
-  }, [savedNotes]);
+  }, [practiceActivities]);
 
   // ---- Greeting based on time ----
   const greeting = useMemo(() => {
@@ -161,7 +184,13 @@ export default function HomeScreen({ navigation }) {
 
   const handleCheckinSave = useCallback((field) => {
     const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
-    handleSaveNote({ title, field, type: "checkin" });
+    handleSaveNote({
+      title,
+      field,
+      type: "checkin",
+      // 이 체크인이 어느 연습 세션에서 나왔는지 — 연습 기록(getPracticeLog)과 중복 집계 방지
+      practiceSessionId: checkinSessionRef.current?.sessionId,
+    });
     // 홈 체크인도 노트 저장이다 — 계측이 빠져 있어 실사용 저장의 75%가 집계되지 않았다(2026-09-07)
     trackFunnelEvent("note_saved", i18n.language);
     if (checkinSessionRef.current) {
@@ -228,8 +257,8 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ---- Weekly summary (노트 0개면 첫 기록 히어로 카드) ---- */}
-        {!hasNotes ? (
+        {/* ---- Weekly summary (연습 활동이 0이면 첫 기록 히어로 카드) ---- */}
+        {!hasPracticeActivity ? (
           <View style={[styles.summaryCard, { backgroundColor: CLight.surface, alignItems: "center" }]}>
             <Text style={[T.h3, { color: CLight.gray900, textAlign: "center" }]}>
               {t(koFirstRun ? "home.hero_title_ko_acting" : "home.hero_title")}

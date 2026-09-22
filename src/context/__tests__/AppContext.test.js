@@ -12,6 +12,7 @@ jest.mock("../../services/mauService", () => ({ trackAppOpen: jest.fn(), trackFu
 jest.mock("../../services/matchingService", () => ({ createMatchingPost: jest.fn(), deleteMatchingPost: jest.fn() }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://server.test", getApiHeaders: () => ({}), setApiDeviceId: jest.fn(), setDataConsentCache: jest.fn() }));
 jest.mock("../../services/premiumService", () => ({ fetchPremiumStatus: jest.fn(), EMPTY_PREMIUM: {}, shouldApplyServerPremium: jest.fn(), PREMIUM_OPTIMISTIC_MS: 1000 }));
+jest.mock("../../services/practiceService", () => ({ getPracticeLog: jest.fn(async () => []) }));
 jest.mock("../../utils/storage", () => ({ safeStorageGet: jest.fn(), safeStorageSet: jest.fn(), STORAGE_KEYS: {} }));
 
 const { resolveInitialAuthState, GUEST_ENTERED_KEY } = require("../AppContext");

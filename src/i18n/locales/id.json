@@ -583,7 +583,7 @@
     "streak_value": "{{count}} hari",
     "streak_sub": "Terus mencatat dengan konsisten!",
     "this_week": "Minggu Ini",
-    "this_week_value": "{{count}} catatan",
+    "this_week_value": "{{count}} kali",
     "week_compare": "{{label}} dibanding minggu lalu",
     "monthly_activity": "Aktivitas Bulanan",
     "field_distribution": "Distribusi Bidang",
@@ -595,7 +595,8 @@
     "level": "Level",
     "level_value": "Lv {{level}}",
     "mileage": "Poin Latihan",
-    "next_level": "{{n}} lagi ke level berikutnya"
+    "next_level": "{{n}} lagi ke level berikutnya",
+    "duet_count": "Latihan dialog dua orang {{count}} kali"
   },
   "portfolio": {
     "title": "Portofolio",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "Berpindah ke layar catatan",
     "finished": "Latihan selesai",
-    "voice_unavailable": "Perangkat ini tidak dapat memutar suara. Periksa pengaturan text-to-speech (TTS)."
+    "voice_unavailable": "Perangkat ini tidak dapat memutar suara. Periksa pengaturan text-to-speech (TTS).",
+    "record_start": "Latihan sambil merekam",
+    "record_stop": "Berhenti merekam",
+    "record_permission": "Perlu izin mikrofon untuk merekam. Izinkan di Pengaturan.",
+    "record_failed": "Tidak dapat mulai merekam. Coba lagi nanti.",
+    "record_note_hint": "Rekaman latihan saya sebagai {{role}} dalam \"{{play}}\".",
+    "record_note_hint_voice": "Dialog lawan main adalah suara aplikasi yang ikut terekam."
   }
 }

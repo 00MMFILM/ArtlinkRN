@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
+import { getPracticeLog } from "../services/practiceService";
+import {
+  buildPracticeActivities,
+  countActivitiesByKind,
+  computeActivityStreak,
+  computeActivityWeekStats,
+  computeActivityMonthly,
+} from "../utils/practiceStats";
 import {
   CLight,
   T,
@@ -102,7 +110,7 @@ function MonthlyChart({ monthlyActivity }) {
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.toISOString().slice(0, 7);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; // 현지 기준 (UTC로 자르면 한국에서 한 달 밀린다)
       const label = t("growth.month_suffix", { month: d.getMonth() + 1 });
       months.push({ key, label, count: monthlyActivity[key] || 0 });
     }
@@ -233,18 +241,38 @@ export default function GrowthScreen({ navigation }) {
     diversityScore,
     depthScore,
     consistencyScore,
-    monthlyActivity,
     fieldCounts,
     topTags,
-    streak,
-    weekNotes,
-    weekGrowth,
     displayName,
     level,
     mileage,
     nextLevelAt,
     mileageProgress,
   } = artistProfile;
+
+  // 노트만 세던 연습 활동량 지표(연습 횟수·빈도·연속)를 노트+연습 기록(2인 대사 등) 합산으로 바꾼다.
+  // AI 분석 점수·5축 점수(overallScore 등)는 노트 내용이 필요해 그대로 artistProfile 값을 쓴다.
+  // 화면 포커스마다 다시 읽어서 2인 대사를 마치고 돌아오면 바로 반영되게 한다.
+  const [practiceLog, setPracticeLog] = useState([]);
+  useEffect(() => {
+    const load = () => { getPracticeLog().then(setPracticeLog).catch(() => {}); };
+    load();
+    const unsub = navigation?.addListener?.("focus", load);
+    return unsub;
+  }, [navigation]);
+
+  const practiceActivities = useMemo(
+    () => buildPracticeActivities(savedNotes, practiceLog),
+    [savedNotes, practiceLog]
+  );
+
+  const streak = useMemo(() => computeActivityStreak(practiceActivities), [practiceActivities]);
+  const { weekActivities, weekGrowth } = useMemo(
+    () => computeActivityWeekStats(practiceActivities),
+    [practiceActivities]
+  );
+  const monthlyActivity = useMemo(() => computeActivityMonthly(practiceActivities), [practiceActivities]);
+  const duetCount = useMemo(() => countActivitiesByKind(practiceLog, "duet"), [practiceLog]);
 
   const growthLabel =
     weekGrowth > 0
@@ -311,10 +339,17 @@ export default function GrowthScreen({ navigation }) {
           <InfoCard
             icon={"\uD83D\uDCC8"}
             label={t("growth.this_week")}
-            value={t("growth.this_week_value", { count: weekNotes.length })}
+            value={t("growth.this_week_value", { count: weekActivities.length })}
             sub={t("growth.week_compare", { label: growthLabel })}
           />
         </View>
+
+        {/* 2\uC778 \uB300\uC0AC \uC5F0\uC2B5\uC740 \uB178\uD2B8\uB97C \uC548 \uB0A8\uACA8\uB3C4 \uC5EC\uAE30\uC11C \uC7A1\uD78C\uB2E4 */}
+        {duetCount > 0 && (
+          <Text style={[T.small, { color: CLight.gray500, textAlign: "center", marginTop: -6, marginBottom: 14 }]}>
+            {"\uD83C\uDFAD "}{t("growth.duet_count", { count: duetCount })}
+          </Text>
+        )}
 
         {/* ── Monthly Activity ── */}
         <View style={styles.card}>

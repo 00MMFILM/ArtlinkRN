@@ -11,7 +11,10 @@ import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, de
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
 import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
 import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
+import { getPracticeLog } from "../services/practiceService";
+import { applyPracticeActivityStats } from "../utils/practiceStats";
 import { fetchPremiumStatus, EMPTY_PREMIUM, shouldApplyServerPremium, PREMIUM_OPTIMISTIC_MS } from "../services/premiumService";
+import { migrateCachedRecordings } from "../services/recordingMigration";
 
 const AppContext = createContext();
 
@@ -68,9 +71,28 @@ export function AppProvider({ children }) {
   const [premium, setPremium] = useState(EMPTY_PREMIUM);
   const isKoreanLocale = language === "ko";
 
+  // 기기 연습 기록(2인 대사 등 노트 없이 끝낸 연습) — 연속·이번 주·월별을 홈·성장 리포트와 같은
+  // 합산 기준으로 맞추려고 여기 한 곳에서 읽는다. 앱 시작·포그라운드 복귀·노트 변경 때 다시 읽는다.
+  const [practiceLog, setPracticeLog] = useState([]);
+  const reloadPracticeLog = useCallback(() => {
+    getPracticeLog()
+      .then((log) => {
+        // 내용이 같으면 상태를 바꾸지 않는다 — 불필요한 프로필 재계산·서버 재전송 방지
+        setPracticeLog((prev) => (JSON.stringify(prev) === JSON.stringify(log) ? prev : log));
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { reloadPracticeLog(); }, [savedNotes, reloadPracticeLog]);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") reloadPracticeLog();
+    });
+    return () => sub?.remove?.();
+  }, [reloadPracticeLog]);
+
   const artistProfile = useMemo(
-    () => computeArtistProfile(savedNotes, userProfile),
-    [savedNotes, userProfile]
+    () => applyPracticeActivityStats(computeArtistProfile(savedNotes, userProfile), savedNotes, practiceLog),
+    [savedNotes, userProfile, practiceLog]
   );
 
   // B2B 대시보드(서버 계산값)와 앱 화면 표시 점수가 어긋나는 문제 방지용:
@@ -293,6 +315,21 @@ export function AppProvider({ children }) {
         .catch(() => {});
     }
   }, [deviceUserId, userProfile, artistProfile, savedNotes.length]);
+
+  // 1.11.6 이전 녹음(캐시 폴더)을 앱 시작 후 한 번 문서 폴더로 옮긴다 — 캐시가 비워지면 녹음이 사라지던 문제
+  const recordingsMigratedRef = useRef(false);
+  useEffect(() => {
+    if (!storageReady || recordingsMigratedRef.current) return;
+    recordingsMigratedRef.current = true;
+    migrateCachedRecordings(savedNotes)
+      .then((next) => {
+        if (!next) return;
+        const byId = new Map(next.map((n) => [n.id, n.voiceRecordings]));
+        // 이관하는 사이 사용자가 노트를 고쳤을 수 있으니 녹음 필드만 바꿔 끼운다
+        setSavedNotes((prev) => prev.map((n) => (byId.has(n.id) && n.voiceRecordings ? { ...n, voiceRecordings: byId.get(n.id) } : n)));
+      })
+      .catch(() => {});
+  }, [storageReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist notes
   useEffect(() => {

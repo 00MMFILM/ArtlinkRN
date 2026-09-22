@@ -138,6 +138,9 @@ export function mergeNotes(localNotes, serverRows) {
           focus: localNote.focus,
           chosenFocus: localNote.chosenFocus,
           focusOptions: localNote.focusOptions,
+          // 연습 세션 표식 — 서버 컬럼이 없어 덮어쓰면 연습 기록과 중복 제거가 안 돼 2회로 집계된다
+          practiceSessionId: localNote.practiceSessionId,
+          type: localNote.type,
         };
       }
     } else {

@@ -583,7 +583,7 @@
     "streak_value": "{{count}}天",
     "streak_sub": "持续记录中！",
     "this_week": "本周",
-    "this_week_value": "{{count}}篇",
+    "this_week_value": "{{count}}次",
     "week_compare": "与上周相比{{label}}",
     "monthly_activity": "月度活动",
     "field_distribution": "领域分布",
@@ -595,7 +595,8 @@
     "level": "等级",
     "level_value": "Lv {{level}}",
     "mileage": "练习积分",
-    "next_level": "距下一等级还需{{n}}"
+    "next_level": "距下一等级还需{{n}}",
+    "duet_count": "双人对白练习 {{count}} 次"
   },
   "portfolio": {
     "title": "作品集",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "已跳转到记录页面",
     "finished": "练习已完成",
-    "voice_unavailable": "此设备无法播放语音，请检查设备的文字转语音(TTS)设置。"
+    "voice_unavailable": "此设备无法播放语音，请检查设备的文字转语音(TTS)设置。",
+    "record_start": "边录音边练习",
+    "record_stop": "停止录音",
+    "record_permission": "录音需要麦克风权限，请在设置中允许麦克风。",
+    "record_failed": "无法开始录音，请稍后再试。",
+    "record_note_hint": "这是我以「{{play}}」中{{role}}一角练习的录音。",
+    "record_note_hint_voice": "对手的台词是由应用语音一起录进去的。"
   }
 }

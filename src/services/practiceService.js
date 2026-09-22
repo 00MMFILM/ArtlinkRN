@@ -118,7 +118,45 @@ export function completePractice(session, overrides = {}) {
     completedSessions.add(id);
     if (completedSessions.size > 200) completedSessions.delete(completedSessions.values().next().value);
   }
+  appendPracticeLog(session, overrides);
   return enqueue("practice_completed", session, overrides);
+}
+
+// ── 기기 로컬 연습 기록 ──
+// 노트를 남기지 않는 연습(2인 대사 등)도 홈 요약·연속 기록에 잡히도록, 완료한 세션을 기기에 남긴다.
+// 내용(대본·노트 본문)은 넣지 않는다. 대시보드는 노트와 같은 sessionId를 가진 기록을 중복으로 세지 않는다.
+export const PRACTICE_LOG_KEY = "artlink-practice-log";
+const MAX_LOG = 500;
+function appendPracticeLog(session, overrides = {}) {
+  if (!session?.sessionId) return;
+  serialize(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(PRACTICE_LOG_KEY);
+      const log = raw ? JSON.parse(raw) : [];
+      if (log.some((e) => e.sessionId === session.sessionId)) return;
+      log.push({
+        sessionId: session.sessionId,
+        kind: overrides.kind || session.kind || null,
+        field: overrides.field || session.field || null,
+        at: new Date().toISOString(),
+      });
+      await AsyncStorage.setItem(PRACTICE_LOG_KEY, JSON.stringify(log.slice(-MAX_LOG)));
+    } catch {}
+  });
+}
+
+/** 완료한 연습 기록(오래된 순). 실패하면 빈 배열.
+ *  진행 중인 기록 쓰기가 끝난 뒤에 읽는다 — "연습 끝"과 동시에 홈으로 돌아가도 방금 연습이 빠지지 않게. */
+export function getPracticeLog() {
+  return serialize(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(PRACTICE_LOG_KEY);
+      const log = raw ? JSON.parse(raw) : [];
+      return Array.isArray(log) ? log : [];
+    } catch {
+      return [];
+    }
+  });
 }
 
 /** AI 피드백 완료 — 최초 1회가 아니라 매번 보낸다. */

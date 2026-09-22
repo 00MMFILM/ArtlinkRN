@@ -583,7 +583,7 @@
     "streak_value": "{{count}} يوم",
     "streak_sub": "تسجيل منتظم!",
     "this_week": "هذا الأسبوع",
-    "this_week_value": "{{count}} عنصر",
+    "this_week_value": "{{count}} مرة",
     "week_compare": "{{label}} مقارنة بالأسبوع الماضي",
     "monthly_activity": "النشاط الشهري",
     "field_distribution": "التوزيع حسب المجال",
@@ -595,7 +595,8 @@
     "level": "المستوى",
     "level_value": "Lv {{level}}",
     "mileage": "نقاط التدريب",
-    "next_level": "{{n}} حتى المستوى التالي"
+    "next_level": "{{n}} حتى المستوى التالي",
+    "duet_count": "تدريب حوار ثنائي ×{{count}}"
   },
   "portfolio": {
     "title": "ملف الأعمال",
@@ -940,6 +941,12 @@
   "duet": {
     "note_done": "تم الانتقال إلى شاشة الملاحظات",
     "finished": "انتهى التمرين",
-    "voice_unavailable": "تعذّر تشغيل الصوت على هذا الجهاز. يُرجى التحقق من إعدادات تحويل النص إلى كلام (TTS)."
+    "voice_unavailable": "تعذّر تشغيل الصوت على هذا الجهاز. يُرجى التحقق من إعدادات تحويل النص إلى كلام (TTS).",
+    "record_start": "تدرّب مع التسجيل",
+    "record_stop": "إيقاف التسجيل",
+    "record_permission": "يلزم إذن الميكروفون للتسجيل. يُرجى السماح به من الإعدادات.",
+    "record_failed": "تعذّر بدء التسجيل. يُرجى المحاولة مرة أخرى بعد قليل.",
+    "record_note_hint": "تسجيل تدريبي على دور {{role}} في «{{play}}».",
+    "record_note_hint_voice": "حوار الطرف الآخر مسجَّل بصوت التطبيق."
   }
 }
