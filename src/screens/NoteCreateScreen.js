@@ -305,6 +305,7 @@ export default function NoteCreateScreen({ navigation, route }) {
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
+    if (savingRef.current) return;
     if (hasUnsavedChangesRef.current) {
       Alert.alert(
         t("common.discard_title"),
@@ -322,6 +323,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   // Intercept hardware back / navigation gesture
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (savingRef.current) { e.preventDefault(); return; }
       if (!hasUnsavedChangesRef.current) return;
       e.preventDefault();
       Alert.alert(
@@ -392,7 +394,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
       setAiComment(previousComment);
       if (e?.message === "AI_QUOTA") promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed });
-      else safeAlert(t("noteCreate.ai_failed"), t("noteCreate.ai_failed_msg"));
+      else safeAlert(t("noteCreate.ai_failed"), t(e?.message === "AI_AUDIO_INCOMPLETE" ? "common.audio_analysis_failed" : "noteCreate.ai_failed_msg"));
     } finally {
       if (isMountedRef.current) setAiLoading(false);
     }
@@ -862,73 +864,78 @@ export default function NoteCreateScreen({ navigation, route }) {
       Alert.alert(t("noteCreate.content_required"), t("noteCreate.content_required_msg"));
       return;
     }
-    // 녹음(자체 녹음·2인 대사)은 cache/Audio에 남아 OS가 캐시를 비우면 사라진다 — 저장 시 문서 폴더로 옮긴다.
-    // 캐시 녹음이 없으면 await 없이 그대로 진행한다. 복사 실패는 원래 uri로 저장을 계속한다.
-    let savedVoiceRecordings = voiceRecordings;
-    const cacheDir = FileSystem.cacheDirectory;
-    if (cacheDir && voiceRecordings.some((r) => r?.uri?.startsWith(cacheDir))) {
-      savingRef.current = true;
-      try {
-        const mediaDir = FileSystem.documentDirectory + "media/";
-        const dirInfo = await FileSystem.getInfoAsync(mediaDir);
-        if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
-        savedVoiceRecordings = await Promise.all(voiceRecordings.map(async (rec) => {
-          if (!rec?.uri?.startsWith(cacheDir)) return rec;
-          const ext = rec.uri.split(".").pop()?.split("?")[0] || "m4a";
-          const destUri = mediaDir + `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-          try {
-            await FileSystem.copyAsync({ from: rec.uri, to: destUri });
-            return { ...rec, uri: destUri };
-          } catch (e) {
-            console.warn("[handleSave] recording copyAsync failed:", e?.message, "using original URI");
-            return rec;
-          }
-        }));
-      } catch (e) {
-        console.warn("[handleSave] media dir failed:", e?.message, "using original URIs");
-      } finally {
-        savingRef.current = false;
+    savingRef.current = true;
+    try {
+      // 녹음(자체 녹음·2인 대사)은 cache/Audio에 남아 OS가 캐시를 비우면 사라진다 — 저장 시 문서 폴더로 옮긴다.
+      // 영구 복사가 실패하면 저장을 중단하고 원래 녹음과 초안을 화면에 보존한다.
+      let savedVoiceRecordings = voiceRecordings;
+      const cacheDir = FileSystem.cacheDirectory;
+      if (cacheDir && voiceRecordings.some((r) => r?.uri?.startsWith(cacheDir))) {
+        try {
+          const mediaDir = FileSystem.documentDirectory + "media/";
+          const dirInfo = await FileSystem.getInfoAsync(mediaDir);
+          if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
+          savedVoiceRecordings = await Promise.all(voiceRecordings.map(async (rec) => {
+            if (!rec?.uri?.startsWith(cacheDir)) return rec;
+            const ext = rec.uri.split(".").pop()?.split("?")[0] || "m4a";
+            const destUri = mediaDir + `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+            try {
+              await FileSystem.copyAsync({ from: rec.uri, to: destUri });
+              return { ...rec, uri: destUri };
+            } catch (e) {
+              throw new Error("MEDIA_SAVE_FAILED");
+            }
+          }));
+        } catch (e) {
+          throw new Error("MEDIA_SAVE_FAILED");
+        }
       }
+      // 세션 없이 저장되지 않게 — 저장 시점에 없으면 여기서 시작한다. 노트와 완료 이벤트가 같은 세션을 쓴다.
+      const practiceSession = ensurePracticeSession();
+      const noteData = {
+        title: title.trim(),
+        content: content.trim(),
+        field,
+        tags,
+        seriesName: seriesName.trim() || undefined,
+        aiComment: aiComment || undefined,
+        aiScores: aiScores || undefined,
+        videoAnalysis: videoAnalysis || undefined,
+        // 생성 메타 + 전사 — 품질 추적·학습 데이터 필터·재분석 재료
+        aiModel: (aiComment || videoAnalysis) ? lastAiMeta.model || undefined : undefined,
+        promptVersion: (aiComment || videoAnalysis) ? lastAiMeta.promptVersion || undefined : undefined,
+        transcript: videoAnalysis ? lastAiMeta.transcript || undefined : undefined,
+        images: images.length > 0 ? images : undefined,
+        voiceRecordings: savedVoiceRecordings.length > 0 ? savedVoiceRecordings : undefined,
+        audioFiles: audioFiles.length > 0 ? audioFiles : undefined,
+        pdfFiles: pdfFiles.length > 0 ? pdfFiles : undefined,
+        // 재연습 체인 — practice_meta 컬럼 적용 후 서버에도 동기화한다
+        sceneId: sceneId || undefined,
+        parentNoteId: parentNoteId || undefined,
+        rootNoteId: rootNoteId || undefined,
+        focus: focus || undefined,
+        chosenFocus: chosenFocus || undefined,
+        focusOptions: focusOptions.length > 0 ? focusOptions : undefined,
+        // 이 노트가 어느 연습 세션에서 나왔는지 — 홈 요약·성장 리포트가 이 값으로
+        // 노트 없이 끝낸 연습 기록(getPracticeLog)과 중복 집계를 막는다.
+        practiceSessionId: practiceSession.sessionId,
+      };
+      const savedNoteId = await handleSaveNote(noteData);
+      hasUnsavedChangesRef.current = false;
+      await clearDraft(); // 노트로 남았으니 보관된 초안은 지운다 (복원으로 중복 생성되지 않게)
+      trackFunnelEvent("note_saved", i18n.language);
+      completePractice(practiceSession, {
+        subjectKey: practiceSubjectKey || savedNoteId,
+        kind: noteVideos.length > 0 ? "video" : "text",
+      });
+      savingRef.current = false;
+      if (isMountedRef.current) navigation.goBack();
+    } catch (e) {
+      hasUnsavedChangesRef.current = true;
+      safeAlert(t("common.save_failed_title"), t("common.save_failed_msg"));
+    } finally {
+      savingRef.current = false;
     }
-    // 세션 없이 저장되지 않게 — 저장 시점에 없으면 여기서 시작한다. 노트와 완료 이벤트가 같은 세션을 쓴다.
-    const practiceSession = ensurePracticeSession();
-    const noteData = {
-      title: title.trim(),
-      content: content.trim(),
-      field,
-      tags,
-      seriesName: seriesName.trim() || undefined,
-      aiComment: aiComment || undefined,
-      aiScores: aiScores || undefined,
-      videoAnalysis: videoAnalysis || undefined,
-      // 생성 메타 + 전사 — 품질 추적·학습 데이터 필터·재분석 재료
-      aiModel: (aiComment || videoAnalysis) ? lastAiMeta.model || undefined : undefined,
-      promptVersion: (aiComment || videoAnalysis) ? lastAiMeta.promptVersion || undefined : undefined,
-      transcript: videoAnalysis ? lastAiMeta.transcript || undefined : undefined,
-      images: images.length > 0 ? images : undefined,
-      voiceRecordings: savedVoiceRecordings.length > 0 ? savedVoiceRecordings : undefined,
-      audioFiles: audioFiles.length > 0 ? audioFiles : undefined,
-      pdfFiles: pdfFiles.length > 0 ? pdfFiles : undefined,
-      // 재연습 체인 (기기 로컬 전용 — 서버 user_notes에는 컬럼이 없다)
-      sceneId: sceneId || undefined,
-      parentNoteId: parentNoteId || undefined,
-      rootNoteId: rootNoteId || undefined,
-      focus: focus || undefined,
-      chosenFocus: chosenFocus || undefined,
-      focusOptions: focusOptions.length > 0 ? focusOptions : undefined,
-      // 이 노트가 어느 연습 세션에서 나왔는지 (기기 로컬 전용) — 홈 요약·성장 리포트가 이 값으로
-      // 노트 없이 끝낸 연습 기록(getPracticeLog)과 중복 집계를 막는다.
-      practiceSessionId: practiceSession.sessionId,
-    };
-    hasUnsavedChangesRef.current = false;
-    const savedNoteId = handleSaveNote(noteData);
-    clearDraft(); // 노트로 남았으니 보관된 초안은 지운다 (복원으로 중복 생성되지 않게)
-    trackFunnelEvent("note_saved", i18n.language);
-    completePractice(practiceSession, {
-      subjectKey: practiceSubjectKey || savedNoteId,
-      kind: noteVideos.length > 0 ? "video" : "text",
-    });
-    navigation.goBack();
   }, [aiBusy, title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions, practiceSubjectKey, ensurePracticeSession]);
 
   // Shimmer interpolation

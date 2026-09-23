@@ -9,6 +9,7 @@ export const SERVER_URL = "https://artlink-server.vercel.app";
 export const MATCHING_SERVER_URL = "https://server-00mmfilms-projects.vercel.app";
 
 import { getAuthToken } from "./supabaseClient";
+import { TRAINING_COLLECTION_ENABLED } from "./dataPolicy";
 
 const APP_TOKEN = "artlink_2026_s3cure_t0ken_xK9mP2vL";
 
@@ -40,6 +41,6 @@ export function getApiHeaders() {
   const token = getAuthToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   else if (_deviceId) headers["X-Device-Id"] = _deviceId;
-  if (_dataConsent) headers["X-Data-Consent"] = "1";
+  if (TRAINING_COLLECTION_ENABLED && _dataConsent) headers["X-Data-Consent"] = "1";
   return headers;
 }

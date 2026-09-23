@@ -1,10 +1,15 @@
 import React from "react";
+import { Alert } from "react-native";
+import { usePreventRemove } from "@react-navigation/native";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import DuetPracticeScreen from "../DuetPracticeScreen";
 import { startPractice, completePractice } from "../../services/practiceService";
 import { useApp } from "../../context/AppContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import scenes from "../../data/duet-scenes.json";
+import { preserveMediaFile } from "../../services/persistentMedia";
+jest.mock("../../services/persistentMedia", () => ({ preserveMediaFile: jest.fn(async (uri) => uri) }));
+jest.mock("@react-navigation/native", () => ({ usePreventRemove: jest.fn() }));
 
 jest.mock("../../services/practiceService", () => ({
   startPractice: jest.fn(() => ({ sessionId: "sess-duet", kind: "duet" })),
@@ -33,7 +38,7 @@ jest.mock("expo-av", () => ({
 
 const { trackFunnelEvent } = require("../../services/mauService");
 
-const navigation = { goBack: jest.fn(), navigate: jest.fn() };
+const navigation = { goBack: jest.fn(), navigate: jest.fn(), addListener: jest.fn(() => jest.fn()), dispatch: jest.fn() };
 const firstScene = scenes.scenes[0];
 
 const openCueMode = (utils) => {
@@ -574,6 +579,8 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
     };
     Audio.requestPermissionsAsync.mockImplementation(() => Promise.resolve({ granted: true }));
     Audio.Recording.createAsync.mockImplementation(() => Promise.resolve({ recording: rec }));
+    jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    preserveMediaFile.mockImplementation(async (uri) => uri);
   });
   const openScript = (utils) => {
     fireEvent.press(utils.getAllByText(firstScene.play)[0]);
@@ -648,7 +655,7 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
       fireEvent.press(next);
     }
     fireEvent.press(utils.getByText("연습 기록 남기기"));
-    expect(navigation.navigate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
     expect(navigation.navigate.mock.calls[0][1].prefill.voiceRecordings).toEqual([{ uri: "file:///rec1.m4a", duration: 12 }]);
   });
 
@@ -670,13 +677,16 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
     expect("content" in prefill).toBe(false);
   });
 
-  it("다른 씬으로 나가면 녹음을 멈추고 버린다 — 다음 씬 기록에 섞이지 않는다", async () => {
+  it("다른 씬으로 나갈 때 보관한 녹음은 확인 후 버려야 한다 — 다음 씬 기록에 섞이지 않는다", async () => {
     const utils = render(<DuetPracticeScreen navigation={navigation} />);
     openScript(utils);
     await startRec(utils);
     fireEvent.press(utils.getByText("‹ 뒤로")); // 설정으로 (녹음 멈춤·보관)
     await waitFor(() => expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1));
     fireEvent.press(utils.getByText("‹ 뒤로")); // 씬 목록으로 (보관분 버림)
+    expect(Alert.alert).toHaveBeenCalledWith("duet.record_leave_title", "duet.record_leave_msg", expect.any(Array), expect.any(Object));
+    const discard = Alert.alert.mock.calls.at(-1)[2].find((b) => b.text === "duet.record_discard");
+    await act(async () => discard.onPress());
 
     openScript(utils);
     fireEvent.press(utils.getByText("연습 기록 남기기"));
@@ -762,6 +772,94 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
+    expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("DuetPracticeScreen — leaving preserves recordings", () => {
+  const { Audio } = require("expo-av");
+  let rec;
+  const openRecording = async () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getAllByText(firstScene.play)[0]);
+    fireEvent.press(utils.getByText("📜 대본 보기"));
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    await waitFor(() => expect(utils.getByText(/duet\.record_stop/)).toBeTruthy());
+    return utils;
+  };
+  const lastAction = (key) => Alert.alert.mock.calls.at(-1)[2].find((b) => b.text === key);
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+    useApp.mockReturnValue({ showToast: jest.fn() });
+    preserveMediaFile.mockResolvedValue("file:///documents/kept.m4a");
+    rec = { stopAndUnloadAsync: jest.fn(async () => ({ durationMillis: 5000 })), getURI: () => "file:///cache/recording.m4a" };
+    Audio.requestPermissionsAsync.mockResolvedValue({ granted: true });
+    Audio.Recording.createAsync.mockResolvedValue({ recording: rec });
+  });
+  it("finish during recording waits for the user's decision and transfers a permanent file", async () => {
+    const utils = await openRecording();
+    fireEvent.press(utils.getByText("연습 끝"));
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(rec.stopAndUnloadAsync).not.toHaveBeenCalled();
+    act(() => lastAction("duet.record_keep_practicing").onPress());
+    expect(utils.getByText(/duet\.record_stop/)).toBeTruthy();
+    fireEvent.press(utils.getByText("연습 끝"));
+    act(() => lastAction("duet.record_save_note").onPress());
+    await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
+    expect(navigation.navigate.mock.calls[0][1].prefill.voiceRecordings).toEqual([{ uri: "file:///documents/kept.m4a", duration: 5 }]);
+    expect(navigation.goBack).not.toHaveBeenCalled();
+  });
+  it("hardware back also protects a recording that was already stopped", async () => {
+    const utils = await openRecording();
+    fireEvent.press(utils.getByText(/duet\.record_stop/));
+    await waitFor(() => expect(utils.getByText("🎙 duet.record_start")).toBeTruthy());
+    const [prevented, handler] = usePreventRemove.mock.calls.at(-1);
+    const event = { data: { action: { type: "GO_BACK" } } };
+    act(() => handler(event));
+    expect(prevented).toBe(true);
+    expect(navigation.dispatch).not.toHaveBeenCalled();
+    await act(async () => lastAction("duet.record_discard").onPress());
+    expect(navigation.dispatch).toHaveBeenCalledWith(event.data.action);
+    expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+  it("a failed durable copy keeps the recording in this screen for retry", async () => {
+    preserveMediaFile.mockRejectedValueOnce(new Error("disk full"));
+    const utils = await openRecording();
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    await waitFor(() => expect(useApp().showToast).toHaveBeenCalledWith("duet.record_save_failed", "error"));
+    expect(navigation.navigate).not.toHaveBeenCalled();
+    expect(utils.queryByText("duet.note_done")).toBeNull();
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
+    expect(navigation.navigate.mock.calls[0][1].prefill.voiceRecordings[0].uri).toBe("file:///documents/kept.m4a");
+  });
+  it("a new recording can be saved after returning from an earlier note", async () => {
+    const utils = await openRecording();
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    await waitFor(() => expect(utils.getByText(/duet\.record_stop/)).toBeTruthy());
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(2));
+    expect(navigation.navigate.mock.calls[1][1].prefill.voiceRecordings).toHaveLength(1);
+  });
+  it("discard during recorder preparation waits and then stops the created recorder", async () => {
+    let ready;
+    Audio.Recording.createAsync.mockImplementationOnce(() => new Promise((resolve) => { ready = () => resolve({ recording: rec }); }));
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getAllByText(firstScene.play)[0]);
+    fireEvent.press(utils.getByText("📜 대본 보기"));
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    await waitFor(() => expect(ready).toBeTruthy());
+    fireEvent.press(utils.getByText("연습 끝"));
+    act(() => { lastAction("duet.record_discard").onPress(); });
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    await act(async () => ready());
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalledTimes(1));
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
     expect(navigation.navigate).not.toHaveBeenCalled();
   });
 });

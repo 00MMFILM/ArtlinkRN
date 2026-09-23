@@ -1,17 +1,24 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { scopedKey } from "./accountStorage";
 
-export const safeStorageGet = async (key) => {
+// Use for account hydration: a failed read is not an empty account.
+export const strictStorageGet = async (key, scope) => {
+  const value = await AsyncStorage.getItem(scopedKey(key, scope));
+  return value === null ? null : JSON.parse(value);
+};
+
+export const safeStorageGet = async (key, scope) => {
   try {
-    const value = await AsyncStorage.getItem(key);
+    const value = await AsyncStorage.getItem(scopedKey(key, scope));
     return value ? JSON.parse(value) : null;
   } catch (e) {
     return null;
   }
 };
 
-export const safeStorageSet = async (key, value) => {
+export const safeStorageSet = async (key, value, scope) => {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
+    await AsyncStorage.setItem(scopedKey(key, scope), JSON.stringify(value));
     return true;
   } catch (e) {
     return false;
@@ -20,6 +27,7 @@ export const safeStorageSet = async (key, value) => {
 
 export const STORAGE_KEYS = {
   NOTES: "artlink-notes",
+  NOTE_STATE: "artlink-note-state-v1",
   PROFILE: "artlink-profile",
   DARK_MODE: "artlink-darkmode",
   GOALS: "artlink-goals",

@@ -54,7 +54,8 @@ const Tab = createBottomTabNavigator();
 // artlink://practice?title=..&content=..&field=acting&source=bium
 const navigationRef = createNavigationContainerRef();
 
-function openNoteCreateWhenReady(prefill, attempt = 0, restoredDraft = false) {
+function openNoteCreateWhenReady(prefill, attempt = 0, restoredDraft = false, isCurrent = () => true) {
+  if (!isCurrent()) return;
   if (attempt > 60) return; // 온보딩 등으로 30초 내 진입 못 하면 포기
   const hasRoute =
     navigationRef.isReady() &&
@@ -63,7 +64,7 @@ function openNoteCreateWhenReady(prefill, attempt = 0, restoredDraft = false) {
     navigationRef.navigate("NoteCreate", { prefill, restoredDraft });
     return;
   }
-  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1, restoredDraft), 500);
+  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1, restoredDraft, isCurrent), 500);
 }
 
 function TabIcon({ emoji, focused }) {
@@ -151,7 +152,12 @@ function AccountLinkBanner({ visible, email, onLinked, onSkip }) {
           : error.message);
         return;
       }
-      onLinked(data.user?.id);
+      // Email confirmation can return a user without an authenticated session.
+      // Do not attach that id to a guest profile or report a completed link.
+      if (!data.user?.id || !data.session?.access_token || data.session?.user?.id !== data.user.id) {
+        throw new Error("AUTH_SESSION_REQUIRED");
+      }
+      await onLinked(data.user.id);
     } catch {
       Alert.alert(t("common.error"), t("app.link_error"));
     } finally {
@@ -268,9 +274,9 @@ const resetStyles = StyleSheet.create({
   btnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
 });
 
-function AppNavigator() {
+export function AppNavigator() {
   const { t } = useTranslation();
-  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleUpdateProfile, handleAuth } = useApp();
+  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
@@ -334,16 +340,18 @@ function AppNavigator() {
   // 열기만 하고 저장은 하지 않는다 — 저장은 사용자가 눌러야만 일어난다.
   const draftRestoredRef = useRef(false);
   useEffect(() => {
-    if (authState !== "app") {
+    if (authState !== "app" || !storageReady) {
       draftRestoredRef.current = false;
       return;
     }
     if (draftRestoredRef.current) return;
     draftRestoredRef.current = true;
+    let cancelled = false;
     loadDraft().then((draft) => {
-      if (draft) openNoteCreateWhenReady(draft, 0, true);
+      if (draft && !cancelled) openNoteCreateWhenReady(draft, 0, true, () => !cancelled);
     });
-  }, [authState]);
+    return () => { cancelled = true; draftRestoredRef.current = false; };
+  }, [authState, storageReady, userProfile?.authUserId]);
 
   // 쌓인 연습 이벤트 전송 — 앱 진입 시 1회, 백그라운드에서 돌아올 때 1회
   useEffect(() => {
@@ -381,14 +389,16 @@ function AppNavigator() {
             <Stack.Screen name="Loading">{() => null}</Stack.Screen>
           ) : authState === "auth" && showOnboarding ? (
             <Stack.Screen name="Onboarding">
-              {() => <OnboardingScreen onComplete={() => {
-                setShowOnboarding(false);
-                AsyncStorage.setItem("artlink-onboarding-seen", "true").catch(() => {});
-                trackFunnelEvent("onboarding_completed");
-                // 가입 벽 제거: 온보딩 후 게스트로 바로 앱 진입 (스킵 버튼과 동일 경로)
-                // 로그인/가입은 Profile 메뉴 + AccountLinkBanner로 언제든 가능
-                trackFunnelEvent("guest_entered"); // 새 경로 측정용
-                handleAuth(null);
+              {() => <OnboardingScreen onComplete={async () => {
+                try {
+                  await handleAuth(null);
+                  setShowOnboarding(false);
+                  AsyncStorage.setItem("artlink-onboarding-seen", "true").catch(() => {});
+                  trackFunnelEvent("onboarding_completed");
+                  trackFunnelEvent("guest_entered");
+                } catch (_) {
+                  Alert.alert(t("common.error"), t("auth.login_error"));
+                }
               }} />}
             </Stack.Screen>
           ) : authState === "auth" ? (
@@ -441,8 +451,10 @@ function AppNavigator() {
       <AccountLinkBanner
         visible={needsLink}
         email={userProfile?.email || ""}
-        onLinked={(authUserId) => {
-          handleUpdateProfile({ authUserId });
+        onLinked={async () => {
+          // Account creation also needs the normal ownership/scope transition.
+          // A profile-only authUserId patch would leave private data in guest storage.
+          await handleAuth({ ...userProfile, _mergeExisting: true });
           Alert.alert(t("common.done"), t("app.signup_complete"));
         }}
         onSkip={() => setLinkDismissed(true)}

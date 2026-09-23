@@ -9,8 +9,10 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePreventRemove } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
 import { useApp } from "../context/AppContext";
@@ -18,6 +20,7 @@ import bundledData from "../data/duet-scenes.json";
 import { startPractice, completePractice } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
+import { preserveMediaFile } from "../services/persistentMedia";
 import i18n from "i18next";
 
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
@@ -178,7 +181,9 @@ export default function DuetPracticeScreen({ navigation }) {
   const recStartRef = useRef(0);
   const recTimerRef = useRef(null);
   const recBusyRef = useRef(false);
+  const recordingStartRef = useRef(null);
   const [recording, setRecording] = useState(false);
+  const [recordingPreparing, setRecordingPreparing] = useState(false);
   const [recElapsed, setRecElapsed] = useState(0);
 
   // 녹음 중에 상대 음성이 켜져 있던 적이 한 번이라도 있으면 표시 — 순서(먼저 켬/녹음 중 켬) 상관없이 잡는다
@@ -186,32 +191,38 @@ export default function DuetPracticeScreen({ navigation }) {
     if (recording && voiceOn) voiceUsedRef.current = true;
   }, [recording, voiceOn]);
 
-  const startRecording = async () => {
-    if (!canRecord || recBusyRef.current || recordingRef.current) return;
+  const startRecording = () => {
+    if (!canRecord || recBusyRef.current || recordingRef.current || stoppingRef.current || noteTransferRef.current) return;
     recBusyRef.current = true;
-    try {
-      const perm = await AudioMode.requestPermissionsAsync();
-      if (!perm || !perm.granted) { showToast(t("duet.record_permission"), "error"); return; }
-      await AudioMode.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await AudioMode.Recording.createAsync(AudioMode.RecordingOptionsPresets.HIGH_QUALITY);
-      if (!mountedRef.current) { // 준비 중 화면을 나갔다 — 바로 버린다
-        rec.stopAndUnloadAsync().catch(noop);
-        AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(noop);
-        return;
+    setRecordingPreparing(true);
+    recordingStartRef.current = (async () => {
+      try {
+        const perm = await AudioMode.requestPermissionsAsync();
+        if (!perm || !perm.granted) { showToast(t("duet.record_permission"), "error"); return; }
+        await AudioMode.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording: rec } = await AudioMode.Recording.createAsync(AudioMode.RecordingOptionsPresets.HIGH_QUALITY);
+        if (!mountedRef.current) { // 준비 중 화면을 나갔다 — 바로 버린다
+          rec.stopAndUnloadAsync().catch(noop);
+          AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(noop);
+          return;
+        }
+        recordingRef.current = rec;
+        recStartRef.current = Date.now();
+        if (noteSent) beginPractice(scene); // 이전 노트를 남긴 뒤 새로 녹음하면 다시 저장할 수 있어야 한다.
+        setRecElapsed(0);
+        setRecording(true);
+        recTimerRef.current = setInterval(() => {
+          setRecElapsed(Math.floor((Date.now() - recStartRef.current) / 1000));
+        }, 1000);
+      } catch (e) {
+        showToast(t("duet.record_failed"), "error");
+        try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e2) {}
+      } finally {
+        recBusyRef.current = false;
+        if (mountedRef.current) setRecordingPreparing(false);
       }
-      recordingRef.current = rec;
-      recStartRef.current = Date.now();
-      setRecElapsed(0);
-      setRecording(true);
-      recTimerRef.current = setInterval(() => {
-        setRecElapsed(Math.floor((Date.now() - recStartRef.current) / 1000));
-      }, 1000);
-    } catch (e) {
-      showToast(t("duet.record_failed"), "error");
-      try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e2) {}
-    } finally {
-      recBusyRef.current = false;
-    }
+    })();
+    return recordingStartRef.current;
   };
 
   // keep=false면 멈추고 파일을 보관하지 않는다 (화면 이탈·씬 변경)
@@ -223,13 +234,16 @@ export default function DuetPracticeScreen({ navigation }) {
     if (!rec) return Promise.resolve();
     const elapsed = Math.round((Date.now() - recStartRef.current) / 1000);
     stoppingRef.current = (async () => {
+      let succeeded = true;
       try {
         const st = await rec.stopAndUnloadAsync();
         const uri = rec.getURI && rec.getURI();
+        if (keep && !uri) throw new Error("RECORDING_FILE_MISSING");
         const duration = st && st.durationMillis ? Math.round(st.durationMillis / 1000) : elapsed;
         if (keep && uri) recordingsRef.current = [...recordingsRef.current, { uri, duration }];
       } catch (e) {
-        // 멈춤 실패 — 파일은 못 쓴다
+        succeeded = false;
+        if (mountedRef.current) showToast(t("duet.record_save_failed"), "error");
       } finally {
         recordingRef.current = null;
         stoppingRef.current = null;
@@ -238,6 +252,7 @@ export default function DuetPracticeScreen({ navigation }) {
         if (mountedRef.current) setRecording(false);
         try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e) {}
       }
+      return succeeded;
     })();
     return stoppingRef.current;
   };
@@ -281,6 +296,8 @@ export default function DuetPracticeScreen({ navigation }) {
   const practiceRef = useRef(null);
   const completedRef = useRef(false);
   const [noteSent, setNoteSent] = useState(false); // "연습 기록 남기기"를 이미 눌렀다 — 같은 씬 세션 안에서 재클릭 방지
+  const noteTransferRef = useRef(false);
+  const leavePromptRef = useRef(false);
   const beginPractice = (s) => {
     completedRef.current = false;
     setNoteSent(false);
@@ -298,10 +315,10 @@ export default function DuetPracticeScreen({ navigation }) {
   // 방금 연습한 장면을 기록으로 — 노트 작성 화면이 장면 제목·연기·시리즈·sceneId로 채워져 열린다.
   // 노트 화면은 같은 sessionId를 이어받는다 — 별도 세션을 새로 시작하지 않아 연습 1회가 2회로 세이지 않는다.
   const goToNote = () => {
-    if (noteSent) return;
-    setNoteSent(true);
-    finishPractice(); // 연습은 여기서 끝났다 — 노트를 취소해도 완료가 남는다. 같은 sessionId의 재완료는 practiceService가 1회로 막는다
-    trackFunnelEvent("duet_to_note", i18n?.language);
+    if (noteSent || noteTransferRef.current) return;
+    // 권한/녹음 준비가 아직 끝나지 않았으면 빈 노트로 이동하지 않는다.
+    if (recBusyRef.current) { showToast(t("duet.record_save_failed"), "error"); return; }
+    noteTransferRef.current = true;
     const s = scene;
     const roleName = s.roles[myRole]?.name;
     const prefill = {
@@ -311,37 +328,85 @@ export default function DuetPracticeScreen({ navigation }) {
       sceneId: s.id,
       sessionId: practiceRef.current?.sessionId,
     };
-    const go = () => {
-      const recs = recordingsRef.current;
+    const go = (recs) => {
+      if (!mountedRef.current) return;
       if (recs.length > 0) {
         prefill.voiceRecordings = recs;
         // AI가 상대역(앱 음성)을 사용자 연기로 착각하지 않게 — 실제로 음성이 켜져 있던 적 있을 때만 그 문장을 붙인다
         let hint = t("duet.record_note_hint", { play: s.play, role: roleName });
         if (voiceUsedRef.current) hint += ` ${t("duet.record_note_hint_voice")}`;
         prefill.content = hint;
+      }
+      finishPractice();
+      trackFunnelEvent("duet_to_note", i18n?.language);
+      navigation.navigate("NoteCreate", { prefill });
+      // 노트 화면으로 넘긴 뒤에만 소유권을 넘긴다. 복사 실패 시 이 화면에서 재시도할 수 있다.
+      recordingsRef.current = [];
+      voiceUsedRef.current = false;
+      setNoteSent(true);
+      noteTransferRef.current = false;
+    };
+    if (!recordingRef.current && !stoppingRef.current && recordingsRef.current.length === 0) {
+      go([]);
+      return;
+    }
+    (async () => {
+      try {
+        if ((recordingRef.current || stoppingRef.current) && await stopRecording(true) === false) return;
+        const kept = await Promise.all(recordingsRef.current.map(async (rec) => ({
+          ...rec,
+          uri: await preserveMediaFile(rec.uri, "m4a"),
+        })));
+        if (mountedRef.current) go(kept);
+      } catch (e) {
+        if (mountedRef.current) showToast(t("duet.record_save_failed"), "error");
+      } finally {
+        noteTransferRef.current = false;
+      }
+    })();
+  };
+
+  const hasPendingRecordings = () => !!(recordingRef.current || stoppingRef.current || recBusyRef.current || recordingsRef.current.length);
+  const requestLeave = (leave) => {
+    if (noteTransferRef.current) return;
+    if (!hasPendingRecordings()) { leave(); return; }
+    if (leavePromptRef.current) return;
+    leavePromptRef.current = true;
+    Alert.alert(t("duet.record_leave_title"), t("duet.record_leave_msg"), [
+      { text: t("duet.record_keep_practicing"), style: "cancel", onPress: () => { leavePromptRef.current = false; } },
+      { text: t("duet.record_save_note"), onPress: () => { leavePromptRef.current = false; goToNote(); } },
+      { text: t("duet.record_discard"), style: "destructive", onPress: async () => {
+        leavePromptRef.current = false;
+        noteTransferRef.current = true;
+        await recordingStartRef.current;
+        await stopRecording(false);
         recordingsRef.current = [];
         voiceUsedRef.current = false;
-      }
-      // 녹음 중지가 끝나기 전에 화면을 나갔으면(mountedRef=false) 이미 떠난 화면에서 이동하지 않는다
-      if (!mountedRef.current) return;
-      navigation.navigate("NoteCreate", { prefill });
-    };
-    // 녹음 중이면 먼저 멈추고 파일을 받아서 넘긴다
-    if (recordingRef.current || stoppingRef.current) stopRecording(true).then(go); else go();
+        noteTransferRef.current = false;
+        leave();
+      } },
+    ], { cancelable: false });
   };
+
+  // native-stack의 뒤로 제스처까지 보호한다. 재개할 때는 hook이 준 원래 action을 사용한다.
+  usePreventRemove(recordingPreparing || hasPendingRecordings() || noteTransferRef.current, ({ data }) => {
+    requestLeave(() => navigation.dispatch(data.action));
+  });
 
   // 대본 모드 "연습 끝" — 완료만 되고 화면상 아무 반응이 없던 버그. 토스트 + 뒤로가기로 마무리를 보여준다.
   const finishScript = () => {
-    finishPractice();
-    showToast(t("duet.finished"), "success");
-    navigation.goBack();
+    requestLeave(() => {
+      finishPractice();
+      showToast(t("duet.finished"), "success");
+      navigation.goBack();
+    });
   };
 
   const openScene = (s) => { stopSpeak(); discardRecordings(); setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
   // 모드에서 나가기(설정으로) — 소리는 멈추고, 녹음은 멈춰서 보관한다(같은 씬)
   const leaveMode = () => { stopSpeak(); stopRecording(true); setMode(null); };
   // 씬 목록으로 — 다른 씬의 녹음이 섞이지 않게 버린다
-  const leaveScene = () => { stopSpeak(); discardRecordings(); setScene(null); };
+  const leaveScene = () => requestLeave(() => { stopSpeak(); discardRecordings(); setScene(null); });
   const advance = (d) => {
     stopSpeak();
     const n = Math.min(Math.max(idx + d, 0), lines.length - 1);

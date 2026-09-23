@@ -55,7 +55,15 @@
     "video_ai_retry_msg": "The analysis result didn't come through. Check your connection and try again — your note is unchanged.",
     "video_quota_exceeded": "You've used all your free video analysis trials. Premium gives you 15 analyses a month.",
     "text_quota_exceeded": "You've used all your free AI feedback for today. You'll get more tomorrow, and Premium gives you up to 10 a day.",
-    "submit": "Submit"
+    "submit": "Submit",
+    "notice": "Notice",
+    "save_failed_title": "Could not save",
+    "save_failed_msg": "Check your storage and try again. Your changes are still on this screen.",
+    "delete_failed_msg": "Could not save the deletion. Please try again.",
+    "audio_analysis_failed": "Analysis stopped because the recording could not be read. Check the connection and file, then try again.",
+    "media_save_failed_title": "Could not save the file",
+    "media_save_failed_msg": "Check your storage and try again. The file was not added.",
+    "retry_save": "Retry saving"
   },
   "tabs": {
     "home": "Home",
@@ -329,7 +337,9 @@
     "data_consent_later": "Later",
     "data_consent_join": "Participate",
     "voice_label": "Voice {{index}}",
-    "ai_feedback_placeholder": "Tell us what fell short (optional)"
+    "ai_feedback_placeholder": "Tell us what fell short (optional)",
+    "ai_save_pending": "Your AI feedback is ready but has not been saved. It remains on this screen. Retrying the save uses no AI credits.",
+    "ai_save_leave": "You have unsaved AI feedback. Leaving this screen will discard the new result."
   },
   "profile": {
     "edit_profile": "Edit profile",
@@ -366,7 +376,9 @@
     "terms_detail": "ArtLink Terms of Service\n\n1. This app applies a zero-tolerance policy for inappropriate content and misuse.\n2. Users may report inappropriate content, which will be reviewed within 24 hours.\n3. Users who violate the terms may be removed from the service.\n4. Please refer to the full terms you agreed to upon first launching the app.\n\nContact: lcy1152@naver.com",
     "privacy_detail": "ArtLink Privacy Policy\n\n1. Personal information collected: name, email, profile information, practice notes and attached images/videos, voice recordings\n2. Purpose of collection: providing the service, generating AI feedback, and improving the service\n3. Retention period: until account deletion\n4. Third-party processing: Anthropic and Google (AI feedback generation), OpenAI (voice-to-text conversion), Supabase (data storage)\n5. Users may delete their personal information at any time by deleting their account.\n\nContact: lcy1152@naver.com",
     "logout_confirm": "Are you sure you want to log out?\nYour notes are stored on the server and will be restored when you log back in.",
-    "delete_confirm": "All data (notes, profile, portfolio, etc.) will be permanently deleted. This action cannot be undone.\n\nAre you sure you want to delete your account?"
+    "delete_confirm": "All data (notes, profile, portfolio, etc.) will be permanently deleted. This action cannot be undone.\n\nAre you sure you want to delete your account?",
+    "delete_unavailable": "Your account has not been deleted. This app cannot yet complete deletion of all server data. You can contact support to request deletion.",
+    "legacy_records_notice": "Some records from an older version are safely stored separately. Their owning account could not be confirmed, so they were not automatically merged into this account. They have not been deleted. Contact support for recovery."
   },
   "profileEdit": {
     "title": "Edit profile",
@@ -407,7 +419,11 @@
     "ai_training_desc": "Practice notes and AI feedback are collected anonymously to improve AI quality.",
     "name_required": "Name required",
     "name_required_msg": "Please enter your name.",
-    "specialty_remove": "Remove specialty {{name}}"
+    "specialty_remove": "Remove specialty {{name}}",
+    "collection_paused": "New training data collection is paused. AI feedback is still available.",
+    "archive_withdrawn": "Archived media linked to your signed-in account was deleted. Previously collected note text and guest archives are not included.",
+    "archive_withdraw_failed": "Training data sharing is off on this device. Deletion of existing server data was not confirmed. Check your login and connection, then request it again.",
+    "archive_withdraw_request": "Request deletion of archived media"
   },
   "community": {
     "title": "Community",
@@ -948,6 +964,12 @@
     "record_permission": "Microphone access is needed to record. Please allow it in Settings.",
     "record_failed": "Couldn't start recording. Please try again shortly.",
     "record_note_hint": "Recording of my practice as {{role}} in \"{{play}}\".",
-    "record_note_hint_voice": "The partner's lines were recorded from the app's voice."
+    "record_note_hint_voice": "The partner's lines were recorded from the app's voice.",
+    "record_leave_title": "Keep your recording?",
+    "record_leave_msg": "You have recordings that have not been saved to a note.",
+    "record_save_note": "Save to a note",
+    "record_discard": "Discard recording and leave",
+    "record_keep_practicing": "Keep practicing",
+    "record_save_failed": "Could not keep the recording. Try again on this screen."
   }
 }

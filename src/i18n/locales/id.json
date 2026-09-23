@@ -55,7 +55,15 @@
     "video_ai_retry_msg": "Hasil analisis tidak diterima. Periksa koneksi Anda dan coba lagi — catatan Anda tetap utuh.",
     "video_quota_exceeded": "Anda telah memakai semua uji coba analisis video gratis. Premium memberi 15 kali analisis per bulan.",
     "text_quota_exceeded": "Kamu telah menggunakan semua umpan balik AI gratis hari ini. Besok kamu bisa mendapatkannya lagi, dan Premium memberi hingga 10 kali sehari.",
-    "submit": "Kirim"
+    "submit": "Kirim",
+    "notice": "Pemberitahuan",
+    "save_failed_title": "Tidak dapat menyimpan",
+    "save_failed_msg": "Periksa ruang penyimpanan dan coba lagi. Perubahan Anda masih ada di layar ini.",
+    "delete_failed_msg": "Penghapusan tidak dapat disimpan. Coba lagi.",
+    "audio_analysis_failed": "Analisis dihentikan karena rekaman tidak dapat dibaca. Periksa koneksi dan file, lalu coba lagi.",
+    "media_save_failed_title": "File tidak dapat disimpan",
+    "media_save_failed_msg": "Periksa ruang penyimpanan dan coba lagi. File belum ditambahkan.",
+    "retry_save": "Coba simpan lagi"
   },
   "tabs": {
     "home": "Beranda",
@@ -329,7 +337,9 @@
     "share_feed": "Feed · Threads (potret)",
     "share_story": "Story · TikTok (potret penuh)",
     "share_failed": "Gagal membuat gambar untuk dibagikan. Silakan coba lagi.",
-    "ai_feedback_placeholder": "Beri tahu kami bagian yang kurang (opsional)"
+    "ai_feedback_placeholder": "Beri tahu kami bagian yang kurang (opsional)",
+    "ai_save_pending": "Umpan balik AI sudah siap tetapi belum disimpan. Hasilnya tetap di layar ini. Mencoba menyimpan lagi tidak memakai kuota AI.",
+    "ai_save_leave": "Ada umpan balik AI yang belum disimpan. Keluar akan membuang hasil baru."
   },
   "profile": {
     "edit_profile": "Edit Profil",
@@ -366,7 +376,9 @@
     "terms_detail": "Syarat Penggunaan ArtLink\n\n1. Aplikasi ini menerapkan kebijakan tanpa toleransi terhadap konten yang tidak pantas dan penyalahgunaan.\n2. Pengguna dapat melaporkan konten yang tidak pantas, dan konten yang dilaporkan akan ditinjau dalam 24 jam.\n3. Pengguna yang melanggar syarat penggunaan dapat dikeluarkan dari layanan.\n4. Untuk syarat lengkap, silakan lihat teks yang disetujui saat pertama kali membuka aplikasi.\n\nKontak: lcy1152@naver.com",
     "privacy_detail": "Kebijakan Privasi ArtLink\n\n1. Informasi pribadi yang dikumpulkan: nama, email, informasi profil, catatan latihan dan gambar/video terlampir, rekaman suara\n2. Tujuan pengumpulan: penyediaan layanan, menghasilkan umpan balik AI, peningkatan layanan\n3. Periode penyimpanan: sampai akun dihapus\n4. Pemrosesan oleh pihak ketiga: Anthropic dan Google (menghasilkan umpan balik AI), OpenAI (mengubah suara menjadi teks), Supabase (penyimpanan data)\n5. Pengguna dapat menghapus informasi pribadi kapan saja melalui penghapusan akun.\n\nKontak: lcy1152@naver.com",
     "logout_confirm": "Apakah Anda ingin keluar?\nCatatan disimpan di server dan akan dipulihkan saat Anda masuk kembali.",
-    "delete_confirm": "Semua data (catatan, profil, portofolio, dll.) akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.\n\nApakah Anda yakin ingin menghapus?"
+    "delete_confirm": "Semua data (catatan, profil, portofolio, dll.) akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.\n\nApakah Anda yakin ingin menghapus?",
+    "delete_unavailable": "Akun Anda belum dihapus. Aplikasi belum dapat menghapus semua data server. Hubungi dukungan untuk meminta penghapusan.",
+    "legacy_records_notice": "Beberapa catatan versi lama disimpan terpisah dengan aman. Akun pemiliknya belum dapat dikonfirmasi, jadi catatan tidak otomatis digabung ke akun ini. Catatan belum dihapus. Hubungi dukungan untuk pemulihan."
   },
   "profileEdit": {
     "title": "Edit Profil",
@@ -407,7 +419,11 @@
     "ai_training_desc": "Catatan latihan dan umpan balik AI dikumpulkan secara anonim untuk meningkatkan kualitas AI.",
     "name_required": "Nama Diperlukan",
     "name_required_msg": "Silakan masukkan nama Anda.",
-    "specialty_remove": "Hapus keahlian {{name}}"
+    "specialty_remove": "Hapus keahlian {{name}}",
+    "collection_paused": "Pengumpulan data pelatihan baru dijeda. Umpan balik AI tetap tersedia.",
+    "archive_withdrawn": "Media arsip yang terhubung ke akun aktif telah dihapus. Teks catatan yang dikumpulkan sebelumnya dan arsip tamu tidak termasuk.",
+    "archive_withdraw_failed": "Berbagi data pelatihan dimatikan di perangkat ini. Penghapusan data server yang ada belum terkonfirmasi. Periksa login dan koneksi, lalu ajukan lagi.",
+    "archive_withdraw_request": "Minta penghapusan media arsip"
   },
   "community": {
     "title": "Komunitas",
@@ -948,6 +964,12 @@
     "record_permission": "Perlu izin mikrofon untuk merekam. Izinkan di Pengaturan.",
     "record_failed": "Tidak dapat mulai merekam. Coba lagi nanti.",
     "record_note_hint": "Rekaman latihan saya sebagai {{role}} dalam \"{{play}}\".",
-    "record_note_hint_voice": "Dialog lawan main adalah suara aplikasi yang ikut terekam."
+    "record_note_hint_voice": "Dialog lawan main adalah suara aplikasi yang ikut terekam.",
+    "record_leave_title": "Simpan rekaman?",
+    "record_leave_msg": "Ada rekaman yang belum disimpan ke catatan.",
+    "record_save_note": "Simpan ke catatan",
+    "record_discard": "Buang rekaman dan keluar",
+    "record_keep_practicing": "Lanjutkan latihan",
+    "record_save_failed": "Rekaman tidak dapat disimpan. Coba lagi di layar ini."
   }
 }

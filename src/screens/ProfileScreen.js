@@ -75,7 +75,7 @@ export default function ProfileScreen({ navigation }) {
     language,
     handleChangeLanguage,
     setAuthState,
-    premium,
+    premium, legacyRecordsPending,
   } = useApp();
   const [showLangPicker, setShowLangPicker] = useState(false);
 
@@ -162,7 +162,16 @@ export default function ProfileScreen({ navigation }) {
         {
           text: t("common.delete"),
           style: "destructive",
-          onPress: () => handleDeleteAccount(),
+          onPress: async () => {
+            try {
+              await handleDeleteAccount();
+            } catch (_) {
+              Alert.alert(t("profile.delete_account"), t("profile.delete_unavailable"), [
+                { text: t("common.cancel"), style: "cancel" },
+                { text: t("profile.send_email"), onPress: () => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20account%20deletion") },
+              ]);
+            }
+          },
         },
       ]
     );
@@ -177,6 +186,14 @@ export default function ProfileScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {legacyRecordsPending ? (
+          <View style={{ padding: 16, marginBottom: 16, backgroundColor: CLight.gray100, borderRadius: 12 }}>
+            <Text style={[T.caption, { color: CLight.gray700 }]}>{t("profile.legacy_records_notice")}</Text>
+            <TouchableOpacity onPress={() => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20record%20recovery")} style={{ paddingTop: 12 }}>
+              <Text style={[T.captionBold, { color: CLight.pink }]}>{t("profile.send_email")}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {/* ─── Avatar & Name ─── */}
         <View style={styles.avatarSection}>
           {(userProfile.photos?.[0] || userProfile.photoUrl) ? (

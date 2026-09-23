@@ -1,3 +1,4 @@
+import { createMediaId } from "./mediaFileId";
 import { supabase } from "./supabaseClient";
 import { SERVER_URL, getApiHeaders } from "./apiConfig";
 import { safeStorageGet, STORAGE_KEYS } from "../utils/storage";
@@ -53,17 +54,17 @@ export async function fetchArtistProfiles(filters = {}) {
 }
 
 // ─── Upload single photo to storage ─────────────────────────
-async function uploadSinglePhoto(userId, localUri, index) {
+async function uploadSinglePhoto(userId, localUri) {
   const response = await fetch(localUri);
   const blob = await response.blob();
   const arrayBuf = await new Response(blob).arrayBuffer();
-  const filePath = `${userId}_${index}.jpg`;
+  const filePath = `${userId}_${createMediaId()}.jpg`;
 
   const { error: uploadError } = await supabase.storage
     .from("profile-photos")
     .upload(filePath, arrayBuf, {
       contentType: "image/jpeg",
-      upsert: true,
+      upsert: false,
     });
   if (uploadError) throw uploadError;
 
@@ -74,21 +75,29 @@ async function uploadSinglePhoto(userId, localUri, index) {
 }
 
 // ─── Upload profile photos (서버 경유로 DB 반영) ────────────────
-export async function uploadProfilePhotos(userId, localUris) {
+export async function uploadProfilePhotos(userId, localUris, allPhotos = localUris) {
   const urls = await Promise.all(
-    localUris.map((uri, i) => uploadSinglePhoto(userId, uri, i))
+    localUris.map((uri) => uploadSinglePhoto(userId, uri))
   );
+  const replacements = new Map(localUris.map((uri, i) => [uri, urls[i]]));
+  const photos = allPhotos.map((uri) => replacements.get(uri) || uri);
   const profileToken = await getProfileToken();
   // 사진 URL만 반영하는 부분 업데이트 — profile-sync에 photos만 전달
-  await fetch(`${SERVER_URL}/api/profile-sync`, {
+  const res = await fetch(`${SERVER_URL}/api/profile-sync`, {
     method: "POST",
     headers: getApiHeaders(),
     body: JSON.stringify({
       userId,
       profileToken,
-      profile: { photos: urls, photoUrl: urls[0] || null, _photosOnly: true },
+      profile: { photos, photoUrl: photos[0] || null, _photosOnly: true },
     }),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "photo sync failed");
+  }
+  const result = await res.json().catch(() => null);
+  if (!result?.ok) throw new Error("photo sync failed");
   return urls;
 }
 

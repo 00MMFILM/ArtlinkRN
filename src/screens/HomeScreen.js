@@ -161,8 +161,10 @@ export default function HomeScreen({ navigation }) {
 
   // 체크인 한 번 = 연습 세션 하나 (펼칠 때 시작 → 저장 때 완료)
   const checkinSessionRef = useRef(null);
+  const checkinSavingRef = useRef(false);
 
   const handleCheckinTap = useCallback((field) => {
+    if (checkinSavingRef.current) return;
     // 오늘 이미 체크인한 분야는 다시 눌러도 안내만 — 중복 노트 방지
     if (todayCheckins.has(field)) {
       showToast(t("home.checkin_already"), "success");
@@ -182,24 +184,32 @@ export default function HomeScreen({ navigation }) {
     setCheckinMemo("");
   }, [expandedField, todayCheckins, t, showToast]);
 
-  const handleCheckinSave = useCallback((field) => {
-    const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
-    handleSaveNote({
-      title,
-      field,
-      type: "checkin",
-      // 이 체크인이 어느 연습 세션에서 나왔는지 — 연습 기록(getPracticeLog)과 중복 집계 방지
-      practiceSessionId: checkinSessionRef.current?.sessionId,
-    });
-    // 홈 체크인도 노트 저장이다 — 계측이 빠져 있어 실사용 저장의 75%가 집계되지 않았다(2026-09-07)
-    trackFunnelEvent("note_saved", i18n.language);
-    if (checkinSessionRef.current) {
-      completePractice(checkinSessionRef.current, { subjectKey: field, field });
-      checkinSessionRef.current = null;
+  const handleCheckinSave = useCallback(async (field) => {
+    if (checkinSavingRef.current) return;
+    checkinSavingRef.current = true;
+    try {
+      const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
+      await handleSaveNote({
+        title,
+        field,
+        type: "checkin",
+        // 이 체크인이 어느 연습 세션에서 나왔는지 — 연습 기록(getPracticeLog)과 중복 집계 방지
+        practiceSessionId: checkinSessionRef.current?.sessionId,
+      });
+      // 홈 체크인도 노트 저장이다 — 계측이 빠져 있어 실사용 저장의 75%가 집계되지 않았다(2026-09-07)
+      trackFunnelEvent("note_saved", i18n.language);
+      if (checkinSessionRef.current) {
+        completePractice(checkinSessionRef.current, { subjectKey: field, field });
+        checkinSessionRef.current = null;
+      }
+      setExpandedField(null);
+      setCheckinMemo("");
+    } catch (_) {
+      showToast(t("common.save_failed_msg"), "error");
+    } finally {
+      checkinSavingRef.current = false;
     }
-    setExpandedField(null);
-    setCheckinMemo("");
-  }, [checkinMemo, handleSaveNote, t, i18n.language]);
+  }, [checkinMemo, handleSaveNote, t, i18n.language, showToast]);
 
   // ---- Quick actions ----
   const quickActions = [
@@ -387,7 +397,7 @@ export default function HomeScreen({ navigation }) {
                 placeholder={t("notes.checkin_placeholder")}
                 placeholderTextColor={CLight.gray400}
                 value={checkinMemo}
-                onChangeText={setCheckinMemo}
+                onChangeText={(value) => { if (!checkinSavingRef.current) setCheckinMemo(value); }}
                 returnKeyType="done"
                 onSubmitEditing={() => handleCheckinSave(expandedField)}
               />

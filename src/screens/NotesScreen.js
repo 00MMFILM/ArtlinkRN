@@ -80,6 +80,11 @@ export default function NotesScreen({ navigation }) {
     return notes;
   }, [savedNotes, selectedField, searchQuery, sortKey]);
 
+  const deleteSafely = useCallback(async (noteId) => {
+    try { await handleDeleteNote(noteId); }
+    catch (_) { Alert.alert(t("common.error"), t("common.delete_failed_msg")); }
+  }, [handleDeleteNote, t]);
+
   // Delete confirmation
   const confirmDelete = useCallback(
     (noteId, noteTitle) => {
@@ -92,7 +97,7 @@ export default function NotesScreen({ navigation }) {
             cancelButtonIndex: 0,
           },
           (buttonIndex) => {
-            if (buttonIndex === 1) handleDeleteNote(noteId);
+            if (buttonIndex === 1) deleteSafely(noteId);
             if (buttonIndex === 2) handleToggleStar(noteId);
           }
         );
@@ -100,11 +105,11 @@ export default function NotesScreen({ navigation }) {
         Alert.alert(t("notes.manage_note"), noteTitle || t("notes.this_note"), [
           { text: t("common.cancel"), style: "cancel" },
           { text: t("notes.toggle_star"), onPress: () => handleToggleStar(noteId) },
-          { text: t("common.delete"), style: "destructive", onPress: () => handleDeleteNote(noteId) },
+          { text: t("common.delete"), style: "destructive", onPress: () => deleteSafely(noteId) },
         ]);
       }
     },
-    [handleDeleteNote, handleToggleStar, t]
+    [deleteSafely, handleToggleStar, t]
   );
 
   // Navigate to detail

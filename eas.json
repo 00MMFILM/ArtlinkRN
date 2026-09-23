@@ -25,6 +25,16 @@
       },
       "distribution": "store",
       "channel": "production"
+    },
+    "review-production": {
+      "extends": "production",
+      "channel": "codex-review-1-11-7",
+      "ios": {
+        "autoIncrement": false
+      },
+      "android": {
+        "autoIncrement": false
+      }
     }
   },
   "submit": {

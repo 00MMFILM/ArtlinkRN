@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { safeStorageGet, safeStorageSet, STORAGE_KEYS } from "../utils/storage";
+import { safeStorageGet, safeStorageSet, strictStorageGet, STORAGE_KEYS } from "../utils/storage";
+import { accountScope, getStorageScope, isGuestScope, guestStorageScope, initializeAccountStorage, setStorageScope, transferGuestData, hasUnassignedLegacyData } from "../utils/accountStorage";
+import { readNoteState, mutateNoteState } from "../services/noteStore";
 import { supabase } from "../services/supabaseClient";
 import i18n from "i18next";
 import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats } from "../services/profileService";
-import { syncSingleNote, syncNotesToServer, fetchNotesFromServer, mergeNotes, deleteNoteFromServer } from "../services/notesSyncService";
+import { syncAccountNotes } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
 import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
 import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
@@ -18,6 +20,7 @@ import { migrateCachedRecordings } from "../services/recordingMigration";
 
 const AppContext = createContext();
 
+const EMPTY_PROFILE = { name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, heightPrivate: false, weightPrivate: false, specialties: [], school: "", career: [], bio: "", location: "", agency: "" };
 const DEFAULT_FIELD_ORDER = ["acting", "music", "art", "dance", "literature", "film"];
 
 // 둘러보기(게스트)로 한 번 들어온 기기는 다음 실행부터 가입 화면을 다시 보지 않는다.
@@ -39,6 +42,7 @@ export function resolveInitialAuthState({ profile, hasSession, guestEntered }) {
 }
 
 export function AppProvider({ children }) {
+  const renderedScope = getStorageScope();
   const [savedNotes, setSavedNotes] = useState([]);
   const [userProfile, setUserProfile] = useState({
     name: "", userType: "", fields: [], roleModels: [], interests: [],
@@ -57,6 +61,7 @@ export function AppProvider({ children }) {
   const [matchingDeletedIds, setMatchingDeletedIds] = useState([]);
   const [fieldOrder, setFieldOrder] = useState(DEFAULT_FIELD_ORDER);
   const [storageReady, setStorageReady] = useState(false);
+  const [legacyRecordsPending, setLegacyRecordsPending] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
   const [authState, setAuthState] = useState("auth"); // "auth" | "app"
   const [eulaAccepted, setEulaAccepted] = useState(false);
@@ -75,8 +80,10 @@ export function AppProvider({ children }) {
   // 합산 기준으로 맞추려고 여기 한 곳에서 읽는다. 앱 시작·포그라운드 복귀·노트 변경 때 다시 읽는다.
   const [practiceLog, setPracticeLog] = useState([]);
   const reloadPracticeLog = useCallback(() => {
+    const scope = getStorageScope();
     getPracticeLog()
       .then((log) => {
+        if (scope !== getStorageScope()) return;
         // 내용이 같으면 상태를 바꾸지 않는다 — 불필요한 프로필 재계산·서버 재전송 방지
         setPracticeLog((prev) => (JSON.stringify(prev) === JSON.stringify(log) ? prev : log));
       })
@@ -114,88 +121,106 @@ export function AppProvider({ children }) {
     setToast((prev) => ({ ...prev, visible: false }));
   }, []);
 
-  // Load all persisted data on mount
-  useEffect(() => {
-    (async () => {
-      const [notes, profile, dm, g, sub, fb, guide, pItems, pSummary, mPosts, mDeleted, eula, blocked, reported, consent, consentAsked, aiDisclosure] = await Promise.all([
-        safeStorageGet(STORAGE_KEYS.NOTES),
-        safeStorageGet(STORAGE_KEYS.PROFILE),
-        safeStorageGet(STORAGE_KEYS.DARK_MODE),
-        safeStorageGet(STORAGE_KEYS.GOALS),
-        Promise.resolve(null), // subscription removed
-        safeStorageGet(STORAGE_KEYS.FEEDBACKS),
-        safeStorageGet(STORAGE_KEYS.BETA_GUIDE),
-        safeStorageGet(STORAGE_KEYS.PORTFOLIO_ITEMS),
-        safeStorageGet(STORAGE_KEYS.PORTFOLIO_SUMMARY),
-        safeStorageGet(STORAGE_KEYS.MATCHING_POSTS),
-        safeStorageGet(STORAGE_KEYS.MATCHING_DELETED),
-        safeStorageGet(STORAGE_KEYS.EULA_ACCEPTED),
-        safeStorageGet(STORAGE_KEYS.BLOCKED_USERS),
-        safeStorageGet(STORAGE_KEYS.REPORTED_CONTENT),
-        safeStorageGet(STORAGE_KEYS.DATA_CONSENT),
-        safeStorageGet(STORAGE_KEYS.DATA_CONSENT_ASKED),
-        safeStorageGet(STORAGE_KEYS.AI_DISCLOSURE_ACCEPTED),
-      ]);
-      if (notes) setSavedNotes(notes);
-      let hasSession = false;
-      if (profile?.authUserId) {
-        const { data: { session } } = await supabase.auth.getSession();
-        hasSession = !!session;
-      }
-      if (profile) setUserProfile(profile);
-      // 읽기 실패해도 앱 시작이 멈추지 않게 (실패 = 둘러보기 이력 없음)
-      const guestEntered = await AsyncStorage.getItem(GUEST_ENTERED_KEY)
-        .then((v) => v === "true")
-        .catch(() => false);
-      setAuthState(resolveInitialAuthState({ profile, hasSession, guestEntered }));
+  const accountGenerationRef = useRef(0);
+  const bootstrapRef = useRef(null);
+  const ensureStorageInitialized = useCallback(() => {
+    if (!bootstrapRef.current) {
+      bootstrapRef.current = initializeAccountStorage().catch((error) => {
+        bootstrapRef.current = null; // A later sign-in can retry a failed disk read/write.
+        throw error;
+      });
+    }
+    return bootstrapRef.current;
+  }, []);
+  const profileRef = useRef(userProfile);
+  profileRef.current = userProfile;
+  const syncNotesRef = useRef(() => {});
 
-      if (g) setGoals(g);
-      // subscription removed
-      if (fb) setFeedbacks(fb);
-      if (!guide) setShowBetaGuide(true);
-      if (pItems) setPortfolioItems(pItems);
-      if (pSummary) setPortfolioSummary(pSummary);
-      if (mPosts) setMatchingPosts(mPosts);
-      if (mDeleted) setMatchingDeletedIds(mDeleted);
-      if (eula) setEulaAccepted(eula);
-      if (blocked) setBlockedUsers(blocked);
-      if (reported) setReportedContent(reported);
-      if (consent) { setDataConsent(consent); setDataConsentCache(consent); }
-      if (consentAsked) setDataConsentAsked(consentAsked);
-      if (aiDisclosure) setAiDisclosureAccepted(aiDisclosure);
-      setStorageReady(true);
-
-      // MAU: 앱 실행 즉시 기록 (가입 전 이탈 사용자도 포함)
-      trackAppOpen(i18n.language, profile?.userType);
-      // 퍼널: 프로필이 아직 없는 새 기기의 첫 실행
-      if (!profile) trackFunnelEvent("new_open", i18n.language);
-    })();
+  const clearVisibleAccount = useCallback(() => {
+    setSavedNotes([]); setUserProfile(EMPTY_PROFILE); setGoals([]); setFeedbacks([]);
+    setPortfolioItems([]); setPortfolioSummary(null); setMatchingPosts([]); setMatchingDeletedIds([]);
+    setBlockedUsers([]); setReportedContent([]); setDeviceUserId(null); setPremium(EMPTY_PREMIUM);
+    setServerStats(null); setPracticeLog([]); setDataConsent(false); setDataConsentCache(false);
+    setDataConsentAsked(false); setAiDisclosureAccepted(false); setEulaAccepted(false);
+    premiumOptimisticUntilRef.current = 0;
   }, []);
 
-  // Listen for Supabase auth state changes
+  const hydrateAccount = useCallback(async (scope, generation) => {
+    const keys = ["PROFILE", "GOALS", "FEEDBACKS", "PORTFOLIO_ITEMS", "PORTFOLIO_SUMMARY", "MATCHING_POSTS", "MATCHING_DELETED", "BLOCKED_USERS", "REPORTED_CONTENT", "DATA_CONSENT", "DATA_CONSENT_ASKED", "AI_DISCLOSURE_ACCEPTED", "EULA_ACCEPTED"];
+    const [noteState, values, legacyPending] = await Promise.all([
+      readNoteState(scope), Promise.all(keys.map((key) => strictStorageGet(STORAGE_KEYS[key], scope))), hasUnassignedLegacyData(),
+    ]);
+    if (generation !== accountGenerationRef.current || scope !== getStorageScope()) return null;
+    const [profile, g, fb, items, summary, posts, deleted, blocked, reported, consent, asked, disclosure, eula] = values;
+    setLegacyRecordsPending(legacyPending);
+    setSavedNotes(noteState.notes); setUserProfile(profile || EMPTY_PROFILE); setGoals(g || []); setFeedbacks(fb || []);
+    setPortfolioItems(items || []); setPortfolioSummary(summary || null); setMatchingPosts(posts || []); setMatchingDeletedIds(deleted || []);
+    setBlockedUsers(blocked || []); setReportedContent(reported || []); setDataConsent(!!consent); setDataConsentCache(!!consent);
+    setDataConsentAsked(!!asked); setAiDisclosureAccepted(!!disclosure); setEulaAccepted(!!eula);
+    const log = await getPracticeLog();
+    if (generation !== accountGenerationRef.current) return null;
+    setPracticeLog(log);
+    setStorageReady(true);
+    return profile || EMPTY_PROFILE;
+  }, []);
+
+  // The scope is selected before reading any account-owned data. Legacy storage
+  // is copied once, never automatically attributed to a different signed-in user.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        // 로그아웃 시 로컬 프로필 초기화
-        setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, heightPrivate: false, weightPrivate: false, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
-        safeStorageSet(STORAGE_KEYS.PROFILE, null);
-        safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
-        setDeviceUserId(null);
-        setPremium(EMPTY_PREMIUM);
-        // 로그아웃한 사용자는 다시 가입/로그인 화면을 보게 한다 (게스트 재진입 키 제거)
-        AsyncStorage.removeItem(GUEST_ENTERED_KEY).catch(() => {});
-        setAuthState("auth");
-      } else if (event === "PASSWORD_RECOVERY") {
-        // 비밀번호 재설정 링크로 앱 진입 시 → 로그인 화면으로
-        setAuthState("auth");
+    const generation = ++accountGenerationRef.current;
+    (async () => {
+      try {
+        let scope = await ensureStorageInitialized();
+        const isCurrent = () => generation === accountGenerationRef.current;
+        if (!isCurrent()) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isCurrent()) return;
+        if (session?.user?.id) scope = await setStorageScope(accountScope(session.user.id), { isCurrent });
+        else if (!isGuestScope(scope)) scope = await setStorageScope(await guestStorageScope(), { isCurrent });
+        if (!isCurrent() || !scope) return;
+        const profile = await hydrateAccount(scope, generation);
+        if (!profile || generation !== accountGenerationRef.current) return;
+        const guestEntered = await AsyncStorage.getItem(GUEST_ENTERED_KEY).then((v) => v === "true").catch(() => false);
+        setAuthState(resolveInitialAuthState({ profile: profile === EMPTY_PROFILE ? null : profile, hasSession: !!session, guestEntered }));
+        const guide = await safeStorageGet(STORAGE_KEYS.BETA_GUIDE);
+        if (!guide) setShowBetaGuide(true);
+        trackAppOpen(i18n.language, profile?.userType);
+        if (!profile.name) trackFunnelEvent("new_open", i18n.language);
+      } catch (_) {
+        // Leave the previous durable account data intact; no empty snapshot is saved.
+        if (generation === accountGenerationRef.current) { setStorageReady(false); setAuthState("auth"); }
       }
+    })();
+    return () => { accountGenerationRef.current += 1; };
+  }, [hydrateAccount, ensureStorageInitialized]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        const generation = ++accountGenerationRef.current;
+        setStorageReady(false); clearVisibleAccount(); setAuthState("auth");
+        AsyncStorage.removeItem(GUEST_ENTERED_KEY).catch(() => {});
+        (async () => {
+          await ensureStorageInitialized();
+          const scope = await guestStorageScope();
+          const isCurrent = () => generation === accountGenerationRef.current;
+          if (!isCurrent()) return;
+          await setStorageScope(scope, { isCurrent });
+          if (!isCurrent()) return;
+          await hydrateAccount(scope, generation);
+        })().catch(() => {});
+      } else if (event === "PASSWORD_RECOVERY") setAuthState("auth");
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [clearVisibleAccount, hydrateAccount, ensureStorageInitialized]);
 
   // Register device user with Supabase
   useEffect(() => {
     if (!storageReady || authState !== "app") return;
+    const generation = accountGenerationRef.current;
+    const scope = getStorageScope();
+    let cancelled = false;
+    const isCurrent = () => !cancelled && generation === accountGenerationRef.current;
     (async () => {
       try {
         let deviceId = await safeStorageGet(STORAGE_KEYS.DEVICE_ID);
@@ -208,48 +233,48 @@ export function AppProvider({ children }) {
         // 인증 모드(authUserId 있음): 캐시 무시하고 항상 재호출하여 auth 연결 보장
         const cachedUserId = await safeStorageGet(STORAGE_KEYS.DEVICE_USER_ID);
         const cachedToken = await safeStorageGet(STORAGE_KEYS.PROFILE_TOKEN);
+        if (!isCurrent()) return;
         if (cachedUserId && cachedToken && !userProfile.authUserId) {
           setDeviceUserId(cachedUserId);
           return;
         }
         // 서버 등록 → userId + 소유권 토큰 발급/갱신
         const { userId, profileToken } = await ensureDeviceUser(
-          deviceId, userProfile.name, userProfile.fields?.[0], userProfile.authUserId
+          userProfile.authUserId ? deviceId : `${deviceId}:${scope || "guest"}`, userProfile.name, userProfile.fields?.[0], userProfile.authUserId
         );
+        if (!isCurrent()) return;
         setDeviceUserId(userId);
-        await safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, userId);
-        if (profileToken) await safeStorageSet(STORAGE_KEYS.PROFILE_TOKEN, profileToken);
+        await safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, userId, scope);
+        if (profileToken) await safeStorageSet(STORAGE_KEYS.PROFILE_TOKEN, profileToken, scope);
         if (userId) trackFunnelEvent("profile_registered", language);
       } catch (_) {
         // Silent fail — community features will use demo fallback
       }
     })();
+    return () => { cancelled = true; };
   }, [storageReady, authState, userProfile.authUserId]);
 
-  // Pull notes from server on login (merge with local)
+  // Serialize sync and retry failures on foreground/reconnect polling. Every
+  // result remains bound to the account that initiated it.
   useEffect(() => {
-    if (!storageReady || authState !== "app" || !userProfile.authUserId) return;
-    (async () => {
-      try {
-        const serverRows = await fetchNotesFromServer(userProfile.authUserId);
-        if (serverRows.length === 0) {
-          // 서버에 노트 없음 → 로컬 전체를 push
-          if (savedNotes.length > 0) {
-            syncNotesToServer(userProfile.authUserId, savedNotes).catch(() => {});
-          }
-          return;
-        }
-        // fetch 대기 중 새로 저장된 노트가 유실되지 않도록 최신 상태(prev) 기준으로 병합
-        setSavedNotes((prev) => {
-          const merged = mergeNotes(prev, serverRows);
-          // 로컬에만 있던 노트를 서버에도 push (local_id 기준 upsert라 중복 호출도 안전)
-          syncNotesToServer(userProfile.authUserId, merged).catch(() => {});
-          return merged;
-        });
-      } catch (_) {
-        // Silent fail — 로컬 데이터 유지
-      }
-    })();
+    if (!storageReady || authState !== "app" || !userProfile.authUserId) {
+      syncNotesRef.current = () => {};
+      return;
+    }
+    const generation = accountGenerationRef.current;
+    const scope = getStorageScope();
+    let cancelled = false, retryTimer = null;
+    const isCurrent = () => !cancelled && generation === accountGenerationRef.current && scope === getStorageScope();
+    const run = () => {
+      clearTimeout(retryTimer);
+      if (!isCurrent()) return;
+      syncAccountNotes({ authUserId: userProfile.authUserId, scope, isCurrent, onChange: setSavedNotes })
+        .catch(() => { if (isCurrent()) retryTimer = setTimeout(run, 30000); });
+    };
+    syncNotesRef.current = run;
+    run();
+    const subscription = AppState.addEventListener("change", (state) => { if (state === "active") run(); });
+    return () => { cancelled = true; clearTimeout(retryTimer); subscription?.remove?.(); syncNotesRef.current = () => {}; };
   }, [storageReady, authState, userProfile.authUserId]);
 
   // ─── 프리미엄 상태 ───
@@ -260,7 +285,9 @@ export function AppProvider({ children }) {
       setPremium(EMPTY_PREMIUM); // 로그아웃·게스트는 프리미엄 없음
       return;
     }
+    const generation = accountGenerationRef.current;
     const next = await fetchPremiumStatus();
+    if (generation !== accountGenerationRef.current) return;
     // 결제 직후 3분은 서버의 false(웹훅 지연)로 낙관적 활성 상태를 되돌리지 않는다(2026-09-17 리뷰 지적)
     if (shouldApplyServerPremium(next, premiumOptimisticUntilRef.current)) setPremium(next);
   }, [userProfile.authUserId]);
@@ -284,7 +311,12 @@ export function AppProvider({ children }) {
 
   // Sync profile + stats to Supabase when profilePublic is enabled
   useEffect(() => {
-    if (!deviceUserId || !userProfile.profilePublic) return;
+    if (!storageReady || !deviceUserId || !userProfile.profilePublic) return;
+    const generation = accountGenerationRef.current;
+    const scope = getStorageScope();
+    const snapshot = userProfile;
+    let cancelled = false;
+    const isCurrent = () => !cancelled && generation === accountGenerationRef.current && profileRef.current === snapshot;
     const profileWithStats = {
       ...userProfile,
       score: artistProfile.overallScore || 0,
@@ -294,7 +326,7 @@ export function AppProvider({ children }) {
     };
     upsertArtistProfile(deviceUserId, profileWithStats)
       .then((res) => {
-        if (res && res.ok) {
+        if (isCurrent() && res && res.ok) {
           setServerStats({ score: res.score, mileage: res.mileage, level: res.level });
         }
       })
@@ -303,39 +335,37 @@ export function AppProvider({ children }) {
     // Upload pending local photos
     const pendingUris = (userProfile.pendingPhotoUris || []);
     if (pendingUris.length > 0) {
-      uploadProfilePhotos(deviceUserId, pendingUris)
+      uploadProfilePhotos(deviceUserId, pendingUris, snapshot.photos || [])
         .then((urls) => {
-          setUserProfile((prev) => {
-            const existing = (prev.photos || []).filter((p) => !p.startsWith("file://"));
-            const updated = { ...prev, photos: [...existing, ...urls], pendingPhotoUris: undefined, photoUrl: urls[0] || prev.photoUrl };
-            safeStorageSet(STORAGE_KEYS.PROFILE, updated);
-            return updated;
+          if (!isCurrent()) return;
+          const replacements = new Map(pendingUris.map((uri, i) => [uri, urls[i]]));
+          const photos = (snapshot.photos || []).map((uri) => replacements.get(uri) || uri);
+          const updated = { ...snapshot, photos, pendingPhotoUris: undefined, photoUrl: photos[0] || null };
+          safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope).then((ok) => {
+            if (ok && isCurrent()) setUserProfile(updated);
           });
         })
         .catch(() => {});
     }
-  }, [deviceUserId, userProfile, artistProfile, savedNotes.length]);
+    return () => { cancelled = true; };
+  }, [storageReady, deviceUserId, userProfile, artistProfile, savedNotes.length]);
 
-  // 1.11.6 이전 녹음(캐시 폴더)을 앱 시작 후 한 번 문서 폴더로 옮긴다 — 캐시가 비워지면 녹음이 사라지던 문제
-  const recordingsMigratedRef = useRef(false);
-  useEffect(() => {
-    if (!storageReady || recordingsMigratedRef.current) return;
-    recordingsMigratedRef.current = true;
-    migrateCachedRecordings(savedNotes)
-      .then((next) => {
-        if (!next) return;
-        const byId = new Map(next.map((n) => [n.id, n.voiceRecordings]));
-        // 이관하는 사이 사용자가 노트를 고쳤을 수 있으니 녹음 필드만 바꿔 끼운다
-        setSavedNotes((prev) => prev.map((n) => (byId.has(n.id) && n.voiceRecordings ? { ...n, voiceRecordings: byId.get(n.id) } : n)));
-      })
-      .catch(() => {});
-  }, [storageReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Persist notes
+  // Migrate cache recordings within their owner's namespace. A late migration
+  // must not rewrite another account's notes or overwrite newer note edits.
+  const recordingsMigratedRef = useRef(new Set());
   useEffect(() => {
     if (!storageReady) return;
-    safeStorageSet(STORAGE_KEYS.NOTES, savedNotes);
-  }, [savedNotes, storageReady]);
+    const scope = getStorageScope(), generation = accountGenerationRef.current;
+    if (recordingsMigratedRef.current.has(scope)) return;
+    recordingsMigratedRef.current.add(scope);
+    migrateCachedRecordings(savedNotes).then(async (next) => {
+      if (!next || generation !== accountGenerationRef.current) return;
+      const byId = new Map(next.map((n) => [n.id, n.voiceRecordings]));
+      const stored = await mutateNoteState(scope, (current) => ({ ...current, notes: current.notes.map((n) =>
+        byId.has(n.id) && n.voiceRecordings ? { ...n, voiceRecordings: byId.get(n.id) } : n) }));
+      if (generation === accountGenerationRef.current) setSavedNotes(stored.notes);
+    }).catch(() => {});
+  }, [storageReady, userProfile.authUserId]);
 
   // Persist portfolio items
   useEffect(() => {
@@ -355,47 +385,51 @@ export function AppProvider({ children }) {
     safeStorageSet(STORAGE_KEYS.MATCHING_DELETED, matchingDeletedIds);
   }, [matchingDeletedIds, storageReady]);
 
-  // ─── Note CRUD ───
-  const handleSaveNote = useCallback((noteData) => {
+  // ─── Note CRUD: durable local commit before success UI or navigation ───
+  const commitNotes = useCallback(async (mutation) => {
+    if (!storageReady || renderedScope !== getStorageScope()) throw new Error("ACCOUNT_NOT_READY");
+    const scope = getStorageScope(), generation = accountGenerationRef.current;
+    const state = await mutateNoteState(scope, mutation);
+    if (generation !== accountGenerationRef.current) throw new Error("ACCOUNT_CHANGED");
+    setSavedNotes(state.notes);
+    syncNotesRef.current();
+    return state;
+  }, [storageReady, renderedScope]);
+
+  const handleSaveNote = useCallback(async (noteData) => {
     const now = new Date().toISOString();
     const newNote = { id: Date.now(), createdAt: now, updatedAt: now, starred: false, ...noteData };
-    setSavedNotes((prev) => [newNote, ...prev]);
-    showToast(i18n.t("toast.note_saved"), "success");
-    if (userProfile.authUserId) {
-      syncSingleNote(userProfile.authUserId, newNote).catch(() => {});
-    }
-    return newNote.id; // 저장된 노트 id — 연습 측정의 subjectKey로 쓴다
-  }, [showToast, userProfile.authUserId]);
-
-  const handleDeleteNote = useCallback((noteId) => {
-    setSavedNotes((prev) => prev.filter((n) => n.id !== noteId));
-    showToast(i18n.t("toast.note_deleted"), "delete");
-    if (userProfile.authUserId) {
-      deleteNoteFromServer(userProfile.authUserId, noteId).catch(() => {});
-    }
-  }, [showToast, userProfile.authUserId]);
-
-  const handleToggleStar = useCallback((noteId) => {
-    setSavedNotes((prev) => {
-      const note = prev.find((n) => n.id === noteId);
-      if (note) showToast(note.starred ? i18n.t("toast.star_removed") : i18n.t("toast.star_added"), note.starred ? "unstar" : "star");
-      const updated = prev.map((n) => (n.id === noteId ? { ...n, starred: !n.starred, updatedAt: new Date().toISOString() } : n));
-      if (userProfile.authUserId) {
-        const toggled = updated.find((n) => n.id === noteId);
-        if (toggled) syncSingleNote(userProfile.authUserId, toggled).catch(() => {});
-      }
-      return updated;
+    await commitNotes((state) => {
+      while (state.notes.some((n) => n.id === newNote.id) || state.tombstones[newNote.id]) newNote.id += 1;
+      return { ...state, notes: [newNote, ...state.notes] };
     });
-  }, [showToast, userProfile.authUserId]);
+    showToast(i18n.t("toast.note_saved"), "success");
+    return newNote.id;
+  }, [commitNotes, showToast]);
 
-  const handleUpdateNote = useCallback((updatedNote, { silent = false } = {}) => {
-    const withTimestamp = { ...updatedNote, updatedAt: new Date().toISOString() };
-    setSavedNotes((prev) => prev.map((n) => (n.id === updatedNote.id ? withTimestamp : n)));
+  const handleDeleteNote = useCallback(async (noteId) => {
+    await commitNotes((state) => ({
+      notes: state.notes.filter((n) => n.id !== noteId),
+      tombstones: { ...state.tombstones, [noteId]: { deletedAt: new Date().toISOString(), synced: false } },
+    }));
+    showToast(i18n.t("toast.note_deleted"), "delete");
+  }, [commitNotes, showToast]);
+
+  const handleToggleStar = useCallback(async (noteId) => {
+    try {
+      await commitNotes((state) => ({ ...state, notes: state.notes.map((n) => n.id === noteId ?
+        { ...n, starred: !n.starred, updatedAt: new Date().toISOString() } : n) }));
+    } catch (_) { showToast(i18n.t("common.error"), "error"); }
+  }, [commitNotes, showToast]);
+
+  const handleUpdateNote = useCallback(async (updatedNote, { silent = false } = {}) => {
+    await commitNotes((state) => {
+      if (state.tombstones[updatedNote.id] || !state.notes.some((n) => n.id === updatedNote.id)) throw new Error("NOTE_NOT_FOUND");
+      return { ...state, notes: state.notes.map((n) => n.id === updatedNote.id ?
+        { ...updatedNote, updatedAt: new Date().toISOString() } : n) };
+    });
     if (!silent) showToast(i18n.t("toast.note_updated"), "edit");
-    if (userProfile.authUserId) {
-      syncSingleNote(userProfile.authUserId, withTimestamp).catch(() => {});
-    }
-  }, [showToast, userProfile.authUserId]);
+  }, [commitNotes, showToast]);
 
   const handleUpdateGoals = useCallback((newGoals) => {
     setGoals(newGoals);
@@ -451,10 +485,11 @@ export function AppProvider({ children }) {
 
   // ─── Portfolio CRUD ───
   const handleAddPortfolioItem = useCallback((itemData) => {
+    if (!storageReady || renderedScope !== getStorageScope()) throw new Error("ACCOUNT_CHANGED");
     const newItem = { id: Date.now(), createdAt: new Date().toISOString(), ...itemData };
     setPortfolioItems((prev) => [newItem, ...prev]);
     showToast(i18n.t("toast.portfolio_added"), "success");
-  }, [showToast]);
+  }, [storageReady, renderedScope, showToast]);
 
   const handleDeletePortfolioItem = useCallback((itemId) => {
     setPortfolioItems((prev) => prev.filter((item) => item.id !== itemId));
@@ -462,27 +497,27 @@ export function AppProvider({ children }) {
   }, [showToast]);
 
   const handleUpdatePortfolioSummary = useCallback((summary) => {
+    if (!storageReady || renderedScope !== getStorageScope()) throw new Error("ACCOUNT_CHANGED");
     setPortfolioSummary(summary);
-    safeStorageSet(STORAGE_KEYS.PORTFOLIO_SUMMARY, summary);
-  }, []);
+    safeStorageSet(STORAGE_KEYS.PORTFOLIO_SUMMARY, summary, renderedScope);
+  }, [storageReady, renderedScope]);
 
   const handleFieldOrderChange = useCallback((newOrder) => {
     setFieldOrder(newOrder);
     safeStorageSet("artlink-field-order", newOrder);
   }, []);
 
-  const handleUpdateProfile = useCallback((partial) => {
-    setUserProfile((prev) => {
-      const updated = { ...prev, ...partial };
-      safeStorageSet(STORAGE_KEYS.PROFILE, updated);
-      // 이름 변경 시 Supabase user_metadata에도 저장 (재로그인 시 복원용)
-      if (partial.name && prev.authUserId) {
-        supabase.auth.updateUser({ data: { name: partial.name } }).catch(() => {});
-      }
-      return updated;
-    });
+  const handleUpdateProfile = useCallback(async (partial) => {
+    if (!storageReady || renderedScope !== getStorageScope()) throw new Error("ACCOUNT_NOT_READY");
+    const scope = getStorageScope(), generation = accountGenerationRef.current;
+    const previous = profileRef.current;
+    const updated = { ...previous, ...partial };
+    if (!await safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope)) throw new Error("LOCAL_STORAGE_WRITE_FAILED");
+    if (generation !== accountGenerationRef.current) throw new Error("ACCOUNT_CHANGED");
+    setUserProfile(updated);
+    if (partial.name && previous.authUserId) supabase.auth.updateUser({ data: { name: partial.name } }).catch(() => {});
     showToast(i18n.t("toast.profile_updated"), "success");
-  }, [showToast]);
+  }, [storageReady, renderedScope, showToast]);
 
   const handleChangeLanguage = useCallback(async (langCode) => {
     setLanguage(langCode);
@@ -491,44 +526,42 @@ export function AppProvider({ children }) {
   }, []);
 
   const handleAuth = useCallback(async (profileData) => {
-    if (profileData) {
-      const { data: { user } } = await supabase.auth.getUser();
-      let finalProfile;
-      if (profileData._mergeExisting) {
-        // 로그인 시: 기존 프로필 유지, 이메일/authUserId만 갱신
+    const generation = ++accountGenerationRef.current;
+    setStorageReady(false); clearVisibleAccount();
+    try {
+      await ensureStorageInitialized();
+      const isCurrent = () => generation === accountGenerationRef.current;
+      if (!isCurrent()) return;
+      const previousScope = getStorageScope();
+      if (profileData) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.id) throw new Error("AUTH_REQUIRED");
+        if (!isCurrent()) return;
+        const scope = accountScope(user.id);
+        if (isGuestScope(previousScope)) await transferGuestData(previousScope, scope);
+        if (generation !== accountGenerationRef.current) return;
+        await setStorageScope(scope, { isCurrent });
+        if (!isCurrent()) return;
+        const existing = await strictStorageGet(STORAGE_KEYS.PROFILE, scope);
         const { _mergeExisting, ...loginData } = profileData;
-        const existing = await safeStorageGet(STORAGE_KEYS.PROFILE);
-        if (existing && existing.authUserId && user?.id && existing.authUserId !== user.id) {
-          // 다른 유저의 프로필이 남아있음 → 서버에서 프로필 복원 시도
-          const name = user.user_metadata?.name || loginData.email?.split("@")[0] || "";
-          finalProfile = { name, ...loginData, authUserId: user.id };
-        } else {
-          // 기존 로컬 프로필 유지, loginData로 이메일만 갱신 (이름 덮어쓰기 방지)
-          finalProfile = { ...(existing || {}), ...loginData, authUserId: user?.id };
-          // 이름이 없으면 user_metadata에서 복원
-          if (!finalProfile.name && user?.user_metadata?.name) {
-            finalProfile.name = user.user_metadata.name;
-          }
-          if (!finalProfile.name) {
-            finalProfile.name = loginData.email?.split("@")[0] || "";
-          }
-        }
+        const finalProfile = { ...(existing || {}), ...loginData, authUserId: user.id };
+        if (_mergeExisting) finalProfile.name = existing?.name || user.user_metadata?.name || loginData.email?.split("@")[0] || "";
+        if (!await safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile, scope)) throw new Error("LOCAL_STORAGE_WRITE_FAILED");
+        await hydrateAccount(scope, generation);
       } else {
-        // 회원가입 시: 전체 프로필 저장
-        finalProfile = { ...profileData, authUserId: user?.id };
+        const scope = await guestStorageScope();
+        await setStorageScope(scope, { isCurrent });
+        if (!isCurrent()) return;
+        await hydrateAccount(scope, generation);
+        if (!isCurrent()) return;
+        await AsyncStorage.setItem(GUEST_ENTERED_KEY, "true");
       }
-      setUserProfile(finalProfile);
-      safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile);
-      // 기존 deviceUserId 캐시 초기화 (새 auth user에 맞게 재등록)
-      safeStorageSet(STORAGE_KEYS.DEVICE_USER_ID, null);
-      setDeviceUserId(null);
-    } else {
-      // 둘러보기 — 이 기기는 다음 실행부터 바로 홈으로 (가입 화면 반복 노출 제거)
-      AsyncStorage.setItem(GUEST_ENTERED_KEY, "true").catch(() => {});
+      if (generation === accountGenerationRef.current) setAuthState("app");
+    } catch (error) {
+      if (generation === accountGenerationRef.current) { setStorageReady(false); setAuthState("auth"); }
+      throw error;
     }
-    setAuthState("app");
-  }, []);
-
+  }, [clearVisibleAccount, hydrateAccount, ensureStorageInitialized]);
 
   // ─── EULA ───
   const handleAcceptEula = useCallback(() => {
@@ -607,23 +640,15 @@ export function AppProvider({ children }) {
     setAuthState("auth");
   }, []);
 
+  // A server-backed account erasure flow has not been released yet. Never claim
+  // deletion after merely logging out or erase other accounts' local namespaces.
   const handleDeleteAccount = useCallback(async () => {
-    await supabase.auth.signOut();
-    await AsyncStorage.clear();
-    setSavedNotes([]);
-    setUserProfile({ name: "", userType: "", fields: [], roleModels: [], interests: [], gender: "", birthDate: "", height: null, weight: null, heightPrivate: false, weightPrivate: false, specialties: [], school: "", career: [], bio: "", location: "", agency: "" });
-    setGoals([]);
-    setFeedbacks([]);
-    setPortfolioItems([]);
-    setPortfolioSummary(null);
-    setMatchingPosts([]);
-    setMatchingDeletedIds([]);
-    setAuthState("auth");
+    throw new Error("ACCOUNT_DELETION_UNAVAILABLE");
   }, []);
 
   const value = useMemo(() => ({
     savedNotes, userProfile, goals, feedbacks,
-    showBetaGuide, fieldOrder, storageReady, toast, authState, artistProfile: displayProfile,
+    showBetaGuide, fieldOrder, storageReady, legacyRecordsPending, toast, authState, artistProfile: displayProfile,
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
@@ -639,7 +664,7 @@ export function AppProvider({ children }) {
     handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
     savedNotes, userProfile, goals, feedbacks,
-    showBetaGuide, fieldOrder, storageReady, toast, authState, displayProfile,
+    showBetaGuide, fieldOrder, storageReady, legacyRecordsPending, toast, authState, displayProfile,
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,

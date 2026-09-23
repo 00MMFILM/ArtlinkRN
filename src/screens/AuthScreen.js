@@ -167,7 +167,7 @@ export default function AuthScreen({ navigation }) {
         pendingPhotoUris: [],
       };
       trackFunnelEvent("signup_completed", language);
-      handleAuth(profileData);
+      await handleAuth(profileData);
     } catch (e) {
       Alert.alert(t("common.error"), t("auth.signup_error"));
     } finally {
@@ -193,7 +193,7 @@ export default function AuthScreen({ navigation }) {
       if (data.user) {
         trackFunnelEvent("login_completed", language);
         // 기존 프로필이 있으면 이메일만 갱신, 없으면 최소 프로필 생성
-        handleAuth({ email: loginEmail.trim(), _mergeExisting: true });
+        await handleAuth({ email: loginEmail.trim(), _mergeExisting: true });
       }
     } catch (e) {
       Alert.alert(t("common.error"), t("auth.login_error"));
@@ -202,9 +202,17 @@ export default function AuthScreen({ navigation }) {
     }
   };
 
-  const handleSkip = () => {
-    trackFunnelEvent("browse_skipped", language);
-    handleAuth(null);
+  const handleSkip = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await handleAuth(null);
+      trackFunnelEvent("browse_skipped", language);
+    } catch (_) {
+      Alert.alert(t("common.error"), t("auth.login_error"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgotPassword = async () => {

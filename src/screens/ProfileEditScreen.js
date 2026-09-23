@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 import { useApp } from "../context/AppContext";
 import { withdrawMediaConsent } from "../services/dataCollectionService";
+import { preserveMediaFile } from "../services/persistentMedia";
 import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
 import {
   FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES,
@@ -50,6 +51,8 @@ export default function ProfileEditScreen({ navigation }) {
   const [selectedFields, setSelectedFields] = useState(userProfile.fields || []);
   const [profilePublic, setProfilePublic] = useState(userProfile.profilePublic || false);
   const [photos, setPhotos] = useState(userProfile.photos || []);
+  const photoBusyRef = useRef(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // 변경 여부 가드 — 첫 렌더(프로필 프리필)는 변경으로 치지 않는다
   const isFirstRender = useRef(true);
@@ -95,18 +98,23 @@ export default function ProfileEditScreen({ navigation }) {
   }, [navigation, t]);
 
   const handleDataConsentChange = useCallback(async (value) => {
+    if (value) {
+      Alert.alert(t("common.notice"), t("profileEdit.collection_paused"));
+      return;
+    }
     handleSetDataConsent(value);
-    if (value) return;
     try {
       await withdrawMediaConsent();
-      Alert.alert("알림", "보관된 학습자료가 삭제되었습니다.");
+      Alert.alert(t("common.notice"), t("profileEdit.archive_withdrawn"));
     } catch (e) {
-      Alert.alert("알림", "학습자료 삭제 요청이 실패했습니다. 잠시 후 다시 시도해주세요.");
+      Alert.alert(t("common.notice"), t("profileEdit.archive_withdraw_failed"));
     }
-  }, [handleSetDataConsent]);
+  }, [handleSetDataConsent, t]);
 
   const handleAddPhoto = async () => {
-    if (photos.length >= 6) return;
+    if (photos.length >= 6 || photoBusyRef.current) return;
+    photoBusyRef.current = true;
+    setPhotoBusy(true);
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -119,10 +127,14 @@ export default function ProfileEditScreen({ navigation }) {
         quality: 0.7,
       });
       if (!result.canceled && result.assets?.[0]) {
-        setPhotos((prev) => [...prev, result.assets[0].uri]);
+        const uri = await preserveMediaFile(result.assets[0].uri);
+        setPhotos((prev) => [...prev, uri]);
       }
     } catch (e) {
-      Alert.alert(t("common.error"), t("common.photo_load_error"));
+      Alert.alert(t("common.media_save_failed_title"), t("common.media_save_failed_msg"));
+    } finally {
+      photoBusyRef.current = false;
+      setPhotoBusy(false);
     }
   };
 
@@ -139,35 +151,54 @@ export default function ProfileEditScreen({ navigation }) {
   const toggleInArray = (arr, item) =>
     arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
+    if (photoBusyRef.current) return;
     if (!name.trim()) {
       Alert.alert(t("profileEdit.name_required"), t("profileEdit.name_required_msg"));
       return;
     }
-    const localPhotos = photos.filter((p) => p.startsWith("file://"));
-    handleUpdateProfile({
-      name: name.trim(),
-      gender,
-      birthDate: birthDate.trim(),
-      height: height ? Number(height) : null,
-      weight: weight ? Number(weight) : null,
-      heightPrivate,
-      weightPrivate,
-      specialties: specialties.filter((s, i, arr) => arr.findIndex((x) => specialtyKey(x) === specialtyKey(s)) === i),
-      school: school.trim(),
-      location: location.trim(),
-      agency: agency.trim(),
-      bio: bio.trim(),
-      career,
-      fields: selectedFields,
-      profilePublic,
-      photos,
-      photoUrl: photos[0] || null,
-      pendingPhotoUris: localPhotos.length > 0 ? localPhotos : undefined,
-    });
-    hasChangesRef.current = false;
-    navigation.goBack();
-  }, [name, gender, birthDate, height, weight, heightPrivate, weightPrivate, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation]);
+    photoBusyRef.current = true;
+    setPhotoBusy(true);
+    let mediaReady = false;
+    try {
+      // Also protect photos selected in an older version before persisting this edit.
+      const keptPhotos = photos.some((p) => !/^https?:\/\//i.test(p))
+        ? await Promise.all(photos.map((p) => preserveMediaFile(p))) : photos;
+      const localPhotos = keptPhotos.filter((p) => !/^https?:\/\//i.test(p));
+      mediaReady = true;
+      const saved = await handleUpdateProfile({
+        name: name.trim(),
+        gender,
+        birthDate: birthDate.trim(),
+        height: height ? Number(height) : null,
+        weight: weight ? Number(weight) : null,
+        heightPrivate,
+        weightPrivate,
+        specialties: specialties.filter((s, i, arr) => arr.findIndex((x) => specialtyKey(x) === specialtyKey(s)) === i),
+        school: school.trim(),
+        location: location.trim(),
+        agency: agency.trim(),
+        bio: bio.trim(),
+        career,
+        fields: selectedFields,
+        profilePublic,
+        photos: keptPhotos,
+        photoUrl: keptPhotos[0] || null,
+        pendingPhotoUris: localPhotos.length > 0 ? localPhotos : undefined,
+      });
+      if (saved === false) return;
+      hasChangesRef.current = false;
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert(
+        t(mediaReady ? "common.save_failed_title" : "common.media_save_failed_title"),
+        t(mediaReady ? "common.save_failed_msg" : "common.media_save_failed_msg")
+      );
+    } finally {
+      photoBusyRef.current = false;
+      setPhotoBusy(false);
+    }
+  }, [name, gender, birthDate, height, weight, heightPrivate, weightPrivate, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation, t]);
 
   const handleAddCareer = () => {
     if (!careerTitle.trim()) return;
@@ -208,7 +239,7 @@ export default function ProfileEditScreen({ navigation }) {
           </TouchableOpacity>
         }
         right={
-          <TouchableOpacity onPress={handleSave}>
+          <TouchableOpacity onPress={handleSave} disabled={photoBusy}>
             <Text style={styles.saveBtn}>{t("common.save")}</Text>
           </TouchableOpacity>
         }
@@ -418,7 +449,7 @@ export default function ProfileEditScreen({ navigation }) {
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>{t("profileEdit.ai_training")}</Text>
               <Text style={[T.micro, { color: CLight.gray500, lineHeight: 18 }]}>
-                {t("profileEdit.ai_training_desc")}
+                {t("profileEdit.collection_paused")}
               </Text>
             </View>
             <Switch
@@ -428,6 +459,9 @@ export default function ProfileEditScreen({ navigation }) {
               thumbColor={CLight.white}
             />
           </View>
+          <TouchableOpacity onPress={() => handleDataConsentChange(false)} style={{ paddingVertical: 12 }}>
+            <Text style={[T.captionBold, { color: CLight.pink }]}>{t("profileEdit.archive_withdraw_request")}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 40 }} />

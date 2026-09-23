@@ -1,7 +1,8 @@
 // 3단계 — 저장된 노트에서 "고칠 점 하나 고르기 → 이 포인트로 다시 연습",
 // 그리고 재연습 노트의 "지난 연습" 카드.
 import React from "react";
-import { render, fireEvent, act } from "@testing-library/react-native";
+import { render, fireEvent, act, waitFor } from "@testing-library/react-native";
+import { usePreventRemove } from "@react-navigation/native";
 import NoteDetailScreen from "../NoteDetailScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
@@ -10,6 +11,7 @@ jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
+jest.mock("@react-navigation/native", () => ({ usePreventRemove: jest.fn() }));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/analyticsService", () => ({ getRelatedNotes: jest.fn(() => []) }));
 jest.mock("../../services/aiService", () => ({
@@ -75,14 +77,14 @@ const openAiTab = (utils) => fireEvent.press(utils.getByText("noteDetail.tab_ai"
 describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("후보를 고르면 노트에 chosenFocus가 저장되고 퍼널에 기록된다", () => {
+  it("후보를 고르면 노트에 chosenFocus가 저장되고 퍼널에 기록된다", async () => {
     const ctx = buildCtx([baseNote]);
     useApp.mockReturnValue(ctx);
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
 
     expect(utils.getByText("focus.pick_title")).toBeTruthy();
-    fireEvent.press(utils.getByText("첫 문장 호흡 늦추기"));
+    await act(async () => { fireEvent.press(utils.getByText("첫 문장 호흡 늦추기")); });
 
     expect(ctx.handleUpdateNote).toHaveBeenCalledWith(
       expect.objectContaining({ id: 200, chosenFocus: "첫 문장 호흡 늦추기" }),
@@ -91,14 +93,14 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     expect(trackFunnelEvent).toHaveBeenCalledWith("focus_selected");
   });
 
-  it("고르기 전엔 '다시 연습' 버튼이 없다", () => {
+  it("고르기 전엔 '다시 연습' 버튼이 없다", async () => {
     useApp.mockReturnValue(buildCtx([baseNote]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
     expect(utils.queryByText("focus.repractice_cta")).toBeNull();
   });
 
-  it("'이 포인트로 다시 연습'은 체인(rootNoteId·parentNoteId)과 초점을 들고 새 노트를 연다", () => {
+  it("'이 포인트로 다시 연습'은 체인(rootNoteId·parentNoteId)과 초점을 들고 새 노트를 연다", async () => {
     const chosen = { ...baseNote, chosenFocus: "첫 문장 호흡 늦추기", seriesName: "햄릿" };
     useApp.mockReturnValue(buildCtx([chosen]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
@@ -119,7 +121,7 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     });
   });
 
-  it("이미 재연습 노트면 rootNoteId가 체인의 최초 id로 유지된다", () => {
+  it("이미 재연습 노트면 rootNoteId가 체인의 최초 id로 유지된다", async () => {
     const chainNote = { ...baseNote, id: 300, rootNoteId: 100, parentNoteId: 200, chosenFocus: "시선 고정" };
     useApp.mockReturnValue(buildCtx([chainNote]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 300 } }} navigation={navigation} />);
@@ -153,7 +155,7 @@ describe("NoteDetailScreen — 지난 연습 카드", () => {
     aiScores: { technique: 6, expression: 5, creativity: 4, consistency: 5, growth: 7 },
   };
 
-  it("직전 노트가 있으면 지난 초점·요약·지표 변화를 보여준다", () => {
+  it("직전 노트가 있으면 지난 초점·요약·지표 변화를 보여준다", async () => {
     useApp.mockReturnValue(buildCtx([current, prev]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
@@ -165,14 +167,14 @@ describe("NoteDetailScreen — 지난 연습 카드", () => {
     expect(utils.getByText("focus.axis_technique +1 · focus.axis_expression 0 · focus.axis_creativity -1 · focus.axis_consistency 0 · focus.axis_growth +2")).toBeTruthy();
   });
 
-  it("직전 노트가 기기에 없으면 카드를 그리지 않는다 (타기기 복원 등)", () => {
+  it("직전 노트가 기기에 없으면 카드를 그리지 않는다 (타기기 복원 등)", async () => {
     useApp.mockReturnValue(buildCtx([current]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
     expect(utils.queryByText("focus.previous_title")).toBeNull();
   });
 
-  it("재연습이 아닌 일반 노트엔 카드가 없다", () => {
+  it("재연습이 아닌 일반 노트엔 카드가 없다", async () => {
     useApp.mockReturnValue(buildCtx([baseNote]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
@@ -212,7 +214,7 @@ describe("항목2 — 영상 AI만 있는 노트에도 고칠 점·재연습이 
     images: [{ uri: "file:///a.mov", type: "video" }],
   };
 
-  it("'AI 분석이 아직 없습니다'가 아니라 고칠 점 칩이 보인다", () => {
+  it("'AI 분석이 아직 없습니다'가 아니라 고칠 점 칩이 보인다", async () => {
     const ctx = buildCtx([videoOnly]);
     useApp.mockReturnValue(ctx);
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 400 } }} navigation={navigation} />);
@@ -228,7 +230,7 @@ describe("항목2 — 영상 AI만 있는 노트에도 고칠 점·재연습이 
     );
   });
 
-  it("고른 초점이 있으면 '이 포인트로 다시 연습'이 보인다", () => {
+  it("고른 초점이 있으면 '이 포인트로 다시 연습'이 보인다", async () => {
     useApp.mockReturnValue(buildCtx([{ ...videoOnly, chosenFocus: "시선 고정" }]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 400 } }} navigation={navigation} />);
     openAiTab(utils);
@@ -239,7 +241,7 @@ describe("항목2 — 영상 AI만 있는 노트에도 고칠 점·재연습이 
     }));
   });
 
-  it("글·영상 피드백이 둘 다 없을 때만 빈 상태를 보여준다", () => {
+  it("글·영상 피드백이 둘 다 없을 때만 빈 상태를 보여준다", async () => {
     useApp.mockReturnValue(buildCtx([{ ...videoOnly, videoAnalysis: undefined }]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 400 } }} navigation={navigation} />);
     openAiTab(utils);
@@ -395,7 +397,7 @@ describe("항목17 — 편집 중 하드웨어 뒤로가기도 확인을 받는�
     };
   };
 
-  it("편집 중이면 뒤로가기를 막고 확인창을 띄운다", () => {
+  it("편집 중이면 뒤로가기를 막고 확인창을 띄운다", async () => {
     const nav = navWithListener();
     useApp.mockReturnValue(buildCtx([baseNote]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={nav} />);
@@ -411,7 +413,7 @@ describe("항목17 — 편집 중 하드웨어 뒤로가기도 확인을 받는�
     expect(nav.dispatch).toHaveBeenCalledWith({ type: "GO_BACK" });
   });
 
-  it("편집 중이 아니면 그냥 나간다", () => {
+  it("편집 중이 아니면 그냥 나간다", async () => {
     const nav = navWithListener();
     useApp.mockReturnValue(buildCtx([baseNote]));
     render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={nav} />);
@@ -421,13 +423,13 @@ describe("항목17 — 편집 중 하드웨어 뒤로가기도 확인을 받는�
     expect(Alert.alert).not.toHaveBeenCalled();
   });
 
-  it("저장하고 나가면 확인창이 뜨지 않는다", () => {
+  it("저장하고 나가면 확인창이 뜨지 않는다", async () => {
     const nav = navWithListener();
     useApp.mockReturnValue(buildCtx([baseNote]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={nav} />);
 
     fireEvent.press(utils.getByText("✏️"));
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     const e = nav.__fire("beforeRemove");
 
     expect(e.preventDefault).not.toHaveBeenCalled();
@@ -437,7 +439,7 @@ describe("항목17 — 편집 중 하드웨어 뒤로가기도 확인을 받는�
 describe("항목18 — 피드백 코멘트 모달이 키보드에 가리지 않는다", () => {
   beforeEach(resetDetail);
 
-  it("모달 내용이 KeyboardAvoidingView 안에 들어 있다", () => {
+  it("모달 내용이 KeyboardAvoidingView 안에 들어 있다", async () => {
     useApp.mockReturnValue(buildCtx([baseNote]));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
@@ -445,5 +447,89 @@ describe("항목18 — 피드백 코멘트 모달이 키보드에 가리지 않�
 
     expect(utils.getByText("noteDetail.ai_feedback_prompt")).toBeTruthy();
     expect(utils.UNSAFE_getAllByType(KeyboardAvoidingView).length).toBeGreaterThan(0);
+  });
+});
+
+describe("completed AI feedback survives a failed local save", () => {
+  beforeEach(resetDetail);
+  const { aiFeedbackDone } = require("../../services/practiceService");
+
+  it("keeps text feedback visible and retries only the save without consuming another AI request", async () => {
+    const ctx = buildCtx([baseNote]);
+    ctx.handleUpdateNote.mockRejectedValueOnce(new Error("disk full")).mockRejectedValueOnce(new Error("still full")).mockResolvedValue(undefined);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.ai_reanalyze")));
+    expect(utils.getByText("새 피드백")).toBeTruthy();
+    expect(utils.getByText("noteDetail.ai_save_pending")).toBeTruthy();
+    expect(utils.queryByText("noteDetail.ai_reanalyze")).toBeNull();
+    expect(aiFeedbackDone).not.toHaveBeenCalled();
+    expect(submitAnonymousMetadata).not.toHaveBeenCalled();
+    await act(async () => fireEvent.press(utils.getByText("common.retry_save")));
+    expect(utils.getByText("새 피드백")).toBeTruthy();
+    await act(async () => fireEvent.press(utils.getByText("common.retry_save")));
+    expect(ctx.handleUpdateNote).toHaveBeenCalledTimes(3);
+    expect(analyzeNote).toHaveBeenCalledTimes(1);
+    expect(aiFeedbackDone).toHaveBeenCalledTimes(1);
+    expect(submitAnonymousMetadata).toHaveBeenCalledTimes(1);
+    expect(utils.queryByText("common.retry_save")).toBeNull();
+  });
+
+  it("retries a failed video save without rerunning the video analysis", async () => {
+    const note = { ...baseNote, images: [{ uri: "file:///a.mov", type: "video", duration: 5000 }] };
+    const ctx = buildCtx([note]);
+    ctx.handleUpdateNote.mockRejectedValueOnce(new Error("disk full")).mockResolvedValue(undefined);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.video_ai_request")));
+    expect(utils.getByText("새 영상 분석")).toBeTruthy();
+    expect(Alert.alert).not.toHaveBeenCalled(); // no retry-generation dialog on a storage failure
+    await act(async () => fireEvent.press(utils.getByText("common.retry_save")));
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(1);
+    expect(ctx.handleUpdateNote).toHaveBeenCalledTimes(2);
+    expect(ctx.handleUpdateNote.mock.calls[1][0].videoAnalysis).toBe("새 영상 분석");
+    expect(aiFeedbackDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("merges the pending AI fields into the latest note rather than reverting intervening edits", async () => {
+    const ctx = buildCtx([baseNote]);
+    ctx.handleUpdateNote.mockRejectedValueOnce(new Error("disk full")).mockResolvedValue(undefined);
+    analyzeNote.mockResolvedValue({ analysis: "새 피드백", scores: { growth: 4 }, focusOptions: ["새 초점"] });
+    useApp.mockReturnValue(ctx);
+    const props = { route: { params: { noteId: 200 } }, navigation };
+    const utils = render(<NoteDetailScreen {...props} />);
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.ai_reanalyze")));
+    useApp.mockReturnValue({ ...ctx, savedNotes: [{ ...baseNote, title: "수정한 제목", content: "새로 편집한 본문", starred: true, chosenFocus: "새 초점" }] });
+    utils.rerender(<NoteDetailScreen {...props} />);
+    await act(async () => fireEvent.press(utils.getByText("common.retry_save")));
+    expect(ctx.handleUpdateNote.mock.calls[1][0]).toEqual(expect.objectContaining({
+      title: "수정한 제목", content: "새로 편집한 본문", starred: true,
+      aiComment: "새 피드백", chosenFocus: "새 초점", focusOptions: ["새 초점"],
+    }));
+  });
+
+  it("guards native back and explicitly warns before discarding the unsaved generated result", async () => {
+    const nav = { ...navigation, dispatch: jest.fn() };
+    const ctx = buildCtx([baseNote]);
+    ctx.handleUpdateNote.mockRejectedValue(new Error("disk full"));
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={nav} />);
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.ai_reanalyze")));
+    const [blocked, onPrevented] = usePreventRemove.mock.calls.at(-1);
+    expect(blocked).toBe(true);
+    const action = { type: "GO_BACK" };
+    act(() => onPrevented({ data: { action } }));
+    expect(nav.dispatch).not.toHaveBeenCalled();
+    const firstPrompt = Alert.alert.mock.calls.at(-1);
+    expect(firstPrompt[1]).toBe("noteDetail.ai_save_leave");
+    act(() => firstPrompt[2].find((b) => b.text === "common.cancel").onPress());
+    expect(utils.getByText("새 피드백")).toBeTruthy();
+    act(() => onPrevented({ data: { action } }));
+    act(() => Alert.alert.mock.calls.at(-1)[2].find((b) => b.text === "common.leave").onPress());
+    expect(nav.dispatch).toHaveBeenCalledWith(action);
   });
 });

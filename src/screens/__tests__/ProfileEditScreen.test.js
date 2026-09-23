@@ -2,15 +2,18 @@
 // beforeRemove + 변경 여부 가드를 추가한다. 저장으로 나갈 때는 경고가 뜨면 안 된다.
 import React from "react";
 import { Alert } from "react-native";
-import { render, fireEvent, act } from "@testing-library/react-native";
+import { render, fireEvent, act, waitFor } from "@testing-library/react-native";
 import ProfileEditScreen from "../ProfileEditScreen";
 import { useApp } from "../../context/AppContext";
+import { preserveMediaFile } from "../../services/persistentMedia";
+import * as ImagePicker from "expo-image-picker";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("../../services/dataCollectionService", () => ({ withdrawMediaConsent: jest.fn() }));
+jest.mock("../../services/persistentMedia", () => ({ preserveMediaFile: jest.fn(async (uri) => uri) }));
 jest.mock("expo-image-picker", () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
@@ -63,7 +66,7 @@ describe("ProfileEditScreen — 이탈 경고", () => {
     expect(navigation.goBack).not.toHaveBeenCalled();
   });
 
-  it("저장으로 나갈 때는 경고가 뜨지 않는다", () => {
+  it("저장으로 나갈 때는 경고가 뜨지 않는다", async () => {
     const navigation = buildNavigation();
     const ctx = {
       userProfile: { name: "차서원", bio: "" },
@@ -78,7 +81,7 @@ describe("ProfileEditScreen — 이탈 경고", () => {
 
     expect(ctx.handleUpdateProfile).toHaveBeenCalledTimes(1);
     expect(Alert.alert).not.toHaveBeenCalled();
-    expect(navigation.goBack).toHaveBeenCalled();
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
   });
 
   it("변경 후 하드웨어 뒤로가기(beforeRemove)에도 경고가 뜬다", () => {
@@ -148,5 +151,35 @@ describe("ProfileEditScreen — 특기 삭제", () => {
     expect(handleUpdateProfile).toHaveBeenCalledWith(
       expect.objectContaining({ specialties: ["판소리", "수영"] })
     );
+  });
+});
+
+describe("ProfileEditScreen — durable photos", () => {
+  beforeEach(() => {
+    preserveMediaFile.mockImplementation(async () => "file:///documents/photo.jpg");
+    ImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.launchImageLibraryAsync.mockResolvedValue({ canceled: false, assets: [{ uri: "file:///cache/photo.jpg" }] });
+  });
+  it("stores a permanent photo URI rather than the picker cache URI", async () => {
+    const ctx = useApp();
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+    fireEvent.press(utils.getByText("profileEdit.add_photo"));
+    await waitFor(() => expect(preserveMediaFile).toHaveBeenCalledWith("file:///cache/photo.jpg"));
+    await act(async () => {});
+    fireEvent.press(utils.getByText("common.save"));
+    await waitFor(() => expect(ctx.handleUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({
+      photos: ["file:///documents/photo.jpg"], pendingPhotoUris: ["file:///documents/photo.jpg"],
+    })));
+  });
+  it("does not save or leave if an existing cache photo cannot be preserved", async () => {
+    const ctx = { ...useApp(), userProfile: { name: "Test", photos: ["file:///cache/old.jpg"] } };
+    useApp.mockReturnValue(ctx);
+    preserveMediaFile.mockRejectedValue(new Error("disk full"));
+    const navigation = buildNavigation();
+    const utils = render(<ProfileEditScreen navigation={navigation} />);
+    fireEvent.press(utils.getByText("common.save"));
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("common.media_save_failed_title", "common.media_save_failed_msg"));
+    expect(ctx.handleUpdateProfile).not.toHaveBeenCalled();
+    expect(navigation.goBack).not.toHaveBeenCalled();
   });
 });

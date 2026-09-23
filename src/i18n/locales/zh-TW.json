@@ -55,7 +55,15 @@
     "video_ai_retry_msg": "未能收到分析結果。請檢查網路連線後重試，筆記內容保持不變。",
     "video_quota_exceeded": "您已用完免費影片分析次數。升級進階版每月可使用15次。",
     "text_quota_exceeded": "今天的免費AI回饋次數已用完。明天可以再次使用，高級會員每天最多可用10次。",
-    "submit": "提交"
+    "submit": "提交",
+    "notice": "提示",
+    "save_failed_title": "無法儲存",
+    "save_failed_msg": "請檢查儲存空間後重試。修改內容仍保留在此畫面。",
+    "delete_failed_msg": "無法儲存刪除操作，請重試。",
+    "audio_analysis_failed": "無法讀取錄音，已停止分析。請檢查連線和檔案後重試。",
+    "media_save_failed_title": "無法儲存檔案",
+    "media_save_failed_msg": "請檢查儲存空間後重試。檔案尚未加入。",
+    "retry_save": "重試儲存"
   },
   "tabs": {
     "home": "首頁",
@@ -329,7 +337,9 @@
     "share_feed": "動態·Threads（直式）",
     "share_story": "限時動態·TikTok（全直式）",
     "share_failed": "未能產生分享圖片，請重試。",
-    "ai_feedback_placeholder": "請告訴我們哪裡不夠好（選填）"
+    "ai_feedback_placeholder": "請告訴我們哪裡不夠好（選填）",
+    "ai_save_pending": "AI回饋已完成但尚未儲存，結果仍在此畫面。重試儲存不會消耗AI次數。",
+    "ai_save_leave": "有尚未儲存的AI回饋。離開此畫面將遺失新結果。"
   },
   "profile": {
     "edit_profile": "編輯個人檔案",
@@ -366,7 +376,9 @@
     "terms_detail": "ArtLink 使用條款\n\n1. 本應用程式對不當內容及濫用行為採取零容忍政策。\n2. 使用者可檢舉不當內容，被檢舉的內容將在 24 小時內審查。\n3. 違反條款的使用者可能被停止使用服務。\n4. 詳細條款請參閱首次啟動應用程式時同意的完整內容。\n\n聯繫：lcy1152@naver.com",
     "privacy_detail": "ArtLink 隱私權政策\n\n1. 收集的個人資料：姓名、電子郵件、個人檔案資訊、練習筆記及附件圖片・影片、語音錄音\n2. 收集目的：提供服務、產生AI回饋、改善服務\n3. 保存期限：至帳號刪除為止\n4. 第三方處理：Anthropic和Google（AI回饋產生）、OpenAI（語音轉文字）、Supabase（資料儲存）\n5. 使用者可隨時透過刪除帳號來移除個人資料。\n\n聯繫：lcy1152@naver.com",
     "logout_confirm": "確定要登出嗎？\n筆記已儲存於伺服器，重新登入後即可復原。",
-    "delete_confirm": "所有資料（筆記、個人檔案、作品集等）將被永久刪除。此操作無法復原。\n\n確定要刪除嗎？"
+    "delete_confirm": "所有資料（筆記、個人檔案、作品集等）將被永久刪除。此操作無法復原。\n\n確定要刪除嗎？",
+    "delete_unavailable": "帳戶尚未刪除。此應用程式目前還無法完成所有伺服器資料的刪除。你可以聯絡支援團隊申請刪除。",
+    "legacy_records_notice": "部分舊版本記錄已單獨安全保管。由於無法確認所屬帳戶，未自動合併到此帳戶。記錄並未刪除，請聯絡支援團隊復原。"
   },
   "profileEdit": {
     "title": "編輯個人檔案",
@@ -407,7 +419,11 @@
     "ai_training_desc": "匿名收集練習筆記和 AI 意見回饋，用於改善 AI 品質。",
     "name_required": "需要姓名",
     "name_required_msg": "請輸入姓名。",
-    "specialty_remove": "刪除專長 {{name}}"
+    "specialty_remove": "刪除專長 {{name}}",
+    "collection_paused": "已暫停收集新的訓練資料。AI回饋仍可使用。",
+    "archive_withdrawn": "已確認刪除與目前登入帳戶關聯的封存媒體。不包括先前收集的筆記內文和訪客資料。",
+    "archive_withdraw_failed": "已關閉此裝置的訓練資料共享。尚未確認刪除伺服器上的現有資料。請檢查登入狀態和連線後再次請求。",
+    "archive_withdraw_request": "要求刪除封存媒體"
   },
   "community": {
     "title": "社群",
@@ -948,6 +964,12 @@
     "record_permission": "錄音需要麥克風權限，請在設定中允許麥克風。",
     "record_failed": "無法開始錄音，請稍後再試。",
     "record_note_hint": "這是我以「{{play}}」中{{role}}一角練習的錄音。",
-    "record_note_hint_voice": "對手的台詞是由應用程式語音一起錄進去的。"
+    "record_note_hint_voice": "對手的台詞是由應用程式語音一起錄進去的。",
+    "record_leave_title": "保留錄音嗎？",
+    "record_leave_msg": "還有尚未儲存到筆記的錄音。",
+    "record_save_note": "儲存到筆記",
+    "record_discard": "捨棄錄音並離開",
+    "record_keep_practicing": "繼續練習",
+    "record_save_failed": "無法儲存錄音，請在此畫面重試。"
   }
 }

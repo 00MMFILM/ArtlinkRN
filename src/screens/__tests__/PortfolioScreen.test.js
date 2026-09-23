@@ -1,9 +1,11 @@
 import React from "react";
 import { Alert } from "react-native";
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import PortfolioScreen from "../PortfolioScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
+import { preserveMediaFile } from "../../services/persistentMedia";
+import * as ImagePicker from "expo-image-picker";
 
 // t 는 키를 그대로 반환 → 텍스트로 조회 가능
 jest.mock("react-i18next", () => ({
@@ -11,6 +13,7 @@ jest.mock("react-i18next", () => ({
 }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
+jest.mock("../../services/persistentMedia", () => ({ preserveMediaFile: jest.fn(async (uri) => uri) }));
 jest.mock("../../services/aiService", () => ({
   generatePortfolioSummary: jest.fn(),
   generateStructuredPortfolio: jest.fn(),
@@ -85,5 +88,31 @@ describe("PortfolioScreen — AI 영상 프로필 (배우 전용)", () => {
     // 버튼이 완료 상태 텍스트로 전환
     expect(queryByText("portfolio.video_profile_requested")).toBeTruthy();
     expect(queryByText("portfolio.video_profile_notify")).toBeNull();
+  });
+});
+
+describe("PortfolioScreen — durable media", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    preserveMediaFile.mockResolvedValue("file:///documents/photo.jpg");
+    ImagePicker.requestCameraPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [{ uri: "file:///cache/photo.jpg" }] });
+    ImagePicker.launchImageLibraryAsync.mockResolvedValue({ canceled: false, assets: [{ uri: "file:///cache/photo.jpg", type: "image" }] });
+  });
+  it("camera photos are copied before adding a portfolio item", async () => {
+    const ctx = buildCtx(["acting"]); useApp.mockReturnValue(ctx);
+    const utils = render(<PortfolioScreen navigation={navigation} />);
+    fireEvent.press(utils.getByText("portfolio.camera"));
+    await waitFor(() => expect(ctx.handleAddPortfolioItem).toHaveBeenCalledWith(expect.objectContaining({ uri: "file:///documents/photo.jpg" })));
+  });
+  it("gallery copy failure does not create an item or claim success", async () => {
+    const ctx = buildCtx(["acting"]); useApp.mockReturnValue(ctx);
+    preserveMediaFile.mockRejectedValue(new Error("disk full"));
+    const utils = render(<PortfolioScreen navigation={navigation} />);
+    fireEvent.press(utils.getByText("portfolio.gallery_btn"));
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("common.media_save_failed_title", "common.media_save_failed_msg"));
+    expect(ctx.handleAddPortfolioItem).not.toHaveBeenCalled();
   });
 });

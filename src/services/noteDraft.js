@@ -1,6 +1,6 @@
 // 작성 중인 노트 초안 보관 — 가입 왕복(게스트 → 인증 화면 → 앱)에서 NoteCreate가
 // 언마운트되며 초안이 사라지는 걸 막는다. 저장은 반드시 되읽어 확인한 뒤 true를 준다.
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { rawStorageForScope } from "../utils/accountStorage";
 
 export const DRAFT_KEY = "artlink-note-draft";
 // 초안 유효기간 — 몇 주 뒤 앱을 열었는데 잊은 초안이 되살아나지 않게 7일로 끊는다.
@@ -67,6 +67,7 @@ export function validateDraft(raw) {
 
 // 저장 성공(setItem resolve + 되읽기 일치)했을 때만 true. 실패를 성공으로 보고하지 않는다.
 export async function saveDraft(state) {
+  const AsyncStorage = rawStorageForScope();
   try {
     const draft = buildDraft(state);
     if (!hasSubstance(draft)) return false;
@@ -80,12 +81,13 @@ export async function saveDraft(state) {
 }
 
 export async function loadDraft() {
+  const AsyncStorage = rawStorageForScope();
   try {
     const json = await AsyncStorage.getItem(DRAFT_KEY);
     if (!json) return null;
     const draft = validateDraft(JSON.parse(json));
     // 만료됐거나 쓸 내용이 없는 초안은 저장소에서도 지운다 (되살아나지 않게)
-    if (!draft) await clearDraft();
+    if (!draft) await AsyncStorage.removeItem(DRAFT_KEY);
     return draft;
   } catch {
     return null;
@@ -93,6 +95,7 @@ export async function loadDraft() {
 }
 
 export async function clearDraft() {
+  const AsyncStorage = rawStorageForScope();
   try {
     await AsyncStorage.removeItem(DRAFT_KEY);
   } catch {}

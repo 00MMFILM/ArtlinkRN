@@ -15,13 +15,14 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { usePreventRemove } from "@react-navigation/native";
 import { Audio, Video, ResizeMode } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { getRelatedNotes } from "../services/analyticsService";
 import { analyzeNote, analyzeVideoFrames, lastAiMeta, rateFeedback, buildPreviousContext, focusSummary } from "../services/aiService";
-import { submitTrainingData, submitAnonymousMetadata } from "../services/dataCollectionService";
+import { submitAnonymousMetadata } from "../services/dataCollectionService";
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { aiFeedbackDone, newUuid } from "../services/practiceService";
@@ -42,10 +43,6 @@ export default function NoteDetailScreen({ route, navigation }) {
     handleToggleStar,
     handleUpdateNote,
     showToast,
-    dataConsent,
-    dataConsentAsked,
-    handleSetDataConsent,
-    handleDataConsentAsked,
     aiDisclosureAccepted,
     handleAcceptAIDisclosure,
     isKoreanLocale,
@@ -103,12 +100,54 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [streamingText, setStreamingText] = useState("");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
   const [videoAiProgress, setVideoAiProgress] = useState({ phase: "", percent: 0, message: "" });
+  const [pendingAi, setPendingAi] = useState(null);
+  const pendingAiRef = useRef(null);
+  const aiRequestBusyRef = useRef(false);
+  const pendingSaveBusyRef = useRef(false);
+  const [pendingSaving, setPendingSaving] = useState(false);
   const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackKind, setFeedbackKind] = useState("text"); // 'text' | 'video' — 어느 피드백에 대한 평가인지
   const [sharing, setSharing] = useState(false);
   const feedCardRef = useRef(null);
   const storyCardRef = useRef(null);
+
+  // A completed generation has already used its credit. Retrying here only writes
+  // its AI fields onto the latest note; it never calls the model again.
+  const savePendingAi = useCallback(async () => {
+    const pending = pendingAiRef.current;
+    if (!pending || pendingSaveBusyRef.current) return false;
+    pendingSaveBusyRef.current = true;
+    setPendingSaving(true);
+    let latest;
+    try {
+      latest = noteRef.current;
+      if (!latest || latest.id !== pending.noteId) throw new Error("NOTE_NOT_FOUND");
+      const patch = { ...pending.patch };
+      if (Object.prototype.hasOwnProperty.call(patch, "focusOptions")) {
+        patch.chosenFocus = latest.chosenFocus && patch.focusOptions?.includes(latest.chosenFocus)
+          ? latest.chosenFocus : undefined;
+      }
+      await handleUpdateNote({ ...latest, ...patch });
+    } catch (_) {
+      showToast(t("common.save_failed_msg"), "error");
+      return false;
+    } finally {
+      pendingSaveBusyRef.current = false;
+      setPendingSaving(false);
+    }
+    pendingAiRef.current = null;
+    setPendingAi(null);
+    showToast(t(pending.kind === "video" ? "noteDetail.video_ai_complete" : "noteDetail.ai_complete"), "success");
+    aiFeedbackDone({ sessionId: pending.sessionId, kind: "reanalysis", subjectKey: pending.noteId, field: latest.field });
+    if (pending.kind === "text") {
+      Promise.resolve(submitAnonymousMetadata({
+        field: latest.field, noteTitle: latest.title, aiFeedback: pending.patch.aiComment,
+        tags: latest.tags || [], userType: userProfile.userType,
+      })).catch(() => {});
+    }
+    return true;
+  }, [handleUpdateNote, showToast, t, userProfile.userType]);
 
   // AI 피드백을 카드 이미지로 공유 (인스타/스레드/틱톡). variant 선택 → 캡처 → 공유 시트
   const handleShareFeedback = useCallback(() => {
@@ -206,11 +245,13 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [note, savedNotes]);
 
   // 고칠 점 선택 — 노트에 저장하고 퍼널에 최초 1회 기록
-  const handleChooseFocus = useCallback((value) => {
+  const handleChooseFocus = useCallback(async (value) => {
     if (!note) return;
-    handleUpdateNote({ ...(noteRef.current || note), chosenFocus: value || undefined }, { silent: true });
-    if (value) trackFunnelEvent("focus_selected");
-  }, [note, handleUpdateNote]);
+    try {
+      await handleUpdateNote({ ...(noteRef.current || note), chosenFocus: value || undefined }, { silent: true });
+      if (value) trackFunnelEvent("focus_selected");
+    } catch (_) { showToast(t("common.save_failed_msg"), "error"); }
+  }, [note, handleUpdateNote, showToast, t]);
 
   // 고른 초점으로 같은 장면 다시 연습 — 새 노트가 체인(rootNoteId·parentNoteId)을 들고 열린다
   const handleRepractice = useCallback(() => {
@@ -237,8 +278,31 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // "확인을 이미 받고 나가는 중" 표시 — beforeRemove 가드가 같은 확인창을 두 번 띄우지 않게
   const leavingRef = useRef(false);
+  const pendingLeavePromptRef = useRef(false);
+  const confirmPendingLeave = useCallback((leave) => {
+    if (pendingSaveBusyRef.current || pendingLeavePromptRef.current) return;
+    pendingLeavePromptRef.current = true;
+    Alert.alert(t("common.discard_title"), t("noteDetail.ai_save_leave"), [
+      { text: t("common.cancel"), style: "cancel", onPress: () => { pendingLeavePromptRef.current = false; } },
+      { text: t("common.retry_save"), onPress: () => { pendingLeavePromptRef.current = false; savePendingAi(); } },
+      { text: t("common.leave"), style: "destructive", onPress: () => {
+        pendingLeavePromptRef.current = false;
+        pendingAiRef.current = null;
+        setPendingAi(null);
+        leavingRef.current = true;
+        setIsEditing(false);
+        leave();
+      } },
+    ], { cancelable: false });
+  }, [savePendingAi, t]);
+
+  usePreventRemove(!!pendingAi, ({ data }) => {
+    if (leavingRef.current) { navigation.dispatch(data.action); return; }
+    confirmPendingLeave(() => navigation.dispatch(data.action));
+  });
 
   const handleBack = useCallback(() => {
+    if (pendingAiRef.current) { confirmPendingLeave(() => navigation.goBack()); return; }
     if (isEditing) {
       Alert.alert(t("noteDetail.edit_cancel_title"), t("noteDetail.edit_cancel_msg"), [
         { text: t("noteDetail.keep_editing"), style: "cancel" },
@@ -257,13 +321,14 @@ export default function NoteDetailScreen({ route, navigation }) {
     } else {
       navigation.goBack();
     }
-  }, [isEditing, note, navigation, t]);
+  }, [isEditing, note, navigation, t, confirmPendingLeave]);
 
   // 편집 중에는 하드웨어 뒤로가기·스와이프백도 상단 ‹ 버튼과 똑같이 확인을 받는다.
   // 저장·삭제로 나갈 때는 이미 isEditing이 false라 걸리지 않는다.
   useEffect(() => {
     if (!navigation?.addListener) return undefined;
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (pendingAiRef.current) return; // native-stack hook owns the unsaved AI result confirmation
       if (!isEditing || leavingRef.current) return;
       e.preventDefault();
       Alert.alert(t("noteDetail.edit_cancel_title"), t("noteDetail.edit_cancel_msg"), [
@@ -283,6 +348,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [navigation, isEditing, t]);
 
   const handleDelete = useCallback(() => {
+    if (pendingAiRef.current) { showToast(t("noteDetail.ai_save_pending"), "error"); return; }
     Alert.alert(
       t("noteDetail.delete_title"),
       t("noteDetail.delete_msg"),
@@ -291,25 +357,31 @@ export default function NoteDetailScreen({ route, navigation }) {
         {
           text: t("common.delete"),
           style: "destructive",
-          onPress: () => {
-            handleDeleteNote(noteId);
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              await handleDeleteNote(noteId);
+              navigation.goBack();
+            } catch (_) { Alert.alert(t("common.error"), t("common.delete_failed_msg")); }
           },
         },
       ]
     );
-  }, [noteId, handleDeleteNote, navigation, t]);
+  }, [noteId, handleDeleteNote, navigation, t, showToast]);
 
-  const handleSaveEdit = useCallback(() => {
+  const handleSaveEdit = useCallback(async () => {
+    if (pendingSaveBusyRef.current) return;
     if (!editTitle.trim()) {
       showToast(t("noteDetail.title_required"), "error");
       return;
     }
-    handleUpdateNote({ ...note, title: editTitle.trim(), content: editContent.trim() });
-    setIsEditing(false);
+    try {
+      await handleUpdateNote({ ...note, title: editTitle.trim(), content: editContent.trim() });
+      setIsEditing(false);
+    } catch (_) { showToast(t("common.save_failed_msg"), "error"); }
   }, [editTitle, editContent, note, handleUpdateNote, showToast, t]);
 
   const handleStartEdit = useCallback(() => {
+    if (pendingSaveBusyRef.current) return;
     setEditTitle(note?.title || "");
     setEditContent(note?.content || "");
     setIsEditing(true);
@@ -322,7 +394,8 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [note]);
 
   const runRequestAI = useCallback(async () => {
-    if (!note) return;
+    if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
+    aiRequestBusyRef.current = true;
     setAiLoading(true);
     try {
       // Foreign users: show interstitial ad from 2nd AI use per day (프리미엄은 광고 없음)
@@ -345,80 +418,30 @@ export default function NoteDetailScreen({ route, navigation }) {
       const analysis = result.analysis || result;
       const scores = result.scores || null;
       setStreamingText("");
-      // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
-      const latestNote = noteRef.current || note;
-      const newOptions = result.focusOptions || [];
-      // 재분석이면 옛 선택이 새 후보에 없을 수 있다 — 남겨두면 엉뚱한 초점으로 재연습하게 된다
-      const keptFocus = latestNote.chosenFocus && newOptions.includes(latestNote.chosenFocus)
-        ? latestNote.chosenFocus
-        : undefined;
-      handleUpdateNote({ ...latestNote, aiComment: analysis, aiScores: scores, focusOptions: result.focusOptions || undefined, chosenFocus: keptFocus, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion });
-      showToast(t("noteDetail.ai_complete"), "success");
-      // 재분석도 연습 한 번 — 이 화면엔 시작 지점이 없어 단건 세션으로 보낸다
-      aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
-
-      // Submit anonymous metadata for ALL users (no personal content)
-      submitAnonymousMetadata({
-        field: note.field,
-        noteTitle: note.title,
-        aiFeedback: analysis,
-        tags: note.tags || [],
-        userType: userProfile.userType,
-      }).catch(() => {});
-
-      // Submit full training data if consented
-      if (dataConsent) {
-        submitTrainingData({
-          field: note.field,
-          noteContent: note.content,
-          aiFeedback: analysis,
-          noteTitle: note.title,
-        }).catch(() => {});
-      }
-
-      // Show 1-time consent popup for existing users
-      if (!dataConsentAsked) {
-        setTimeout(() => {
-          Alert.alert(
-            t("noteDetail.data_consent_title"),
-            t("noteDetail.data_consent_msg"),
-            [
-              {
-                text: t("noteDetail.data_consent_later"),
-                style: "cancel",
-                onPress: () => handleDataConsentAsked(),
-              },
-              {
-                text: t("noteDetail.data_consent_join"),
-                onPress: () => {
-                  handleSetDataConsent(true);
-                  handleDataConsentAsked();
-                  // Submit the current result now that user consented
-                  submitTrainingData({
-                    field: note.field,
-                    noteContent: note.content,
-                    aiFeedback: analysis,
-                    noteTitle: note.title,
-                  }).catch(() => {});
-                },
-              },
-            ]
-          );
-        }, 500);
-      }
+      const pending = {
+        kind: "text", noteId: note.id, sessionId: newUuid(),
+        patch: {
+          aiComment: analysis, aiScores: scores, focusOptions: result.focusOptions || undefined,
+          aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion,
+        },
+      };
+      pendingAiRef.current = pending;
+      setPendingAi(pending);
+      await savePendingAi();
     } catch (e) {
       if (e?.message === "AI_QUOTA") {
         promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
       } else {
-        showToast(t("noteDetail.ai_failed"), "error");
+        showToast(t(e?.message === "AI_AUDIO_INCOMPLETE" ? "common.audio_analysis_failed" : "noteDetail.ai_failed"), "error");
       }
     } finally {
+      aiRequestBusyRef.current = false;
       setAiLoading(false);
     }
-  }, [note, savedNotes, userProfile, handleUpdateNote, showToast, dataConsent, dataConsentAsked, handleSetDataConsent, handleDataConsentAsked, isKoreanLocale, premium?.active, t, navigation, previousNote, promptQuotaExceeded]);
+  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded]);
 
   const handleRequestAI = useCallback(async () => {
-    if (!note) return;
+    if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
     if (!aiDisclosureAccepted) {
       Alert.alert(
         t("aiDisclosure.title"),
@@ -437,6 +460,8 @@ export default function NoteDetailScreen({ route, navigation }) {
   const startVideoAIRef = useRef(null);
 
   const startVideoAI = useCallback(async () => {
+    if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
+    aiRequestBusyRef.current = true;
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteDetail.video_preparing") });
     try {
@@ -449,16 +474,19 @@ export default function NoteDetailScreen({ route, navigation }) {
         (progress) => setVideoAiProgress(progress),
         { focus: note.focus, previous: buildPreviousContext(previousNote) }
       );
-      // 분석 중 사용자가 편집·저장했을 수 있으므로 캡처된 note가 아닌 최신 note에 병합한다.
-      const latestNote = noteRef.current || note;
       // 새 후보가 왔으면 옛 선택은 그 안에 있을 때만 유지한다 (없으면 비운다)
       const replacedOptions = lastAiMeta.focusOptions?.length ? lastAiMeta.focusOptions : null;
-      const keptFocus = replacedOptions
-        ? (latestNote.chosenFocus && replacedOptions.includes(latestNote.chosenFocus) ? latestNote.chosenFocus : undefined)
-        : latestNote.chosenFocus;
-      handleUpdateNote({ ...latestNote, videoAnalysis: result, focusOptions: replacedOptions || latestNote.focusOptions, chosenFocus: keptFocus, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion, transcript: lastAiMeta.transcript || latestNote.transcript });
-      showToast(t("noteDetail.video_ai_complete"), "success");
-      aiFeedbackDone({ sessionId: newUuid(), kind: "reanalysis", subjectKey: note.id, field: note.field });
+      const pending = {
+        kind: "video", noteId: note.id, sessionId: newUuid(),
+        patch: {
+          videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion,
+          ...(replacedOptions ? { focusOptions: replacedOptions } : {}),
+          ...(lastAiMeta.transcript ? { transcript: lastAiMeta.transcript } : {}),
+        },
+      };
+      pendingAiRef.current = pending;
+      setPendingAi(pending);
+      await savePendingAi();
     } catch (e) {
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
@@ -475,16 +503,18 @@ export default function NoteDetailScreen({ route, navigation }) {
         );
       }
     } finally {
+      aiRequestBusyRef.current = false;
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
     }
-  }, [note, noteVideos, userProfile, handleUpdateNote, showToast, t, promptQuotaExceeded, previousNote]);
+  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote]);
 
   useEffect(() => {
     startVideoAIRef.current = startVideoAI;
   }, [startVideoAI]);
 
   const runVideoAIFlow = useCallback(async () => {
+    if (pendingAiRef.current || aiRequestBusyRef.current) return;
     const video = noteVideos[0];
     const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
     if (durationSec > 300) {
@@ -511,7 +541,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [noteVideos, startVideoAI, isKoreanLocale, premium?.active, t]);
 
   const handleRequestVideoAI = useCallback(async () => {
-    if (!note || noteVideos.length === 0) return;
+    if (!note || noteVideos.length === 0 || pendingAiRef.current || aiRequestBusyRef.current) return;
     if (!aiDisclosureAccepted) {
       Alert.alert(
         t("aiDisclosure.title"),
@@ -567,23 +597,24 @@ export default function NoteDetailScreen({ route, navigation }) {
               <TouchableOpacity onPress={handleCancelEdit} style={styles.topBarTextBtn}>
                 <Text style={[T.captionBold, { color: CLight.gray500 }]}>{t("common.cancel")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleSaveEdit} style={styles.saveBtn}>
+              <TouchableOpacity onPress={handleSaveEdit} style={styles.saveBtn} disabled={pendingSaving}>
                 <Text style={[T.captionBold, { color: CLight.white }]}>{t("common.save")}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <TouchableOpacity onPress={handleStartEdit} style={styles.topBarBtn} hitSlop={hitSlop}>
+              <TouchableOpacity onPress={handleStartEdit} style={styles.topBarBtn} hitSlop={hitSlop} disabled={pendingSaving}>
                 <Text style={styles.topBarBtnText}>{"\u270F\uFE0F"}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => handleToggleStar(note.id)}
+                disabled={pendingSaving}
                 style={styles.topBarBtn}
                 hitSlop={hitSlop}
               >
                 <Text style={styles.topBarBtnText}>{note.starred ? "\u2B50" : "\u2606"}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.topBarBtn} hitSlop={hitSlop}>
+              <TouchableOpacity onPress={handleDelete} style={styles.topBarBtn} hitSlop={hitSlop} disabled={!!pendingAi}>
                 <Text style={styles.topBarBtnText}>{"\uD83D\uDDD1\uFE0F"}</Text>
               </TouchableOpacity>
             </>
@@ -637,6 +668,15 @@ export default function NoteDetailScreen({ route, navigation }) {
         </View>
 
         {/* Tab Bar */}
+        {pendingAi ? (
+          <View style={styles.aiCard}>
+            <Text style={[T.small, { color: CLight.gray700 }]}>{t("noteDetail.ai_save_pending")}</Text>
+            <TouchableOpacity style={styles.reAnalyzeBtn} onPress={savePendingAi} disabled={pendingSaving}>
+              {pendingSaving ? <ActivityIndicator size="small" color={CLight.pink} /> :
+                <Text style={[T.smallBold, { color: CLight.pink }]}>{t("common.retry_save")}</Text>}
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <View style={styles.tabBar}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -869,6 +909,17 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── AI Analysis Tab ───
   function renderAITab() {
+    if (pendingAi) {
+      return (
+        <View style={styles.aiCard}>
+          <Text style={[T.captionBold, { color: CLight.pink }]}>{t("noteDetail.ai_result")}</Text>
+          <View style={styles.aiDivider} />
+          <Text style={[T.body, { color: CLight.gray900 }]}>
+            {pendingAi.patch.aiComment || pendingAi.patch.videoAnalysis}
+          </Text>
+        </View>
+      );
+    }
     const videoProgressText = videoAiProgress.message || t("noteDetail.video_preparing");
     const videoPercent = videoAiProgress.percent || 0;
 
@@ -1012,7 +1063,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         )}
 
         {/* Video AI Analysis */}
-        {noteVideos.length > 0 && (
+        {(noteVideos.length > 0 || !!note.videoAnalysis) && (
           <View style={styles.videoAiSection}>
             {videoAiLoading ? (
               <View style={styles.videoAiLoadingContainer}>

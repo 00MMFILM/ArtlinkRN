@@ -873,8 +873,10 @@ async function transcribeAllAudio(voiceRecordings = [], audioFiles = []) {
 
   if (tasks.length === 0) return "";
 
-  const results = await Promise.all(tasks);
-  return results.filter(Boolean).join("\n\n");
+  const results = await Promise.all(tasks).catch(() => { throw new Error("AI_AUDIO_INCOMPLETE"); });
+  // Do not spend an analysis credit on a note whose attached recording was lost.
+  if (results.some((text) => !text)) throw new Error("AI_AUDIO_INCOMPLETE");
+  return results.join("\n\n");
 }
 
 // 피드백 끝의 [[SCORES]] 한 줄을 파싱해 5축 점수를 뽑고, 표시용 본문에선 제거한다.
@@ -957,20 +959,41 @@ function withPracticeContext(body, extra) {
  * onToken(누적텍스트)를 청크마다 호출하여 화면에 실시간 표시.
  * 모델/프롬프트/길이 동일 → 품질 손실 없이 체감 대기만 감소.
  */
-function streamAnalyze(requestBody, onToken) {
+export function streamAnalyze(requestBody, onToken) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${SERVER_URL}/api/ai-analyze?stream=1`);
+    xhr.open("POST", `${SERVER_URL}/api/ai-analyze?stream=1&protocol=events`);
     const headers = getApiHeaders();
     Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
     xhr.timeout = 130000; // 서버 상한 120초보다 넉넉히 (클라이언트가 먼저 끊지 않게)
 
+    let offset = 0;
+    let text = "";
+    let done = null;
+    let protocolError = null;
+    const consumeEvents = () => {
+      const raw = xhr.responseText || "";
+      let end;
+      while ((end = raw.indexOf("\n", offset)) !== -1) {
+        const line = raw.slice(offset, end).trim();
+        offset = end + 1;
+        if (!line) continue;
+        try {
+          const event = JSON.parse(line);
+          if (done) throw new Error("AI_STREAM_INCOMPLETE");
+          if (event.type === "delta" && typeof event.text === "string") text += event.text;
+          else if (event.type === "done") done = event;
+          else if (event.type === "error") throw new Error("AI_STREAM_INCOMPLETE");
+          else throw new Error("AI_STREAM_INCOMPLETE");
+        } catch (_) {
+          protocolError = new Error("AI_STREAM_INCOMPLETE");
+        }
+      }
+      if (!protocolError && text) onToken?.(text.split("[[")[0]);
+    };
     xhr.onprogress = () => {
-      // 429 등 에러 응답의 JSON 본문을 화면에 흘리지 않음 (쿼터 초과 시 raw JSON 깜빡임 방지)
       if (xhr.status && xhr.status !== 200) return;
-      // responseText는 지금까지 도착한 전체 텍스트 (누적).
-      // 끝의 [[SCORES]] 마커(+부분수신)는 화면에 안 보이게 잘라서 표시 ("[[" 이후 절단)
-      if (xhr.responseText) onToken?.(xhr.responseText.split("[[")[0]);
+      consumeEvents();
     };
     xhr.onload = () => {
       if (xhr.status === 429) {
@@ -983,12 +1006,14 @@ function streamAnalyze(requestBody, onToken) {
         return reject(err);
       }
       if (xhr.status >= 200 && xhr.status < 300) {
-        const text = xhr.responseText || "";
+        consumeEvents();
+        if (protocolError || !done || (xhr.responseText || "").slice(offset).trim()) {
+          return reject(new Error("AI_STREAM_INCOMPLETE"));
+        }
         if (text.trim().length < 10) reject(new Error("AI_EMPTY_RESPONSE"));
         else {
-          // 생성 메타 (서버가 헤더로 전달) — 노트 저장 시 기록용
-          lastAiMeta.model = xhr.getResponseHeader("X-AL-Model") || null;
-          lastAiMeta.promptVersion = xhr.getResponseHeader("X-AL-Prompt-Version") || null;
+          lastAiMeta.model = done.model || null;
+          lastAiMeta.promptVersion = done.promptVersion || null;
           lastAiMeta.pipeline = null;
           lastAiMeta.transcript = null;
           resolve(text);
@@ -1044,7 +1069,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     const isGarbage = trimmed.length < 10 || (words.length > 3 && uniqueWords.size <= 2);
     if (!isGarbage) {
       combinedContent += `\n\n[${fmt.attachedAudioLabel}]\n${audioTranscript}`;
-    }
+    } else throw new Error("AI_AUDIO_INCOMPLETE");
   }
 
   // Convert attached images (non-video) to base64 for Vision analysis

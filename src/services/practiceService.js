@@ -4,7 +4,7 @@
 // 담는 것: 기기 ID, 이벤트/종류, 세션·이벤트 UUID, 장면·노트 id(subjectKey), 분야, 시각, 앱버전/플랫폼/언어.
 // 절대 담지 않는 것: 제목, 본문, 대사, 태그, 녹음·영상, 전사, AI 코멘트.
 import { Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { rawStorageForScope, getStorageScope } from "../utils/accountStorage";
 import i18n from "i18next";
 import { SERVER_URL, getApiHeaders } from "./apiConfig";
 import { getOrCreateDeviceId } from "./mauService";
@@ -51,7 +51,8 @@ function serialize(fn) {
   return run;
 }
 
-async function readQueue() {
+async function readQueue(scope = getStorageScope()) {
+  const AsyncStorage = rawStorageForScope(scope);
   try {
     const json = await AsyncStorage.getItem(PRACTICE_QUEUE_KEY);
     const parsed = json ? JSON.parse(json) : null;
@@ -61,13 +62,15 @@ async function readQueue() {
   }
 }
 
-async function writeQueue(queue) {
+async function writeQueue(queue, scope = getStorageScope()) {
+  const AsyncStorage = rawStorageForScope(scope);
   try {
     await AsyncStorage.setItem(PRACTICE_QUEUE_KEY, JSON.stringify(queue));
   } catch (e) {}
 }
 
 async function enqueue(event, session, overrides = {}) {
+  const scope = getStorageScope();
   try {
     const kind = overrides.kind || session?.kind;
     if (!EVENTS.includes(event) || !KINDS.includes(kind) || !session?.sessionId) return false;
@@ -85,11 +88,11 @@ async function enqueue(event, session, overrides = {}) {
       appVersion: APP_VERSION,
     };
     await serialize(async () => {
-      const queue = await readQueue();
+      const queue = await readQueue(scope);
       queue.push(item);
-      await writeQueue(queue.slice(-MAX_QUEUE));
+      await writeQueue(queue.slice(-MAX_QUEUE), scope);
     });
-    flushPracticeQueue();
+    if (getStorageScope() === scope) flushPracticeQueue();
     return true;
   } catch (e) {
     return false;
@@ -128,6 +131,7 @@ export function completePractice(session, overrides = {}) {
 export const PRACTICE_LOG_KEY = "artlink-practice-log";
 const MAX_LOG = 500;
 function appendPracticeLog(session, overrides = {}) {
+  const AsyncStorage = rawStorageForScope();
   if (!session?.sessionId) return;
   serialize(async () => {
     try {
@@ -148,6 +152,7 @@ function appendPracticeLog(session, overrides = {}) {
 /** 완료한 연습 기록(오래된 순). 실패하면 빈 배열.
  *  진행 중인 기록 쓰기가 끝난 뒤에 읽는다 — "연습 끝"과 동시에 홈으로 돌아가도 방금 연습이 빠지지 않게. */
 export function getPracticeLog() {
+  const AsyncStorage = rawStorageForScope();
   return serialize(async () => {
     try {
       const raw = await AsyncStorage.getItem(PRACTICE_LOG_KEY);
@@ -172,12 +177,15 @@ let flushing = false;
  * 401(토큰 문제일 수 있음)·5xx·네트워크 오류는 큐에 그대로 두고 중단한다.
  */
 export async function flushPracticeQueue() {
+  const scope = getStorageScope();
   if (flushing) return { sent: 0, busy: true };
   flushing = true;
   try {
     let sent = 0;
     for (;;) {
-      const queue = await readQueue();
+      if (getStorageScope() !== scope) break;
+      const queue = await readQueue(scope);
+      if (getStorageScope() !== scope) break;
       if (queue.length === 0) break;
       const batch = queue.slice(0, BATCH_SIZE);
       let ok = false;
@@ -198,15 +206,15 @@ export async function flushPracticeQueue() {
         if (!discardable4xx) break; // 401·5xx·네트워크 오류는 큐에 남기고 중단
         const dropped = new Set(batch.map((e) => e.clientEventId));
         await serialize(async () => {
-          const current = await readQueue();
-          await writeQueue(current.filter((e) => !dropped.has(e.clientEventId)));
+          const current = await readQueue(scope);
+          await writeQueue(current.filter((e) => !dropped.has(e.clientEventId)), scope);
         });
         continue; // 이 배치는 버리고 다음 배치로
       }
       const posted = new Set(batch.map((e) => e.clientEventId));
       await serialize(async () => {
-        const current = await readQueue();
-        await writeQueue(current.filter((e) => !posted.has(e.clientEventId)));
+        const current = await readQueue(scope);
+        await writeQueue(current.filter((e) => !posted.has(e.clientEventId)), scope);
       });
       sent += batch.length;
       if (queue.length <= BATCH_SIZE) break;

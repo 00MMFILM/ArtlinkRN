@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import TopBar from "../components/TopBar";
 import EmptyState from "../components/EmptyState";
 import { generatePortfolioSummary, generateStructuredPortfolio } from "../services/aiService";
 import { trackFunnelEvent } from "../services/mauService";
+import { preserveMediaFile } from "../services/persistentMedia";
 
 const SCREEN_W = Dimensions.get("window").width;
 const GRID_ITEM_SIZE = (SCREEN_W - 32 - 16) / 3;
@@ -46,6 +47,7 @@ export default function PortfolioScreen({ navigation }) {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [cardLoading, setCardLoading] = useState(false);
   const [videoProfileRequested, setVideoProfileRequested] = useState(false);
+  const mediaBusyRef = useRef(false);
 
   // AI 영상 프로필은 배우(연기 전공)에게만 노출되는 "준비중" 기능
   const userIsActor = isActor(userProfile.fields);
@@ -81,50 +83,70 @@ export default function PortfolioScreen({ navigation }) {
   // ─── Media Handlers ───
 
   const handleTakePhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(t("common.permission_required"), t("common.camera_permission"));
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length > 0) {
-      handleAddPortfolioItem({
-        uri: result.assets[0].uri,
-        type: "photo",
-        field: addField,
-        description: addDescription,
+    if (mediaBusyRef.current) return;
+    mediaBusyRef.current = true;
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(t("common.permission_required"), t("common.camera_permission"));
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
       });
-      setAddDescription("");
-    }
-  }, [addField, addDescription, handleAddPortfolioItem]);
-
-  const handlePickMedia = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(t("common.permission_required"), t("common.gallery_permission"));
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos"],
-      allowsMultipleSelection: false,
-      quality: 0.8,
-      videoExportPreset: ImagePicker.VideoExportPreset.Passthrough,
-    });
-    if (!result.canceled && result.assets?.length > 0) {
-      result.assets.forEach((asset) => {
+      if (!result.canceled && result.assets?.length > 0) {
         handleAddPortfolioItem({
-          uri: asset.uri,
-          type: asset.type === "video" ? "video" : "photo",
+          uri: await preserveMediaFile(result.assets[0].uri),
+          type: "photo",
           field: addField,
           description: addDescription,
         });
-      });
-      setAddDescription("");
+        setAddDescription("");
+      }
+    } catch (e) {
+      Alert.alert(t("common.media_save_failed_title"), t("common.media_save_failed_msg"));
+    } finally {
+      mediaBusyRef.current = false;
     }
-  }, [addField, addDescription, handleAddPortfolioItem]);
+  }, [addField, addDescription, handleAddPortfolioItem, t]);
+
+  const handlePickMedia = useCallback(async () => {
+    if (mediaBusyRef.current) return;
+    mediaBusyRef.current = true;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(t("common.permission_required"), t("common.gallery_permission"));
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images", "videos"],
+        allowsMultipleSelection: false,
+        quality: 0.8,
+        videoExportPreset: ImagePicker.VideoExportPreset.Passthrough,
+      });
+      if (!result.canceled && result.assets?.length > 0) {
+        const keptAssets = await Promise.all(result.assets.map(async (asset) => ({
+          ...asset,
+          uri: await preserveMediaFile(asset.uri, asset.type === "video" ? "mp4" : "jpg"),
+        })));
+        keptAssets.forEach((asset) => {
+          handleAddPortfolioItem({
+            uri: asset.uri,
+            type: asset.type === "video" ? "video" : "photo",
+            field: addField,
+            description: addDescription,
+          });
+        });
+        setAddDescription("");
+      }
+    } catch (e) {
+      Alert.alert(t("common.media_save_failed_title"), t("common.media_save_failed_msg"));
+    } finally {
+      mediaBusyRef.current = false;
+    }
+  }, [addField, addDescription, handleAddPortfolioItem, t]);
 
   const confirmDeleteItem = useCallback((itemId) => {
     Alert.alert(t("portfolio.delete_title"), t("portfolio.delete_msg"), [

@@ -55,7 +55,15 @@
     "video_ai_retry_msg": "No se recibió el resultado del análisis. Comprueba tu conexión e inténtalo de nuevo; tu nota sigue intacta.",
     "video_quota_exceeded": "Has agotado tus análisis de vídeo gratuitos. Premium te ofrece 15 análisis al mes.",
     "text_quota_exceeded": "Ya usaste toda tu retroalimentación de IA gratuita de hoy. Mañana tendrás más, y Premium te da hasta 10 veces al día.",
-    "submit": "Enviar"
+    "submit": "Enviar",
+    "notice": "Aviso",
+    "save_failed_title": "No se pudo guardar",
+    "save_failed_msg": "Revisa el almacenamiento e inténtalo de nuevo. Tus cambios siguen en esta pantalla.",
+    "delete_failed_msg": "No se pudo guardar la eliminación. Inténtalo de nuevo.",
+    "audio_analysis_failed": "El análisis se detuvo porque no se pudo leer la grabación. Revisa la conexión y el archivo.",
+    "media_save_failed_title": "No se pudo guardar el archivo",
+    "media_save_failed_msg": "Revisa el almacenamiento e inténtalo de nuevo. El archivo no se añadió.",
+    "retry_save": "Reintentar guardar"
   },
   "tabs": {
     "home": "Inicio",
@@ -329,7 +337,9 @@
     "share_feed": "Feed · Threads (vertical)",
     "share_story": "Historia · TikTok (vertical completo)",
     "share_failed": "No se pudo crear la imagen para compartir. Inténtalo de nuevo.",
-    "ai_feedback_placeholder": "Cuéntanos qué no te convenció (opcional)"
+    "ai_feedback_placeholder": "Cuéntanos qué no te convenció (opcional)",
+    "ai_save_pending": "Tus comentarios de IA están listos, pero no se han guardado. Siguen en esta pantalla. Reintentar guardarlos no consume usos de IA.",
+    "ai_save_leave": "Tienes comentarios de IA sin guardar. Salir descartará el nuevo resultado."
   },
   "profile": {
     "edit_profile": "Editar perfil",
@@ -366,7 +376,9 @@
     "terms_detail": "Términos de uso de ArtLink\n\n1. Esta aplicación aplica una política de tolerancia cero ante contenido inapropiado y conductas abusivas.\n2. Los usuarios pueden denunciar contenido inapropiado, que será revisado en un plazo de 24 horas.\n3. Los usuarios que infrinjan los términos podrán ser expulsados del servicio.\n4. Para consultar los términos completos, revisa el texto que aceptaste al iniciar la aplicación por primera vez.\n\nContacto: lcy1152@naver.com",
     "privacy_detail": "Política de privacidad de ArtLink\n\n1. Información personal recopilada: nombre, correo electrónico, información de perfil, notas de práctica e imágenes/videos adjuntos, grabaciones de voz\n2. Finalidad de la recopilación: prestación del servicio, generación de retroalimentación de IA, mejora del servicio\n3. Período de conservación: hasta la eliminación de la cuenta\n4. Procesamiento por terceros: Anthropic y Google (generación de retroalimentación de IA), OpenAI (conversión de voz a texto), Supabase (almacenamiento de datos)\n5. Los usuarios pueden eliminar su información personal en cualquier momento eliminando su cuenta.\n\nContacto: lcy1152@naver.com",
     "logout_confirm": "¿Cerrar sesión?\nTus notas están guardadas en el servidor y se restaurarán al volver a iniciar sesión.",
-    "delete_confirm": "Todos tus datos (notas, perfil, portafolio, etc.) se eliminarán de forma permanente. Esta acción no se puede deshacer.\n\n¿Seguro que quieres eliminar tu cuenta?"
+    "delete_confirm": "Todos tus datos (notas, perfil, portafolio, etc.) se eliminarán de forma permanente. Esta acción no se puede deshacer.\n\n¿Seguro que quieres eliminar tu cuenta?",
+    "delete_unavailable": "Tu cuenta no se ha eliminado. La app aún no puede completar la eliminación de todos los datos del servidor. Puedes solicitarla a soporte.",
+    "legacy_records_notice": "Algunos registros de una versión anterior se conservan por separado. No se pudo confirmar su cuenta propietaria y no se fusionaron con esta cuenta. No se han eliminado. Contacta a soporte para recuperarlos."
   },
   "profileEdit": {
     "title": "Editar perfil",
@@ -407,7 +419,11 @@
     "ai_training_desc": "Las notas de práctica y los comentarios de IA se recopilarán de forma anónima para mejorar la calidad de la IA.",
     "name_required": "Nombre requerido",
     "name_required_msg": "Por favor, introduce tu nombre.",
-    "specialty_remove": "Eliminar especialidad {{name}}"
+    "specialty_remove": "Eliminar especialidad {{name}}",
+    "collection_paused": "La recopilación de nuevos datos de entrenamiento está pausada. Los comentarios de IA siguen disponibles.",
+    "archive_withdrawn": "Se eliminaron los archivos multimedia vinculados a tu cuenta activa. No incluye textos de notas recopilados anteriormente ni archivos de invitados.",
+    "archive_withdraw_failed": "Se desactivó el envío de datos de entrenamiento en este dispositivo. No se confirmó la eliminación de los datos existentes del servidor. Revisa tu sesión y conexión y vuelve a solicitarla.",
+    "archive_withdraw_request": "Solicitar eliminación de medios archivados"
   },
   "community": {
     "title": "Comunidad",
@@ -948,6 +964,12 @@
     "record_permission": "Se necesita acceso al micrófono para grabar. Permítelo en Ajustes.",
     "record_failed": "No se pudo iniciar la grabación. Inténtalo de nuevo en un momento.",
     "record_note_hint": "Grabación de mi práctica como {{role}} en «{{play}}».",
-    "record_note_hint_voice": "Las líneas del otro personaje son la voz de la app, grabada a la vez."
+    "record_note_hint_voice": "Las líneas del otro personaje son la voz de la app, grabada a la vez.",
+    "record_leave_title": "¿Guardar la grabación?",
+    "record_leave_msg": "Tienes grabaciones que aún no has guardado en una nota.",
+    "record_save_note": "Guardar en una nota",
+    "record_discard": "Descartar grabación y salir",
+    "record_keep_practicing": "Seguir practicando",
+    "record_save_failed": "No se pudo guardar la grabación. Inténtalo de nuevo en esta pantalla."
   }
 }

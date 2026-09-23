@@ -1,3 +1,4 @@
+jest.mock("@react-native-async-storage/async-storage", () => require("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 // supabase 클라이언트는 이 테스트에서 쓰지 않으므로 mock (env/네트워크 의존 제거)
 jest.mock("../supabaseClient", () => ({ supabase: {} }));
 

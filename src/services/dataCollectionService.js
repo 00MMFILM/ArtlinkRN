@@ -2,66 +2,33 @@ import { supabase } from "./supabaseClient";
 import { safeStorageGet, STORAGE_KEYS } from "../utils/storage";
 import { SERVER_URL, getApiHeaders } from "./apiConfig";
 
-function simpleHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return hash.toString(36);
+/**
+ * Training collection is paused; keep the entry point compatible with older callers.
+ */
+export async function submitTrainingData() {
+  // Legacy records have no owner and cannot be individually withdrawn.
+  // Resume only after a server-managed consent/ownership/deletion contract exists.
+  return { submitted: false, reason: "collection_paused" };
 }
 
 /**
- * Submit AI analysis data for training (consented users — includes full content).
+ * Submit bounded operational metadata, without user-authored content.
+ * The legacy table/function name says anonymous, but a device identifier is retained.
  */
-export async function submitTrainingData({ field, noteContent, aiFeedback, noteTitle }) {
-  const contentHash = simpleHash(noteContent + aiFeedback);
-
-  const { data: existing } = await supabase
-    .from("training_data")
-    .select("id")
-    .eq("content_hash", contentHash)
-    .limit(1);
-
-  if (existing && existing.length > 0) return;
-
-  const { error } = await supabase
-    .from("training_data")
-    .insert({
-      field,
-      content_hash: contentHash,
-      note_content: noteContent,
-      ai_feedback: aiFeedback,
-      note_title: noteTitle || null,
-    });
-
-  if (error) console.log("[dataCollection] Error:", error.message);
-}
-
-/**
- * Submit anonymous AI analysis metadata for ALL users (including guests).
- * Does NOT include full note content — only metadata for pattern learning.
- */
-export async function submitAnonymousMetadata({ field, noteTitle, aiFeedback, tags, userType }) {
+export async function submitAnonymousMetadata({ field, aiFeedback, userType }) {
   try {
     const deviceId = await safeStorageGet(STORAGE_KEYS.DEVICE_ID);
     const feedbackLength = (aiFeedback || "").length;
-    // Extract only the section headers/scores from AI feedback (no personal content)
-    const feedbackSections = (aiFeedback || "")
-      .split("\n")
-      .filter((line) => /^[📌💪🎯🎭🎨💡📈🔜🎤]/.test(line.trim()))
-      .map((line) => line.trim().slice(0, 50))
-      .join("; ");
-
+    const allowedFields = new Set(["acting", "music", "dance", "art", "film", "literature", "etc"]);
+    const allowedTypes = new Set(["professional", "aspiring", "hobby", "industry", "fan"]);
     await supabase.from("anonymous_ai_metadata").insert({
       device_id: deviceId || "unknown",
-      field: field || "etc",
-      note_title_hash: noteTitle ? simpleHash(noteTitle) : null,
+      field: allowedFields.has(field) ? field : "etc",
+      note_title_hash: null,
       feedback_length: feedbackLength,
-      feedback_sections: feedbackSections || null,
-      tags: tags || [],
-      user_type: userType || "unknown",
+      feedback_sections: null,
+      tags: [],
+      user_type: allowedTypes.has(userType) ? userType : "unknown",
       created_at: new Date().toISOString(),
     });
   } catch (e) {
@@ -71,7 +38,7 @@ export async function submitAnonymousMetadata({ field, noteTitle, aiFeedback, ta
 
 /**
  * 학습자산 동의 철회 — 서버에 보관된 자료 삭제 요청.
- * 응답: { ok, deleted }. 실패해도 앱은 죽지 않도록 호출부에서 처리.
+ * 로그인 계정의 미디어 보관함만 삭제한다. 완료/범위를 확인하고 실패는 호출부에 전달한다.
  */
 export async function withdrawMediaConsent() {
   const res = await fetch(`${SERVER_URL}/api/media-consent-withdraw`, {
@@ -79,5 +46,9 @@ export async function withdrawMediaConsent() {
     headers: getApiHeaders(),
   });
   if (!res.ok) throw new Error(`withdraw failed: ${res.status}`);
-  return res.json();
+  const result = await res.json();
+  if (result.ok !== true || result.complete !== true || result.scope !== "authenticated_media_archive") {
+    throw new Error("withdraw not confirmed");
+  }
+  return result;
 }

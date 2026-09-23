@@ -8,10 +8,10 @@ describe("getApiHeaders — X-Data-Consent", () => {
     setDataConsentCache(false); // 테스트 간 캐시 격리
   });
 
-  it("동의 캐시가 true면 X-Data-Consent: 1 헤더를 포함한다", () => {
+  it("학습 수집 중단 중에는 기존 동의가 있어도 자료 수집 헤더를 보내지 않는다", () => {
     setDataConsentCache(true);
     const headers = getApiHeaders();
-    expect(headers["X-Data-Consent"]).toBe("1");
+    expect(headers["X-Data-Consent"]).toBeUndefined();
   });
 
   it("동의 캐시가 false면 X-Data-Consent 헤더를 생략한다", () => {

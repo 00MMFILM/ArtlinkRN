@@ -143,6 +143,26 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
+describe("confirmed note persistence", () => {
+  beforeEach(resetAll);
+  it("keeps the draft and screen when permanent saving fails, then allows retry", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote.mockRejectedValueOnce(new Error("LOCAL_STORAGE_WRITE_FAILED")).mockResolvedValueOnce(99);
+    useApp.mockReturnValue(ctx);
+    const draft = JSON.stringify({ title: "보존 제목", content: "보존 내용" });
+    AsyncStorage.__store[DRAFT_KEY] = draft;
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: { title: "보존 제목", content: "보존 내용" } } }} />);
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(AsyncStorage.__store[DRAFT_KEY]).toBe(draft);
+    expect(completePractice).not.toHaveBeenCalled();
+    expect(trackFunnelEvent).not.toHaveBeenCalledWith("note_saved", "ko");
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(navigation.goBack).toHaveBeenCalledTimes(1);
+    expect(ctx.handleSaveNote).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("NoteCreateScreen — 첫 AI 피드백 직후 안내", () => {
   beforeEach(resetAll);
 
@@ -194,7 +214,7 @@ describe("항목4 — 글 없이 영상·음성 기록 저장", () => {
     });
     await waitFor(() => utils.getByText("noteCreate.video_ai_result"));
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
 
     expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
     const noteData = ctx.handleSaveNote.mock.calls[0][0];
@@ -211,7 +231,7 @@ describe("항목4 — 글 없이 영상·음성 기록 저장", () => {
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
 
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목만");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
 
     expect(ctx.handleSaveNote).not.toHaveBeenCalled();
     expect(Alert.alert).toHaveBeenCalledWith("noteCreate.content_required", "noteCreate.content_required_msg");
@@ -304,7 +324,7 @@ describe("항목2 — 가입 왕복 시 초안 보존·복원", () => {
     expect(utils.getByText("복원된 영상 분석")).toBeTruthy();
     expect(utils.getByText("#독백")).toBeTruthy();
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     const noteData = ctx.handleSaveNote.mock.calls[0][0];
     expect(noteData.field).toBe("music");
     expect(noteData.images).toHaveLength(1);
@@ -325,7 +345,7 @@ describe("항목2 — 가입 왕복 시 초안 보존·복원", () => {
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
 
     await waitFor(() => expect(AsyncStorage.__store[DRAFT_KEY]).toBeUndefined());
     expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
@@ -365,7 +385,7 @@ describe("NoteCreateScreen — 연습 세션", () => {
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
     expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
 
     expect(completePractice).toHaveBeenCalledTimes(1);
     const [session, overrides] = completePractice.mock.calls[0];
@@ -384,7 +404,7 @@ describe("NoteCreateScreen — 연습 세션", () => {
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
 
     await attachVideo(utils);
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
 
     expect(completePractice.mock.calls[0][1]).toEqual(
       expect.objectContaining({ subjectKey: 42, kind: "video" })
@@ -421,7 +441,7 @@ describe("NoteCreateScreen — 연습 세션", () => {
     expect(resumePractice).toHaveBeenCalledWith("sess-kept", "text", null, "music");
 
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(completePractice.mock.calls[0][0].sessionId).toBe("sess-kept");
     // 2인 대사에서 넘어온 세션의 sessionId도 노트에 그대로 실린다
     expect(ctx.handleSaveNote.mock.calls[0][0].practiceSessionId).toBe("sess-kept");
@@ -521,7 +541,7 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     },
   };
 
-  it("재연습이면 초점을 상단에 고정 표시하고, 연습 세션 subjectKey가 장면 id로 묶인다", () => {
+  it("재연습이면 초점을 상단에 고정 표시하고, 연습 세션 subjectKey가 장면 id로 묶인다", async () => {
     const ctx = buildCtx("u1");
     ctx.savedNotes = [parent];
     useApp.mockReturnValue(ctx);
@@ -563,7 +583,7 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     fireEvent.press(utils.getByText("시선 고정"));
     expect(trackFunnelEvent).toHaveBeenCalledWith("focus_selected", "ko");
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     const noteData = ctx.handleSaveNote.mock.calls[0][0];
     expect(noteData.sceneId).toBe("hamlet-1");
     expect(noteData.parentNoteId).toBe(100);
@@ -585,14 +605,14 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     expect(utils.queryByText(/focus.current/)).toBeNull();
 
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "연습함");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     const noteData = ctx.handleSaveNote.mock.calls[0][0];
     expect(noteData.sceneId).toBe("hamlet-1");
     expect(noteData.parentNoteId).toBeUndefined();
     expect(noteData.focus).toBeUndefined();
   });
 
-  it("체인이 전혀 없으면 subjectKey는 예전처럼 저장된 노트 id", () => {
+  it("체인이 전혀 없으면 subjectKey는 예전처럼 저장된 노트 id", async () => {
     const ctx = buildCtx("u1");
     ctx.handleSaveNote = jest.fn(() => 5);
     useApp.mockReturnValue(ctx);
@@ -601,7 +621,7 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
     expect(startPractice).toHaveBeenCalledWith("text", null, "acting");
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "본문");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(completePractice.mock.calls[0][1].subjectKey).toBe(5);
   });
 });
@@ -671,7 +691,7 @@ describe("항목2 — 영상 AI만 돌려도 고칠 점 칩이 뜬다", () => {
     expect(utils.getByText("focus.pick_title")).toBeTruthy();
     fireEvent.press(utils.getByText("시선 고정"));
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote.mock.calls[0][0].chosenFocus).toBe("시선 고정");
   });
 });
@@ -717,12 +737,12 @@ describe("항목4 — 분석 중에는 저장이 막힌다", () => {
     });
     expect(utils.getByText("noteCreate.ai_analyzing")).toBeTruthy();
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote).not.toHaveBeenCalled();
 
     // 분석이 끝나면 다시 저장된다
     await act(async () => { d.resolve({ analysis: "완료", scores: null }); });
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
   });
 
@@ -738,11 +758,11 @@ describe("항목4 — 분석 중에는 저장이 막힌다", () => {
       fireEvent.press(utils.getByText("noteCreate.video_ai_analyze"));
     });
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote).not.toHaveBeenCalled();
 
     await act(async () => { d.resolve("영상 분석 결과"); });
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
   });
 });
@@ -752,7 +772,7 @@ describe("항목6 — 새 prefill이 작성 중인 글을 덮어쓰기 전에 �
 
   const newPrefill = { title: "새 대본", content: "새 내용", field: "acting" };
 
-  it("쓰던 내용이 있으면 확인 후에만 바뀐다", () => {
+  it("쓰던 내용이 있으면 확인 후에만 바뀐다", async () => {
     useApp.mockReturnValue(buildCtx("u1"));
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "내가 쓰던 글");
@@ -770,7 +790,7 @@ describe("항목6 — 새 prefill이 작성 중인 글을 덮어쓰기 전에 �
     expect(utils.getByPlaceholderText("noteCreate.title_placeholder").props.value).toBe("새 대본");
   });
 
-  it("비어 있으면 묻지 않고 바로 반영한다", () => {
+  it("비어 있으면 묻지 않고 바로 반영한다", async () => {
     useApp.mockReturnValue(buildCtx("u1"));
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
 
@@ -780,7 +800,7 @@ describe("항목6 — 새 prefill이 작성 중인 글을 덮어쓰기 전에 �
     expect(Alert.alert.mock.calls.some((c) => c[0] === "noteCreate.replace_with_new_title")).toBe(false);
   });
 
-  it("마운트할 때 받은 prefill에는 확인창이 뜨지 않는다", () => {
+  it("마운트할 때 받은 prefill에는 확인창이 뜨지 않는다", async () => {
     useApp.mockReturnValue(buildCtx("u1"));
     render(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: newPrefill } }} />);
     expect(Alert.alert.mock.calls.some((c) => c[0] === "noteCreate.replace_with_new_title")).toBe(false);
@@ -806,7 +826,7 @@ describe("항목7 — 재분석하면 옛 고칠 점 선택이 남지 않는다"
 
     expect(utils.queryByText("시선 고정")).toBeNull();
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote.mock.calls[0][0].chosenFocus).toBeUndefined();
   });
 
@@ -825,7 +845,7 @@ describe("항목7 — 재분석하면 옛 고칠 점 선택이 남지 않는다"
     await act(async () => { fireEvent.press(utils.getByText("noteCreate.ai_analyze")); });
 
     fireEvent.changeText(utils.getByPlaceholderText("noteCreate.title_placeholder"), "제목");
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(ctx.handleSaveNote.mock.calls[0][0].chosenFocus).toBe("시선 고정");
   });
 });
@@ -869,7 +889,7 @@ describe("항목9 — 화면을 나간 뒤에는 알림이 뜨지 않는다", ()
 describe("항목10 — 화면을 열기만 하면 연습으로 세지 않는다", () => {
   beforeEach(resetAll);
 
-  it("열어서 보기만 하고 나가면 practice_started가 없다", () => {
+  it("열어서 보기만 하고 나가면 practice_started가 없다", async () => {
     useApp.mockReturnValue(buildCtx("u1"));
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
     utils.unmount();
@@ -886,7 +906,7 @@ describe("항목10 — 화면을 열기만 하면 연습으로 세지 않는다"
     expect(startPractice).toHaveBeenCalledTimes(1);
   });
 
-  it("세션 없이 저장해도 completePractice는 세션을 들고 간다", () => {
+  it("세션 없이 저장해도 completePractice는 세션을 들고 간다", async () => {
     const ctx = buildCtx("u1");
     ctx.handleSaveNote = jest.fn(() => 3);
     useApp.mockReturnValue(ctx);
@@ -896,7 +916,7 @@ describe("항목10 — 화면을 열기만 하면 연습으로 세지 않는다"
     );
     expect(startPractice).not.toHaveBeenCalled();
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     expect(startPractice).toHaveBeenCalledTimes(1);
     expect(completePractice.mock.calls[0][0]).toEqual(expect.objectContaining({ sessionId: "sess-new" }));
   });
@@ -962,7 +982,7 @@ describe("녹음 파일 캐시 → 문서 폴더 보존 (OS 캐시 정리로 녹
     FileSystem.getInfoAsync.mockResolvedValueOnce({ exists: false });
     const utils = render(<NoteCreateScreen navigation={navigation} route={cacheRec} />);
 
-    fireEvent.press(utils.getByText("common.save"));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
     await waitFor(() => expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1));
 
     expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith("file:///doc/media/", { intermediates: true });
@@ -975,7 +995,7 @@ describe("녹음 파일 캐시 → 문서 폴더 보존 (OS 캐시 정리로 녹
     expect(recs).toEqual([{ uri: to, duration: 5 }, { uri: "file:///doc/media/kept.m4a", duration: 3 }]);
   });
 
-  it("복사에 실패해도 원래 uri로 저장은 계속된다", async () => {
+  it("복사에 실패하면 저장과 화면 종료를 막고 재시도를 허용한다", async () => {
     const ctx = buildCtx("u1");
     ctx.handleSaveNote = jest.fn(() => 1);
     useApp.mockReturnValue(ctx);
@@ -983,12 +1003,12 @@ describe("녹음 파일 캐시 → 문서 폴더 보존 (OS 캐시 정리로 녹
     FileSystem.copyAsync.mockRejectedValueOnce(new Error("disk full"));
     const utils = render(<NoteCreateScreen navigation={navigation} route={cacheRec} />);
 
-    fireEvent.press(utils.getByText("common.save"));
-    await waitFor(() => expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1));
-
-    expect(ctx.handleSaveNote.mock.calls[0][0].voiceRecordings[0].uri).toBe("file:///cache/Audio/recording-1.m4a");
-    expect(warn).toHaveBeenCalled();
-    expect(navigation.goBack).toHaveBeenCalled();
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(ctx.handleSaveNote).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith("common.save_failed_title", "common.save_failed_msg");
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 });

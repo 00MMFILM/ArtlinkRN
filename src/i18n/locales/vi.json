@@ -55,7 +55,15 @@
     "video_ai_retry_msg": "Không nhận được kết quả phân tích. Vui lòng kiểm tra kết nối và thử lại — ghi chú của bạn vẫn còn nguyên.",
     "video_quota_exceeded": "Bạn đã dùng hết lượt phân tích video miễn phí. Bản Premium cho phép sử dụng 15 lượt mỗi tháng.",
     "text_quota_exceeded": "Bạn đã dùng hết lượt phản hồi AI miễn phí hôm nay. Ngày mai bạn sẽ có thêm lượt, và Premium cho phép tối đa 10 lượt mỗi ngày.",
-    "submit": "Gửi"
+    "submit": "Gửi",
+    "notice": "Thông báo",
+    "save_failed_title": "Không thể lưu",
+    "save_failed_msg": "Kiểm tra dung lượng rồi thử lại. Nội dung chỉnh sửa vẫn còn trên màn hình này.",
+    "delete_failed_msg": "Không thể lưu thao tác xóa. Vui lòng thử lại.",
+    "audio_analysis_failed": "Đã dừng phân tích vì không đọc được bản ghi âm. Kiểm tra kết nối và tệp rồi thử lại.",
+    "media_save_failed_title": "Không thể lưu tệp",
+    "media_save_failed_msg": "Kiểm tra dung lượng rồi thử lại. Tệp chưa được thêm.",
+    "retry_save": "Thử lưu lại"
   },
   "tabs": {
     "home": "Trang chủ",
@@ -329,7 +337,9 @@
     "share_feed": "Bảng feed · Threads (dọc)",
     "share_story": "Story · TikTok (dọc đầy đủ)",
     "share_failed": "Không thể tạo ảnh chia sẻ. Vui lòng thử lại.",
-    "ai_feedback_placeholder": "Cho chúng tôi biết điều gì chưa tốt (không bắt buộc)"
+    "ai_feedback_placeholder": "Cho chúng tôi biết điều gì chưa tốt (không bắt buộc)",
+    "ai_save_pending": "Phản hồi AI đã sẵn sàng nhưng chưa được lưu. Kết quả vẫn ở màn hình này. Thử lưu lại không tốn lượt AI.",
+    "ai_save_leave": "Có phản hồi AI chưa lưu. Rời màn hình sẽ làm mất kết quả mới."
   },
   "profile": {
     "edit_profile": "Chỉnh sửa hồ sơ",
@@ -366,7 +376,9 @@
     "terms_detail": "Điều khoản sử dụng ArtLink\n\n1. Ứng dụng này áp dụng chính sách không khoan nhượng đối với nội dung không phù hợp và hành vi lạm dụng.\n2. Người dùng có thể báo cáo nội dung không phù hợp, và nội dung bị báo cáo sẽ được xem xét trong vòng 24 giờ.\n3. Người dùng vi phạm điều khoản có thể bị loại khỏi dịch vụ.\n4. Vui lòng tham khảo toàn bộ điều khoản đã đồng ý khi khởi động ứng dụng lần đầu tiên để biết thêm chi tiết.\n\nLiên hệ: lcy1152@naver.com",
     "privacy_detail": "Chính sách bảo mật ArtLink\n\n1. Thông tin cá nhân được thu thập: Tên, email, thông tin hồ sơ, ghi chú luyện tập và hình ảnh/video đính kèm, bản ghi âm giọng nói\n2. Mục đích thu thập: Cung cấp dịch vụ, tạo phản hồi AI, cải thiện dịch vụ\n3. Thời gian lưu trữ: Cho đến khi xóa tài khoản\n4. Xử lý bởi bên thứ ba: Anthropic và Google (tạo phản hồi AI), OpenAI (chuyển giọng nói thành văn bản), Supabase (lưu trữ dữ liệu)\n5. Người dùng có thể xóa thông tin cá nhân bất kỳ lúc nào bằng cách xóa tài khoản.\n\nLiên hệ: lcy1152@naver.com",
     "logout_confirm": "Bạn có muốn đăng xuất không?\nGhi chú được lưu trên máy chủ và sẽ được khôi phục khi bạn đăng nhập lại.",
-    "delete_confirm": "Tất cả dữ liệu (ghi chú, hồ sơ, danh mục đầu tư, v.v.) sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.\n\nBạn có chắc muốn xóa không?"
+    "delete_confirm": "Tất cả dữ liệu (ghi chú, hồ sơ, danh mục đầu tư, v.v.) sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.\n\nBạn có chắc muốn xóa không?",
+    "delete_unavailable": "Tài khoản chưa bị xóa. Ứng dụng hiện chưa thể xóa toàn bộ dữ liệu máy chủ. Bạn có thể liên hệ hỗ trợ để yêu cầu xóa.",
+    "legacy_records_notice": "Một số ghi chép từ phiên bản cũ được lưu riêng an toàn. Chưa xác nhận được tài khoản sở hữu nên chưa tự động gộp vào tài khoản này. Dữ liệu chưa bị xóa. Hãy liên hệ hỗ trợ để khôi phục."
   },
   "profileEdit": {
     "title": "Chỉnh sửa hồ sơ",
@@ -407,7 +419,11 @@
     "ai_training_desc": "Ghi chú luyện tập và phản hồi AI được thu thập ẩn danh để cải thiện chất lượng AI.",
     "name_required": "Cần tên",
     "name_required_msg": "Vui lòng nhập tên của bạn.",
-    "specialty_remove": "Xóa sở trường {{name}}"
+    "specialty_remove": "Xóa sở trường {{name}}",
+    "collection_paused": "Đang tạm dừng thu thập dữ liệu huấn luyện mới. Bạn vẫn có thể dùng phản hồi AI.",
+    "archive_withdrawn": "Đã xóa nội dung đa phương tiện lưu trữ gắn với tài khoản đang đăng nhập. Không bao gồm văn bản ghi chú đã thu thập trước đây và dữ liệu khách.",
+    "archive_withdraw_failed": "Đã tắt chia sẻ dữ liệu huấn luyện trên thiết bị này. Chưa xác nhận việc xóa dữ liệu hiện có trên máy chủ. Kiểm tra đăng nhập và kết nối rồi yêu cầu lại.",
+    "archive_withdraw_request": "Yêu cầu xóa nội dung đa phương tiện lưu trữ"
   },
   "community": {
     "title": "Cộng đồng",
@@ -948,6 +964,12 @@
     "record_permission": "Cần quyền micro để ghi âm. Vui lòng cho phép trong Cài đặt.",
     "record_failed": "Không thể bắt đầu ghi âm. Vui lòng thử lại sau.",
     "record_note_hint": "Bản ghi âm khi tôi luyện vai {{role}} trong \"{{play}}\".",
-    "record_note_hint_voice": "Lời thoại của bạn diễn là giọng của ứng dụng được ghi cùng."
+    "record_note_hint_voice": "Lời thoại của bạn diễn là giọng của ứng dụng được ghi cùng.",
+    "record_leave_title": "Giữ bản ghi âm?",
+    "record_leave_msg": "Bạn có bản ghi âm chưa được lưu vào ghi chú.",
+    "record_save_note": "Lưu vào ghi chú",
+    "record_discard": "Bỏ bản ghi âm và thoát",
+    "record_keep_practicing": "Tiếp tục luyện tập",
+    "record_save_failed": "Không thể lưu bản ghi âm. Hãy thử lại trên màn hình này."
   }
 }

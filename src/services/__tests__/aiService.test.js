@@ -23,6 +23,59 @@ jest.mock("../../utils/videoFrames", () => ({ extractVideoFrames: jest.fn() }));
 
 const { parseFocus, focusSummary, buildPreviousContext, analyzeNote } = require("../aiService");
 
+describe("failed recordings never spend an analysis request", () => {
+  it("stops before AI when the recording upload fails", async () => {
+    const fs = require("expo-file-system/legacy");
+    fs.uploadAsync.mockResolvedValue({ status: 503 });
+    global.fetch = jest.fn();
+    await expect(analyzeNote("acting", "오늘 연습", [], {
+      voiceRecordings: [{ uri: "file:///recording.m4a" }],
+    }, {})).rejects.toThrow("AI_AUDIO_INCOMPLETE");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("AI stream needs a server completion event", () => {
+  let xhr;
+  const originalXHR = global.XMLHttpRequest;
+  beforeEach(() => {
+    global.XMLHttpRequest = jest.fn(() => (xhr = {
+      open: jest.fn(), setRequestHeader: jest.fn(), send: jest.fn(),
+      status: 200, responseText: "",
+    }));
+  });
+  afterEach(() => { global.XMLHttpRequest = originalXHR; });
+
+  it("accepts split JSON frames and takes the actual final model", async () => {
+    const { streamAnalyze, lastAiMeta } = require("../aiService");
+    const onToken = jest.fn();
+    const result = streamAnalyze({}, onToken);
+    const delta = JSON.stringify({ type: "delta", text: "이번 연습에서 호흡과 대사 전달이 좋았습니다." }) + "\n";
+    xhr.responseText = delta.slice(0, 13);
+    xhr.onprogress();
+    expect(onToken).not.toHaveBeenCalled();
+    xhr.responseText = delta;
+    xhr.onprogress();
+    xhr.responseText += JSON.stringify({ type: "done", model: "fallback-model", promptVersion: "v1" }) + "\n";
+    xhr.onload();
+    await expect(result).resolves.toContain("호흡");
+    expect(lastAiMeta.model).toBe("fallback-model");
+  });
+
+  it.each(["missing", "error", "legacy"])("rejects %s completion even with more than ten characters", async (ending) => {
+    const { streamAnalyze, lastAiMeta } = require("../aiService");
+    lastAiMeta.model = "previous-model";
+    const result = streamAnalyze({}, jest.fn());
+    const rejection = expect(result).rejects.toThrow("AI_STREAM_INCOMPLETE");
+    xhr.responseText = ending === "legacy" ? "중간에 끊겼지만 열 글자가 넘는 피드백" :
+      JSON.stringify({ type: "delta", text: "중간에 끊겼지만 열 글자가 넘는 피드백" }) + "\n";
+    if (ending === "error") xhr.responseText += JSON.stringify({ type: "error", error: "generation_failed" }) + "\n";
+    xhr.onload();
+    await rejection;
+    expect(lastAiMeta.model).toBe("previous-model");
+  });
+});
+
 describe("parseFocus — [[FOCUS]] 줄 파싱", () => {
   it("후보 3개를 뽑고 표시용 본문에선 제거한다", () => {
     const raw = "📌 전체 인상\n좋았어요.\n[[FOCUS]] 첫 문장 호흡 늦추기 | 상대 눈 보고 말하기 | 마지막 대사 볼륨 낮추기";

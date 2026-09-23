@@ -55,7 +55,15 @@
     "video_ai_retry_msg": "未能收到分析结果。请检查网络连接后重试，笔记内容保持不变。",
     "video_quota_exceeded": "您已用完免费视频分析次数。升级高级版每月可使用15次。",
     "text_quota_exceeded": "今天的免费AI反馈次数已用完。明天可以再次使用，高级会员每天最多可用10次。",
-    "submit": "提交"
+    "submit": "提交",
+    "notice": "提示",
+    "save_failed_title": "无法保存",
+    "save_failed_msg": "请检查存储空间后重试。修改内容仍保留在此屏幕上。",
+    "delete_failed_msg": "无法保存删除操作，请重试。",
+    "audio_analysis_failed": "无法读取录音，已停止分析。请检查连接和文件后重试。",
+    "media_save_failed_title": "无法保存文件",
+    "media_save_failed_msg": "请检查存储空间后重试。文件尚未添加。",
+    "retry_save": "重试保存"
   },
   "tabs": {
     "home": "首页",
@@ -329,7 +337,9 @@
     "share_feed": "动态·Threads（竖版）",
     "share_story": "限时动态·TikTok（全竖版）",
     "share_failed": "未能生成分享图片，请重试。",
-    "ai_feedback_placeholder": "请告诉我们哪里不够好（选填）"
+    "ai_feedback_placeholder": "请告诉我们哪里不够好（选填）",
+    "ai_save_pending": "AI反馈已完成但尚未保存，结果仍在此屏幕上。重试保存不会消耗AI次数。",
+    "ai_save_leave": "有尚未保存的AI反馈。离开此屏幕将丢失新结果。"
   },
   "profile": {
     "edit_profile": "编辑资料",
@@ -366,7 +376,9 @@
     "terms_detail": "ArtLink用户协议\n\n1. 本应用对不当内容及滥用行为采取零容忍政策。\n2. 用户可举报不当内容，被举报的内容将在24小时内进行审核。\n3. 违反协议的用户可能被移出服务。\n4. 详细协议请参阅首次启动应用时同意的完整条款。\n\n联系：lcy1152@naver.com",
     "privacy_detail": "ArtLink隐私政策\n\n1. 收集的个人信息：姓名、邮箱、个人资料信息、练习笔记及附件图片·视频、语音录音\n2. 收集目的：提供服务、生成AI反馈、改善服务\n3. 保留期限：直至账号删除\n4. 第三方处理：Anthropic和Google（AI反馈生成）、OpenAI（语音转文字）、Supabase（数据存储）\n5. 用户可随时通过删除账号来删除个人信息。\n\n联系：lcy1152@naver.com",
     "logout_confirm": "确定要退出登录吗？\n笔记已保存在服务器上，重新登录后可恢复。",
-    "delete_confirm": "所有数据（笔记、个人资料、作品集等）将被永久删除。此操作无法撤销。\n\n确定要删除吗？"
+    "delete_confirm": "所有数据（笔记、个人资料、作品集等）将被永久删除。此操作无法撤销。\n\n确定要删除吗？",
+    "delete_unavailable": "账户尚未删除。此应用目前还无法完成所有服务器数据的删除。你可以联系支持团队申请删除。",
+    "legacy_records_notice": "部分旧版本记录已单独安全保管。由于无法确认所属账户，未自动合并到此账户。记录并未删除，请联系支持团队恢复。"
   },
   "profileEdit": {
     "title": "编辑资料",
@@ -407,7 +419,11 @@
     "ai_training_desc": "将匿名收集练习笔记和AI反馈，用于改善AI质量。",
     "name_required": "需要姓名",
     "name_required_msg": "请输入姓名。",
-    "specialty_remove": "删除特长 {{name}}"
+    "specialty_remove": "删除特长 {{name}}",
+    "collection_paused": "已暂停收集新的训练数据。AI反馈仍可使用。",
+    "archive_withdrawn": "已确认删除与当前登录账户关联的存档媒体。不包括此前收集的笔记正文和访客资料。",
+    "archive_withdraw_failed": "已关闭此设备的训练数据共享。尚未确认删除服务器上的现有数据。请检查登录状态和连接后再次请求。",
+    "archive_withdraw_request": "请求删除存档媒体"
   },
   "community": {
     "title": "社区",
@@ -948,6 +964,12 @@
     "record_permission": "录音需要麦克风权限，请在设置中允许麦克风。",
     "record_failed": "无法开始录音，请稍后再试。",
     "record_note_hint": "这是我以「{{play}}」中{{role}}一角练习的录音。",
-    "record_note_hint_voice": "对手的台词是由应用语音一起录进去的。"
+    "record_note_hint_voice": "对手的台词是由应用语音一起录进去的。",
+    "record_leave_title": "保留录音吗？",
+    "record_leave_msg": "还有未保存到笔记的录音。",
+    "record_save_note": "保存到笔记",
+    "record_discard": "丢弃录音并退出",
+    "record_keep_practicing": "继续练习",
+    "record_save_failed": "无法保存录音，请在此屏幕重试。"
   }
 }
