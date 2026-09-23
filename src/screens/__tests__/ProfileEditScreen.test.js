@@ -183,3 +183,20 @@ describe("ProfileEditScreen — durable photos", () => {
     expect(navigation.goBack).not.toHaveBeenCalled();
   });
 });
+
+describe("ProfileEditScreen — 공개 OFF 서버 반영 대기 표시", () => {
+  it("서버 확인 전에는 비공개 적용 중이라고 알린다", () => {
+    useApp.mockReturnValue({
+      userProfile: { name: "차서원", bio: "", profilePublic: false, visibilityPending: true },
+      handleUpdateProfile: jest.fn(), dataConsent: false, handleSetDataConsent: jest.fn(),
+    });
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+    expect(utils.getByText("profileEdit.visibility_pending_private")).toBeTruthy();
+  });
+
+  it("서버 반영이 끝나면 대기 문구를 보여 주지 않는다", () => {
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+    expect(utils.queryByText("profileEdit.visibility_pending_private")).toBeNull();
+    expect(utils.queryByText("profileEdit.visibility_pending_public")).toBeNull();
+  });
+});

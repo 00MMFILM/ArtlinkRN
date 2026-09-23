@@ -61,6 +61,48 @@ const SKILL_LABEL_KEYS = [
 ];
 const SKILL_COLORS = [CLight.pink, CLight.purple, CLight.orange, CLight.blue, CLight.green];
 
+// 서버가 준 목록은 그대로 보여 준다 — 앱이 범위를 넓게 해석하지 않는다.
+// 서버가 주는 제외 항목 코드 → 사람이 읽는 문구. 모르는 코드는 그대로 보여 주지 않고 숨긴다
+// (영문 코드가 사용자 화면에 노출되면 안 된다).
+const EXCLUDE_LABEL_KEYS = {
+  training_data: "profile.delete_exclude_training",
+  guest_media_archive: "profile.delete_exclude_guest_media",
+  funnel_events: "profile.delete_exclude_usage_stats",
+  mau_tracking: "profile.delete_exclude_usage_stats",
+  guest_ai_usage: "profile.delete_exclude_usage_stats",
+  reports: "profile.delete_exclude_reports",
+};
+// 서버가 주는 실패 단계 코드 → 사람이 읽는 문구.
+const FAILED_LABEL_KEYS = {
+  media_archive: "profile.delete_part_media",
+  user_notes: "profile.delete_part_notes",
+  artist_profiles: "profile.delete_part_profile",
+  growth_vectors: "profile.delete_part_growth",
+  feedback_ratings: "profile.delete_part_feedback",
+  practice_events: "profile.delete_part_practice",
+  ai_usage_daily: "profile.delete_part_usage",
+  ai_video_usage: "profile.delete_part_usage",
+  premium_members: "profile.delete_part_subscription",
+  users: "profile.delete_part_account",
+  users_lookup: "profile.delete_part_account",
+  auth_user: "profile.delete_part_account",
+};
+const describeFailed = (item, t) => {
+  const code = typeof item === "string" ? item : item?.type || item?.name || "";
+  const key = FAILED_LABEL_KEYS[code];
+  if (key) return t(key);
+  const label = typeof item === "object" ? item?.label : null;
+  return typeof label === "string" && label.trim() ? label : t("profile.delete_part_other");
+};
+const describeExclude = (item, t) => {
+  const code = typeof item === "string" ? item : item?.type || item?.name || item?.scope || "";
+  const key = EXCLUDE_LABEL_KEYS[code];
+  if (key) return t(key);
+  // 모르는 코드: 사람이 읽을 수 있는 문장만 통과시킨다(영문 코드 노출 방지).
+  const label = typeof item === "object" ? item?.label : typeof item === "string" ? item : null;
+  return typeof label === "string" && /\s/.test(label.trim()) ? label.trim() : "";
+};
+
 export default function ProfileScreen({ navigation }) {
   const { t } = useTranslation();
   const {
@@ -153,29 +195,49 @@ export default function ProfileScreen({ navigation }) {
     );
   }, [handleLogout, t]);
 
+  // 서버가 complete:true를 준 경우에만 삭제 완료로 안내한다. 지우지 못한 항목은
+  // 서버가 준 목록 그대로 보여 주고, 실패하면 로그인 상태를 유지한 채 다시 시도한다.
+  const runDeleteAccount = useCallback(async function attempt() {
+    try {
+      const result = await handleDeleteAccount();
+      const excludes = [...new Set((result?.excludes || []).map((x) => describeExclude(x, t)).filter(Boolean))];
+      Alert.alert(
+        t("profile.delete_done_title"),
+        excludes.length
+          ? `${t("profile.delete_done_msg")}\n\n${t("profile.delete_excluded")}\n${excludes.map((x) => `• ${x}`).join("\n")}`
+          : t("profile.delete_done_msg"),
+        [{ text: t("common.confirm") }]
+      );
+    } catch (error) {
+      if (error?.message === "ACCOUNT_DELETION_REQUIRES_LOGIN") {
+        Alert.alert(t("profile.delete_account"), t("profile.delete_login_required"), [{ text: t("common.confirm") }]);
+        return;
+      }
+      const failed = [...new Set((error?.failed || []).map((x) => describeFailed(x, t)).filter(Boolean))];
+      Alert.alert(
+        t("profile.delete_account"),
+        failed.length
+          ? `${t("profile.delete_failed_msg")}\n\n${t("profile.delete_failed_remaining")}\n${failed.map((x) => `• ${x}`).join("\n")}`
+          : t("profile.delete_failed_msg"),
+        [
+          { text: t("common.close"), style: "cancel" },
+          { text: t("common.retry"), onPress: () => { attempt(); } },
+          { text: t("profile.send_email"), onPress: () => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20account%20deletion") },
+        ]
+      );
+    }
+  }, [handleDeleteAccount, t]);
+
   const handleDeleteAccountPress = useCallback(() => {
     Alert.alert(
       t("profile.delete_account"),
-      t("profile.delete_confirm"),
+      t("profile.delete_confirm_msg"),
       [
         { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await handleDeleteAccount();
-            } catch (_) {
-              Alert.alert(t("profile.delete_account"), t("profile.delete_unavailable"), [
-                { text: t("common.cancel"), style: "cancel" },
-                { text: t("profile.send_email"), onPress: () => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20account%20deletion") },
-              ]);
-            }
-          },
-        },
+        { text: t("common.delete"), style: "destructive", onPress: () => { runDeleteAccount(); } },
       ]
     );
-  }, [handleDeleteAccount, t]);
+  }, [runDeleteAccount, t]);
 
   // ─── Render ───
 
@@ -188,9 +250,9 @@ export default function ProfileScreen({ navigation }) {
       >
         {legacyRecordsPending ? (
           <View style={{ padding: 16, marginBottom: 16, backgroundColor: CLight.gray100, borderRadius: 12 }}>
-            <Text style={[T.caption, { color: CLight.gray700 }]}>{t("profile.legacy_records_notice")}</Text>
-            <TouchableOpacity onPress={() => Linking.openURL("mailto:lcy1152@naver.com?subject=ArtLink%20record%20recovery")} style={{ paddingTop: 12 }}>
-              <Text style={[T.captionBold, { color: CLight.pink }]}>{t("profile.send_email")}</Text>
+            <Text style={[T.caption, { color: CLight.gray700 }]}>{t("profile.legacy_records_notice_msg")}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("LegacyRecovery")} style={{ paddingTop: 12 }}>
+              <Text style={[T.captionBold, { color: CLight.pink }]}>{t("profile.legacy_records_open")}</Text>
             </TouchableOpacity>
           </View>
         ) : null}

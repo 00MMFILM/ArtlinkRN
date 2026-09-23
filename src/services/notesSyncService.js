@@ -28,21 +28,49 @@ function noteToRow(authUserId, n) {
   };
 }
 
+const sameInstant = (a, b) => {
+  const left = Date.parse(a), right = Date.parse(b);
+  return Number.isNaN(left) || Number.isNaN(right) ? String(a) === String(b) : left === right;
+};
+
+// The database keeps a deleted row deleted by returning OLD from a BEFORE UPDATE
+// trigger, so an upsert onto a tombstone answers HTTP 200 with the old row and
+// stores nothing. Compare what came back with what we sent before calling it saved.
+export function classifyUpsertResult(sentRows, savedRows) {
+  const outcome = { tombstoned: [], unconfirmed: [] };
+  if (!Array.isArray(savedRows)) return outcome; // 반환 행이 없는 서버/클라이언트는 판정하지 않는다
+  const byId = new Map(savedRows.map((row) => [String(row.local_id), row]));
+  for (const sent of sentRows) {
+    const saved = byId.get(String(sent.local_id));
+    if (saved?.deleted === true) outcome.tombstoned.push({ id: sent.local_id, deletedAt: saved.updated_at || sent.updated_at });
+    else if (!saved || saved.title !== sent.title || !sameInstant(saved.updated_at, sent.updated_at)) outcome.unconfirmed.push(sent.local_id);
+  }
+  return outcome;
+}
+
+function upsertNoteRows(rows) {
+  return supabase.from("user_notes").upsert(rows, { onConflict: "auth_user_id,local_id" }).select();
+}
+
 // Media bytes/URIs remain device-local; the practice chain is backed up separately.
 export async function syncNotesToServer(authUserId, notes) {
-  if (!authUserId || !notes?.length) return;
+  if (!authUserId || !notes?.length) return { tombstoned: [], unconfirmed: [] };
   const rows = notes.map((n) => noteToRow(authUserId, n));
-  let { error } = await supabase.from("user_notes").upsert(rows, { onConflict: "auth_user_id,local_id" });
+  let { data, error } = await upsertNoteRows(rows);
   // Older deployments can still back up the note itself. Never hide other schema,
   // authorization or network failures behind this compatibility fallback.
   if (isMissingPracticeMetaColumn(error)) {
     const legacyRows = rows.map(({ practice_meta, ...row }) => row);
-    ({ error } = await supabase.from("user_notes").upsert(legacyRows, { onConflict: "auth_user_id,local_id" }));
+    ({ data, error } = await upsertNoteRows(legacyRows));
   }
   if (error) throw error;
+  return classifyUpsertResult(rows, data);
 }
 export async function syncSingleNote(authUserId, note) {
-  return syncNotesToServer(authUserId, [note]);
+  const outcome = await syncNotesToServer(authUserId, [note]);
+  if (outcome.tombstoned.length) throw new Error("NOTE_DELETED_ON_SERVER");
+  if (outcome.unconfirmed.length) throw new Error("NOTE_UPLOAD_UNCONFIRMED");
+  return outcome;
 }
 
 // Tombstones must reach every device. Filtering them out resurrects old local notes.
@@ -115,7 +143,19 @@ export function syncAccountNotes({ authUserId, scope, isCurrent = () => true, on
     // Re-read after the durable merge so newly saved/deleted notes are included.
     const latest = await readNoteState(scope);
     if (!isCurrent()) return;
-    await syncNotesToServer(authUserId, latest.notes.filter((n) => !latest.tombstones[n.id]));
+    const outcome = await syncNotesToServer(authUserId, latest.notes.filter((n) => !latest.tombstones[n.id]));
+    if (!isCurrent()) return;
+    // The server refused these as already deleted. Deletion wins: clean them up locally
+    // instead of leaving a note the user believes is backed up.
+    if (outcome.tombstoned.length) {
+      const cleaned = await mutateNoteState(scope, (current) => {
+        const tombstones = { ...current.tombstones };
+        outcome.tombstoned.forEach(({ id, deletedAt }) => { tombstones[id] = { deletedAt, synced: true }; });
+        return { notes: current.notes.filter((n) => !tombstones[n.id]), tombstones };
+      });
+      if (!isCurrent()) return;
+      onChange(cleaned.notes);
+    }
     for (const [id, tombstone] of Object.entries(latest.tombstones)) {
       if (!isCurrent()) return;
       if (tombstone.synced) continue;
@@ -125,6 +165,9 @@ export function syncAccountNotes({ authUserId, scope, isCurrent = () => true, on
         ...current.tombstones, [id]: { ...current.tombstones[id], synced: true },
       } }));
     }
+    // Rows the server answered with different contents were not stored. Fail the sync
+    // so it is retried and nothing reports these notes as backed up.
+    if (outcome.unconfirmed.length) throw new Error("NOTE_UPLOAD_UNCONFIRMED");
   });
   syncing.set(scope, run);
   run.finally(() => { if (syncing.get(scope) === run) syncing.delete(scope); }).catch(() => {});

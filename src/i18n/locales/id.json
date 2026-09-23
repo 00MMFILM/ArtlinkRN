@@ -378,7 +378,30 @@
     "logout_confirm": "Apakah Anda ingin keluar?\nCatatan disimpan di server dan akan dipulihkan saat Anda masuk kembali.",
     "delete_confirm": "Semua data (catatan, profil, portofolio, dll.) akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.\n\nApakah Anda yakin ingin menghapus?",
     "delete_unavailable": "Akun Anda belum dihapus. Aplikasi belum dapat menghapus semua data server. Hubungi dukungan untuk meminta penghapusan.",
-    "legacy_records_notice": "Beberapa catatan versi lama disimpan terpisah dengan aman. Akun pemiliknya belum dapat dikonfirmasi, jadi catatan tidak otomatis digabung ke akun ini. Catatan belum dihapus. Hubungi dukungan untuk pemulihan."
+    "legacy_records_notice": "Beberapa catatan versi lama disimpan terpisah dengan aman. Akun pemiliknya belum dapat dikonfirmasi, jadi catatan tidak otomatis digabung ke akun ini. Catatan belum dihapus. Hubungi dukungan untuk pemulihan.",
+    "delete_confirm_msg": "Ini menghapus akun Anda dan data yang tersimpan di server kami. Tidak dapat dibatalkan. Beberapa item mungkin di luar cakupan penghapusan; kami akan mencantumkannya setelahnya. Lanjutkan?",
+    "delete_done_title": "Penghapusan selesai",
+    "delete_done_msg": "Akun Anda dan data di server kami telah dihapus, termasuk catatan akun ini di perangkat ini.",
+    "delete_excluded": "Item berikut tidak termasuk dalam penghapusan ini.",
+    "delete_exclude_training": "Catatan pelatihan AI lama yang pemiliknya tidak dapat dipastikan",
+    "delete_exclude_guest_media": "Foto, video, dan rekaman yang diarsipkan sebelum masuk (tamu)",
+    "delete_exclude_usage_stats": "Statistik penggunaan tingkat perangkat yang tidak mengidentifikasi orang",
+    "delete_exclude_reports": "Laporan yang disimpan untuk melindungi pengguna lain",
+    "delete_failed_msg": "Penghapusan belum selesai. Data dan status masuk Anda tidak berubah. Coba lagi sebentar lagi.",
+    "delete_failed_remaining": "Masih tersisa",
+    "delete_part_media": "Foto, video, dan rekaman tersimpan",
+    "delete_part_notes": "Catatan latihan",
+    "delete_part_profile": "Profil publik",
+    "delete_part_growth": "Catatan perkembangan",
+    "delete_part_feedback": "Penilaian umpan balik",
+    "delete_part_practice": "Tautan aktivitas latihan",
+    "delete_part_usage": "Catatan penggunaan AI",
+    "delete_part_subscription": "Hak langganan",
+    "delete_part_account": "Data akun",
+    "delete_part_other": "Sebagian data",
+    "delete_login_required": "Anda hanya dapat menghapus akun saat masuk. Masuk lalu coba lagi.",
+    "legacy_records_notice_msg": "Ada catatan dari versi lama di perangkat ini. Kami tidak dapat memastikan pemiliknya, jadi tidak digabungkan ke akun Anda saat ini. Tidak ada yang dihapus.",
+    "legacy_records_open": "Tinjau catatan ini"
   },
   "profileEdit": {
     "title": "Edit Profil",
@@ -423,7 +446,9 @@
     "collection_paused": "Pengumpulan data pelatihan baru dijeda. Umpan balik AI tetap tersedia.",
     "archive_withdrawn": "Media arsip yang terhubung ke akun aktif telah dihapus. Teks catatan yang dikumpulkan sebelumnya dan arsip tamu tidak termasuk.",
     "archive_withdraw_failed": "Berbagi data pelatihan dimatikan di perangkat ini. Penghapusan data server yang ada belum terkonfirmasi. Periksa login dan koneksi, lalu ajukan lagi.",
-    "archive_withdraw_request": "Minta penghapusan media arsip"
+    "archive_withdraw_request": "Minta penghapusan media arsip",
+    "visibility_pending_private": "Menerapkan setelan privat. Pesan ini hilang setelah server mengonfirmasi.",
+    "visibility_pending_public": "Menerapkan setelan publik di server."
   },
   "community": {
     "title": "Komunitas",
@@ -971,5 +996,20 @@
     "record_discard": "Buang rekaman dan keluar",
     "record_keep_practicing": "Lanjutkan latihan",
     "record_save_failed": "Rekaman tidak dapat disimpan. Coba lagi di layar ini."
+  },
+  "legacyRecovery": {
+    "title": "Pulihkan catatan lama",
+    "desc": "Catatan ini ada di perangkat ini dan kami tidak tahu miliknya siapa. Semuanya berasal dari perangkat ini, bukan dari server.",
+    "summary_notes": "{{count}} catatan",
+    "summary_portfolio": "{{count}} item portofolio",
+    "summary_period": "{{from}} – {{to}}",
+    "summary_empty": "Tidak ada catatan untuk dipindahkan.",
+    "confirm_label": "Jangan pindahkan jika milik akun orang lain. Saya memastikan catatan ini milik saya.",
+    "move": "Pindahkan ke akun saya",
+    "keep": "Biarkan apa adanya",
+    "keep_desc": "Jika tidak dipindahkan, tidak ada yang dihapus; semuanya tetap di perangkat ini.",
+    "login_required": "Masuk dulu untuk memindahkan catatan ini.",
+    "moved": "Dipindahkan ke akun Anda. Salinan aslinya tetap ada di perangkat ini.",
+    "failed": "Tidak dapat dipindahkan. Catatan tidak berubah. Silakan coba lagi."
   }
 }

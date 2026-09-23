@@ -41,6 +41,7 @@ import OnboardingScreen from "./src/screens/OnboardingScreen";
 import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
 import ProfileEditScreen from "./src/screens/ProfileEditScreen";
 import EULAScreen from "./src/screens/EULAScreen";
+import LegacyRecoveryScreen from "./src/screens/LegacyRecoveryScreen";
 import { initPurchases, logInPurchases } from "./src/services/purchasesService";
 import CommunityPostDetailScreen from "./src/screens/CommunityPostDetailScreen";
 import CommunityPostCreateScreen from "./src/screens/CommunityPostCreateScreen";
@@ -432,6 +433,7 @@ export function AppNavigator() {
               <Stack.Screen name="B2B" component={B2BDashboardScreen} />
               <Stack.Screen name="Inbox" component={InboxScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
+              <Stack.Screen name="LegacyRecovery" component={LegacyRecoveryScreen} />
               <Stack.Screen name="CommunityPostDetail" component={CommunityPostDetailScreen} />
               <Stack.Screen
                 name="CommunityPostCreate"

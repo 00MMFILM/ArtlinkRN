@@ -378,7 +378,30 @@
     "logout_confirm": "确定要退出登录吗？\n笔记已保存在服务器上，重新登录后可恢复。",
     "delete_confirm": "所有数据（笔记、个人资料、作品集等）将被永久删除。此操作无法撤销。\n\n确定要删除吗？",
     "delete_unavailable": "账户尚未删除。此应用目前还无法完成所有服务器数据的删除。你可以联系支持团队申请删除。",
-    "legacy_records_notice": "部分旧版本记录已单独安全保管。由于无法确认所属账户，未自动合并到此账户。记录并未删除，请联系支持团队恢复。"
+    "legacy_records_notice": "部分旧版本记录已单独安全保管。由于无法确认所属账户，未自动合并到此账户。记录并未删除，请联系支持团队恢复。",
+    "delete_confirm_msg": "将删除您的账号以及保存在服务器上的数据，且无法恢复。部分项目可能不在删除范围内，删除后会列出。要继续吗？",
+    "delete_done_title": "删除完成",
+    "delete_done_msg": "已删除您的账号和服务器上的数据，也清除了本设备上该账号的记录。",
+    "delete_excluded": "以下项目未包含在本次删除中。",
+    "delete_exclude_training": "无法确认所有者的早期 AI 训练记录",
+    "delete_exclude_guest_media": "登录前（访客）保存的照片、视频和录音",
+    "delete_exclude_usage_stats": "无法识别个人的设备级使用统计",
+    "delete_exclude_reports": "为保护其他用户而保留的举报记录",
+    "delete_failed_msg": "删除未完成。您的数据和登录状态没有变化，请稍后再试。",
+    "delete_failed_remaining": "仍未删除的项目",
+    "delete_part_media": "已保存的照片、视频和录音",
+    "delete_part_notes": "练习笔记",
+    "delete_part_profile": "公开资料",
+    "delete_part_growth": "成长记录",
+    "delete_part_feedback": "反馈评分",
+    "delete_part_practice": "练习记录关联",
+    "delete_part_usage": "AI 使用记录",
+    "delete_part_subscription": "订阅权益",
+    "delete_part_account": "账号信息",
+    "delete_part_other": "部分数据",
+    "delete_login_required": "只有在登录状态下才能删除账号。请登录后再试。",
+    "legacy_records_notice_msg": "本设备上留有旧版本的记录。由于无法确认归属账号，未自动并入当前账号。记录没有被删除。",
+    "legacy_records_open": "查看这些记录"
   },
   "profileEdit": {
     "title": "编辑资料",
@@ -423,7 +446,9 @@
     "collection_paused": "已暂停收集新的训练数据。AI反馈仍可使用。",
     "archive_withdrawn": "已确认删除与当前登录账户关联的存档媒体。不包括此前收集的笔记正文和访客资料。",
     "archive_withdraw_failed": "已关闭此设备的训练数据共享。尚未确认删除服务器上的现有数据。请检查登录状态和连接后再次请求。",
-    "archive_withdraw_request": "请求删除存档媒体"
+    "archive_withdraw_request": "请求删除存档媒体",
+    "visibility_pending_private": "正在应用不公开设置，服务器确认后此提示会消失。",
+    "visibility_pending_public": "正在将公开设置同步到服务器。"
   },
   "community": {
     "title": "社区",
@@ -971,5 +996,20 @@
     "record_discard": "丢弃录音并退出",
     "record_keep_practicing": "继续练习",
     "record_save_failed": "无法保存录音，请在此屏幕重试。"
+  },
+  "legacyRecovery": {
+    "title": "恢复旧记录",
+    "desc": "这些记录留在本设备上，无法判断归属账号。它们只来自本设备，并非从服务器获取。",
+    "summary_notes": "{{count}} 条笔记",
+    "summary_portfolio": "{{count}} 个作品集项目",
+    "summary_period": "{{from}} – {{to}}",
+    "summary_empty": "没有可迁移的记录。",
+    "confirm_label": "如果属于他人账号请勿迁移。我确认这些记录是我的。",
+    "move": "迁移到当前账号",
+    "keep": "保持原样",
+    "keep_desc": "不迁移也不会删除，记录会留在本设备上。",
+    "login_required": "请先登录再迁移。",
+    "moved": "已迁移到当前账号。原始记录也仍保留在本设备上。",
+    "failed": "迁移失败。记录未发生变化，请重试。"
   }
 }

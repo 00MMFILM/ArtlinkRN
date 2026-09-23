@@ -2,13 +2,14 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, strictStorageGet, STORAGE_KEYS } from "../utils/storage";
-import { accountScope, getStorageScope, isGuestScope, guestStorageScope, initializeAccountStorage, setStorageScope, transferGuestData, hasUnassignedLegacyData } from "../utils/accountStorage";
+import { accountScope, getStorageScope, isGuestScope, guestStorageScope, initializeAccountStorage, setStorageScope, transferGuestData, hasUnassignedLegacyData, clearAccountStorage, claimUnassignedLegacyData } from "../utils/accountStorage";
 import { readNoteState, mutateNoteState } from "../services/noteStore";
 import { supabase } from "../services/supabaseClient";
 import i18n from "i18next";
 import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
-import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats } from "../services/profileService";
+import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats, syncProfileVisibility, nextVisibilityStamp } from "../services/profileService";
+import { requestAccountDelete } from "../services/accountDeleteService";
 import { syncAccountNotes } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
 import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
@@ -335,7 +336,7 @@ export function AppProvider({ children }) {
     // Upload pending local photos
     const pendingUris = (userProfile.pendingPhotoUris || []);
     if (pendingUris.length > 0) {
-      uploadProfilePhotos(deviceUserId, pendingUris, snapshot.photos || [])
+      uploadProfilePhotos(deviceUserId, pendingUris, snapshot.photos || [], snapshot)
         .then((urls) => {
           if (!isCurrent()) return;
           const replacements = new Map(pendingUris.map((uri, i) => [uri, urls[i]]));
@@ -349,6 +350,32 @@ export function AppProvider({ children }) {
     }
     return () => { cancelled = true; };
   }, [storageReady, deviceUserId, userProfile, artistProfile, savedNotes.length]);
+
+  // Turning the profile off must reach the server, not just stop uploading. The pending
+  // flag is stored with the profile, so a failure is retried on foreground and on the
+  // next app launch until the server confirms it.
+  useEffect(() => {
+    if (!storageReady || !deviceUserId || !userProfile.visibilityPending) return;
+    const generation = accountGenerationRef.current;
+    const scope = getStorageScope();
+    const snapshot = userProfile;
+    let cancelled = false;
+    const isCurrent = () => !cancelled && generation === accountGenerationRef.current && profileRef.current === snapshot;
+    const run = () => {
+      if (!isCurrent()) return;
+      syncProfileVisibility(deviceUserId, snapshot)
+        .then(async () => {
+          if (!isCurrent()) return;
+          const updated = { ...snapshot, visibilityPending: false };
+          const saved = await safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope);
+          if (saved && isCurrent()) setUserProfile(updated);
+        })
+        .catch(() => {});
+    };
+    run();
+    const sub = AppState.addEventListener("change", (next) => { if (next === "active") run(); });
+    return () => { cancelled = true; sub?.remove?.(); };
+  }, [storageReady, deviceUserId, userProfile]);
 
   // Migrate cache recordings within their owner's namespace. A late migration
   // must not rewrite another account's notes or overwrite newer note edits.
@@ -512,6 +539,11 @@ export function AppProvider({ children }) {
     const scope = getStorageScope(), generation = accountGenerationRef.current;
     const previous = profileRef.current;
     const updated = { ...previous, ...partial };
+    // Every toggle gets a newer stamp and stays pending until the server accepts it.
+    if ("profilePublic" in partial && !!partial.profilePublic !== !!previous.profilePublic) {
+      updated.visibilityUpdatedAt = nextVisibilityStamp(previous.visibilityUpdatedAt);
+      updated.visibilityPending = true;
+    }
     if (!await safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope)) throw new Error("LOCAL_STORAGE_WRITE_FAILED");
     if (generation !== accountGenerationRef.current) throw new Error("ACCOUNT_CHANGED");
     setUserProfile(updated);
@@ -640,11 +672,25 @@ export function AppProvider({ children }) {
     setAuthState("auth");
   }, []);
 
-  // A server-backed account erasure flow has not been released yet. Never claim
-  // deletion after merely logging out or erase other accounts' local namespaces.
+  // Local data is erased only after the server reports a complete deletion. On any
+  // failure the session and the data stay, so the user can retry from the same screen.
   const handleDeleteAccount = useCallback(async () => {
-    throw new Error("ACCOUNT_DELETION_UNAVAILABLE");
-  }, []);
+    const scope = getStorageScope();
+    if (!userProfile.authUserId || !scope?.startsWith("account:")) throw new Error("ACCOUNT_DELETION_REQUIRES_LOGIN");
+    const result = await requestAccountDelete();
+    await clearAccountStorage(scope);
+    await supabase.auth.signOut();
+    return result;
+  }, [userProfile.authUserId]);
+
+  // Device-local recovery of the owner-unknown legacy snapshot, only on explicit
+  // confirmation. Nothing is pulled from the server and the original is kept.
+  const handleClaimLegacyRecords = useCallback(async () => {
+    const scope = getStorageScope();
+    if (!userProfile.authUserId || !scope?.startsWith("account:")) throw new Error("ACCOUNT_LOGIN_REQUIRED");
+    await claimUnassignedLegacyData(scope);
+    await hydrateAccount(scope, accountGenerationRef.current);
+  }, [userProfile.authUserId, hydrateAccount]);
 
   const value = useMemo(() => ({
     savedNotes, userProfile, goals, feedbacks,
@@ -659,7 +705,7 @@ export function AppProvider({ children }) {
     handleDismissGuide, handleFieldOrderChange, handleAuth, handleChangeLanguage,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
-    handleUpdateProfile, handleLogout, handleDeleteAccount, setUserProfile, setAuthState,
+    handleUpdateProfile, handleLogout, handleDeleteAccount, handleClaimLegacyRecords, setUserProfile, setAuthState,
     handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, handleAcceptAIDisclosure,
     handleBlockUser, handleUnblockUser, handleReportContent,
   }), [
@@ -675,7 +721,7 @@ export function AppProvider({ children }) {
     handleDismissGuide, handleFieldOrderChange, handleAuth, handleChangeLanguage,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
     handleAddMatchingPost, handleUpdateMatchingPost, handleDeleteMatchingPost,
-    handleUpdateProfile, handleLogout, handleDeleteAccount,
+    handleUpdateProfile, handleLogout, handleDeleteAccount, handleClaimLegacyRecords,
     handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, handleAcceptAIDisclosure,
     handleBlockUser, handleUnblockUser, handleReportContent,
   ]);

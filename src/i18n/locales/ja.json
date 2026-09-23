@@ -378,7 +378,30 @@
     "logout_confirm": "ログアウトしますか？\nノートはサーバーに保存されているため、再ログインすると復元されます。",
     "delete_confirm": "すべてのデータ（ノート、プロフィール、ポートフォリオなど）が永久に削除されます。この操作は元に戻せません。\n\n本当に削除しますか？",
     "delete_unavailable": "アカウントは削除されていません。現在このアプリではサーバー上の全データを削除できません。削除はサポートに依頼できます。",
-    "legacy_records_notice": "旧バージョンの一部の記録を別に保管しています。所有アカウントを確認できないため、このアカウントには自動統合していません。削除はしていません。復元はサポートにお問い合わせください。"
+    "legacy_records_notice": "旧バージョンの一部の記録を別に保管しています。所有アカウントを確認できないため、このアカウントには自動統合していません。削除はしていません。復元はサポートにお問い合わせください。",
+    "delete_confirm_msg": "アカウントとサーバーに保存されたデータを削除します。元に戻せません。技術的に削除範囲から外れる項目がある場合は、削除後に一覧でお知らせします。続けますか？",
+    "delete_done_title": "削除完了",
+    "delete_done_msg": "アカウントとサーバー上のデータを削除しました。この端末に残っていたこのアカウントの記録も削除しました。",
+    "delete_excluded": "ただし以下の項目は今回の削除に含まれていません。",
+    "delete_exclude_training": "所有者を特定できない過去のAI学習用記録",
+    "delete_exclude_guest_media": "ログイン前（ゲスト）に保管された写真・動画・録音",
+    "delete_exclude_usage_stats": "個人を特定できない端末単位の利用統計",
+    "delete_exclude_reports": "他の利用者を守るために保管する通報記録",
+    "delete_failed_msg": "削除が完了しませんでした。データとログイン状態はそのままです。しばらくしてからもう一度お試しください。",
+    "delete_failed_remaining": "まだ残っている項目",
+    "delete_part_media": "保管された写真・動画・録音",
+    "delete_part_notes": "練習ノート",
+    "delete_part_profile": "公開プロフィール",
+    "delete_part_growth": "成長記録",
+    "delete_part_feedback": "フィードバック評価",
+    "delete_part_practice": "練習記録の紐づけ",
+    "delete_part_usage": "AI利用記録",
+    "delete_part_subscription": "サブスクリプション権限",
+    "delete_part_account": "アカウント情報",
+    "delete_part_other": "一部のデータ",
+    "delete_login_required": "アカウント削除はログイン状態でのみ行えます。ログインしてからもう一度お試しください。",
+    "legacy_records_notice_msg": "以前のバージョンの記録がこの端末に残っています。所有アカウントを確認できないため、現在のアカウントに自動では統合していません。記録は削除していません。",
+    "legacy_records_open": "記録を確認する"
   },
   "profileEdit": {
     "title": "プロフィール編集",
@@ -423,7 +446,9 @@
     "collection_paused": "新しい学習データの収集を停止しています。AIフィードバックは引き続き利用できます。",
     "archive_withdrawn": "ログイン中のアカウントに紐づく保管メディアの削除を確認しました。以前収集したノート本文とゲストの資料は含まれません。",
     "archive_withdraw_failed": "この端末の学習データ共有をオフにしました。既存のサーバーデータの削除は確認できません。ログインと接続を確認し、再度リクエストしてください。",
-    "archive_withdraw_request": "保管メディアの削除を依頼"
+    "archive_withdraw_request": "保管メディアの削除を依頼",
+    "visibility_pending_private": "非公開を適用中です。サーバーに反映されるとこの表示は消えます。",
+    "visibility_pending_public": "公開設定をサーバーに反映しています。"
   },
   "community": {
     "title": "コミュニティ",
@@ -971,5 +996,20 @@
     "record_discard": "録音を破棄して終了",
     "record_keep_practicing": "練習を続ける",
     "record_save_failed": "録音を保存できませんでした。この画面で再試行してください。"
+  },
+  "legacyRecovery": {
+    "title": "以前の記録の復元",
+    "desc": "この端末に残っている、所有アカウント不明の記録です。サーバーから取得したものではなく、この端末だけにあった記録です。",
+    "summary_notes": "ノート {{count}}件",
+    "summary_portfolio": "ポートフォリオ {{count}}件",
+    "summary_period": "{{from}} ～ {{to}}",
+    "summary_empty": "移せる記録はありません。",
+    "confirm_label": "他の人のアカウントの記録なら移さないでください。この記録は自分のものです。",
+    "move": "現在のアカウントに移す",
+    "keep": "そのままにする",
+    "keep_desc": "移さなくても記録は削除されず、この端末に残ります。",
+    "login_required": "移すにはまずログインしてください。",
+    "moved": "現在のアカウントに移しました。元の記録もこの端末に残っています。",
+    "failed": "移せませんでした。記録はそのままです。もう一度お試しください。"
   }
 }

@@ -437,6 +437,12 @@ export default function ProfileEditScreen({ navigation }) {
               <Text style={[T.micro, { color: CLight.gray500, lineHeight: 18 }]}>
                 {t("profileEdit.profile_public_desc")}
               </Text>
+              {/* 서버가 받아들이기 전까지는 적용됐다고 단정하지 않는다 */}
+              {userProfile.visibilityPending ? (
+                <Text style={[T.micro, { color: CLight.pink, lineHeight: 18, marginTop: 4 }]}>
+                  {t(userProfile.profilePublic ? "profileEdit.visibility_pending_public" : "profileEdit.visibility_pending_private")}
+                </Text>
+              ) : null}
             </View>
             <Switch
               value={profilePublic}

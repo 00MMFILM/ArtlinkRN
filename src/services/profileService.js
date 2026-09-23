@@ -12,13 +12,27 @@ async function getProfileToken() {
   }
 }
 
+// 공개 여부는 서버가 정본이다. 단조 증가하는 visibilityUpdatedAt을 같이 보내
+// 늦게 도착한 업로드가 나중에 끈 비공개를 되돌리지 못하게 한다.
+export function nextVisibilityStamp(previous, now = Date.now()) {
+  const last = Date.parse(previous || "");
+  return new Date(Number.isNaN(last) ? now : Math.max(now, last + 1)).toISOString();
+}
+
+// 스탬프가 없는 업로드는 공개 여부를 주장하지 않는다 — 서버가 비교할 기준이 없으면
+// 이 요청 때문에 나중에 끈 비공개가 되돌아갈 수 있다.
+function visibilityFields(profile) {
+  if (!profile?.visibilityUpdatedAt) return {};
+  return { profilePublic: !!profile.profilePublic, visibilityUpdatedAt: profile.visibilityUpdatedAt };
+}
+
 // ─── Upsert artist profile (서버 경유: 소유권 검증) ─────────────
 export async function upsertArtistProfile(userId, profileData) {
   const profileToken = await getProfileToken();
   const res = await fetch(`${SERVER_URL}/api/profile-sync`, {
     method: "POST",
     headers: getApiHeaders(),
-    body: JSON.stringify({ userId, profileToken, profile: profileData }),
+    body: JSON.stringify({ userId, profileToken, ...visibilityFields(profileData), profile: profileData }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -75,7 +89,7 @@ async function uploadSinglePhoto(userId, localUri) {
 }
 
 // ─── Upload profile photos (서버 경유로 DB 반영) ────────────────
-export async function uploadProfilePhotos(userId, localUris, allPhotos = localUris) {
+export async function uploadProfilePhotos(userId, localUris, allPhotos = localUris, visibility = {}) {
   const urls = await Promise.all(
     localUris.map((uri) => uploadSinglePhoto(userId, uri))
   );
@@ -89,7 +103,8 @@ export async function uploadProfilePhotos(userId, localUris, allPhotos = localUr
     body: JSON.stringify({
       userId,
       profileToken,
-      profile: { photos, photoUrl: photos[0] || null, _photosOnly: true },
+      ...visibilityFields(visibility),
+      profile: { photos, photoUrl: photos[0] || null, ...visibilityFields(visibility), _photosOnly: true },
     }),
   });
   if (!res.ok) {
@@ -105,6 +120,25 @@ export async function uploadProfilePhotos(userId, localUris, allPhotos = localUr
 export async function uploadProfilePhoto(userId, localUri) {
   const [url] = await uploadProfilePhotos(userId, [localUri]);
   return url;
+}
+
+// ─── 공개 여부만 서버에 반영 (끄는 즉시 전송, 실패하면 호출부가 재시도) ───
+export async function syncProfileVisibility(userId, profile) {
+  const fields = visibilityFields(profile);
+  if (!fields.visibilityUpdatedAt) throw new Error("VISIBILITY_STAMP_REQUIRED");
+  const profileToken = await getProfileToken();
+  const res = await fetch(`${SERVER_URL}/api/profile-sync`, {
+    method: "POST",
+    headers: getApiHeaders(),
+    body: JSON.stringify({ userId, profileToken, ...fields, profile: { ...fields, _visibilityOnly: true } }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "visibility sync failed");
+  }
+  const result = await res.json().catch(() => null);
+  if (!result?.ok) throw new Error("visibility sync failed");
+  return result;
 }
 
 // ─── Delete profile (서버 경유: 소유권 검증) ────────────────────

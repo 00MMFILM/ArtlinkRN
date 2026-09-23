@@ -378,7 +378,30 @@
     "logout_confirm": "¿Cerrar sesión?\nTus notas están guardadas en el servidor y se restaurarán al volver a iniciar sesión.",
     "delete_confirm": "Todos tus datos (notas, perfil, portafolio, etc.) se eliminarán de forma permanente. Esta acción no se puede deshacer.\n\n¿Seguro que quieres eliminar tu cuenta?",
     "delete_unavailable": "Tu cuenta no se ha eliminado. La app aún no puede completar la eliminación de todos los datos del servidor. Puedes solicitarla a soporte.",
-    "legacy_records_notice": "Algunos registros de una versión anterior se conservan por separado. No se pudo confirmar su cuenta propietaria y no se fusionaron con esta cuenta. No se han eliminado. Contacta a soporte para recuperarlos."
+    "legacy_records_notice": "Algunos registros de una versión anterior se conservan por separado. No se pudo confirmar su cuenta propietaria y no se fusionaron con esta cuenta. No se han eliminado. Contacta a soporte para recuperarlos.",
+    "delete_confirm_msg": "Esto elimina tu cuenta y los datos guardados en nuestro servidor. No se puede deshacer. Algunos elementos pueden quedar fuera del alcance del borrado; te los mostraremos después. ¿Continuar?",
+    "delete_done_title": "Eliminación completada",
+    "delete_done_msg": "Se eliminaron tu cuenta y los datos de nuestro servidor, junto con los registros de esta cuenta en este dispositivo.",
+    "delete_excluded": "Los siguientes elementos no se incluyeron en esta eliminación.",
+    "delete_exclude_training": "Registros antiguos de entrenamiento de IA sin propietario identificable",
+    "delete_exclude_guest_media": "Fotos, vídeos y grabaciones archivados antes de iniciar sesión (invitado)",
+    "delete_exclude_usage_stats": "Estadísticas de uso por dispositivo que no identifican a una persona",
+    "delete_exclude_reports": "Denuncias conservadas para proteger a otras personas usuarias",
+    "delete_failed_msg": "La eliminación no terminó. Tus datos y tu sesión siguen igual. Inténtalo de nuevo en un momento.",
+    "delete_failed_remaining": "Aún pendiente",
+    "delete_part_media": "Fotos, vídeos y grabaciones archivados",
+    "delete_part_notes": "Notas de práctica",
+    "delete_part_profile": "Perfil público",
+    "delete_part_growth": "Registros de progreso",
+    "delete_part_feedback": "Valoraciones de la respuesta",
+    "delete_part_practice": "Vínculos de actividad de práctica",
+    "delete_part_usage": "Registros de uso de la IA",
+    "delete_part_subscription": "Derechos de suscripción",
+    "delete_part_account": "Registro de la cuenta",
+    "delete_part_other": "Algunos datos",
+    "delete_login_required": "Solo puedes eliminar tu cuenta con la sesión iniciada. Inicia sesión e inténtalo de nuevo.",
+    "legacy_records_notice_msg": "Quedan registros de una versión anterior en este dispositivo. No pudimos confirmar a qué cuenta pertenecen, así que no se fusionaron con tu cuenta actual. No se eliminó nada.",
+    "legacy_records_open": "Revisar estos registros"
   },
   "profileEdit": {
     "title": "Editar perfil",
@@ -423,7 +446,9 @@
     "collection_paused": "La recopilación de nuevos datos de entrenamiento está pausada. Los comentarios de IA siguen disponibles.",
     "archive_withdrawn": "Se eliminaron los archivos multimedia vinculados a tu cuenta activa. No incluye textos de notas recopilados anteriormente ni archivos de invitados.",
     "archive_withdraw_failed": "Se desactivó el envío de datos de entrenamiento en este dispositivo. No se confirmó la eliminación de los datos existentes del servidor. Revisa tu sesión y conexión y vuelve a solicitarla.",
-    "archive_withdraw_request": "Solicitar eliminación de medios archivados"
+    "archive_withdraw_request": "Solicitar eliminación de medios archivados",
+    "visibility_pending_private": "Aplicando el ajuste privado. Este aviso desaparece cuando el servidor lo confirma.",
+    "visibility_pending_public": "Aplicando el ajuste público en el servidor."
   },
   "community": {
     "title": "Comunidad",
@@ -971,5 +996,20 @@
     "record_discard": "Descartar grabación y salir",
     "record_keep_practicing": "Seguir practicando",
     "record_save_failed": "No se pudo guardar la grabación. Inténtalo de nuevo en esta pantalla."
+  },
+  "legacyRecovery": {
+    "title": "Recuperar registros anteriores",
+    "desc": "Estos registros están en este dispositivo y no sabemos a qué cuenta pertenecen. Provienen solo de este dispositivo, no de nuestro servidor.",
+    "summary_notes": "{{count}} notas",
+    "summary_portfolio": "{{count}} elementos de portafolio",
+    "summary_period": "{{from}} – {{to}}",
+    "summary_empty": "No hay registros para mover.",
+    "confirm_label": "No los muevas si pertenecen a la cuenta de otra persona. Confirmo que estos registros son míos.",
+    "move": "Mover a mi cuenta",
+    "keep": "Dejarlos como están",
+    "keep_desc": "Si no los mueves, no se elimina nada; permanecen en este dispositivo.",
+    "login_required": "Inicia sesión primero para mover estos registros.",
+    "moved": "Movidos a tu cuenta. Los originales también permanecen en este dispositivo.",
+    "failed": "No se pudieron mover. Los registros no han cambiado. Inténtalo de nuevo."
   }
 }

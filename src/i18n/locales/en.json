@@ -378,7 +378,30 @@
     "logout_confirm": "Are you sure you want to log out?\nYour notes are stored on the server and will be restored when you log back in.",
     "delete_confirm": "All data (notes, profile, portfolio, etc.) will be permanently deleted. This action cannot be undone.\n\nAre you sure you want to delete your account?",
     "delete_unavailable": "Your account has not been deleted. This app cannot yet complete deletion of all server data. You can contact support to request deletion.",
-    "legacy_records_notice": "Some records from an older version are safely stored separately. Their owning account could not be confirmed, so they were not automatically merged into this account. They have not been deleted. Contact support for recovery."
+    "legacy_records_notice": "Some records from an older version are safely stored separately. Their owning account could not be confirmed, so they were not automatically merged into this account. They have not been deleted. Contact support for recovery.",
+    "delete_confirm_msg": "This deletes your account and the data stored on our server. It cannot be undone. Some items may be outside the deletion scope; we will list them afterwards. Continue?",
+    "delete_done_title": "Deletion complete",
+    "delete_done_msg": "Your account and the data stored on our server were deleted, along with this account's records on this device.",
+    "delete_excluded": "The following items were not included in this deletion.",
+    "delete_exclude_training": "Older AI training records whose owner cannot be identified",
+    "delete_exclude_guest_media": "Photos, videos and recordings archived before sign-in (guest)",
+    "delete_exclude_usage_stats": "Device-level usage statistics that cannot identify a person",
+    "delete_exclude_reports": "Reports kept to protect other users",
+    "delete_failed_msg": "The deletion did not finish. Your data and your sign-in are unchanged. Please try again in a moment.",
+    "delete_failed_remaining": "Still remaining",
+    "delete_part_media": "Archived photos, videos and recordings",
+    "delete_part_notes": "Practice notes",
+    "delete_part_profile": "Public profile",
+    "delete_part_growth": "Growth records",
+    "delete_part_feedback": "Feedback ratings",
+    "delete_part_practice": "Practice activity links",
+    "delete_part_usage": "AI usage records",
+    "delete_part_subscription": "Subscription entitlement",
+    "delete_part_account": "Account record",
+    "delete_part_other": "Some data",
+    "delete_login_required": "You can delete your account only while signed in. Sign in and try again.",
+    "legacy_records_notice_msg": "Records from an older version remain on this device. We could not confirm which account owns them, so they were not merged into your current account. Nothing was deleted.",
+    "legacy_records_open": "Review these records"
   },
   "profileEdit": {
     "title": "Edit profile",
@@ -423,7 +446,9 @@
     "collection_paused": "New training data collection is paused. AI feedback is still available.",
     "archive_withdrawn": "Archived media linked to your signed-in account was deleted. Previously collected note text and guest archives are not included.",
     "archive_withdraw_failed": "Training data sharing is off on this device. Deletion of existing server data was not confirmed. Check your login and connection, then request it again.",
-    "archive_withdraw_request": "Request deletion of archived media"
+    "archive_withdraw_request": "Request deletion of archived media",
+    "visibility_pending_private": "Applying your private setting. This notice disappears once the server confirms it.",
+    "visibility_pending_public": "Applying your public setting on the server."
   },
   "community": {
     "title": "Community",
@@ -971,5 +996,20 @@
     "record_discard": "Discard recording and leave",
     "record_keep_practicing": "Keep practicing",
     "record_save_failed": "Could not keep the recording. Try again on this screen."
+  },
+  "legacyRecovery": {
+    "title": "Recover earlier records",
+    "desc": "These records are on this device and we cannot tell which account they belong to. They come from this device only, not from our server.",
+    "summary_notes": "{{count}} notes",
+    "summary_portfolio": "{{count}} portfolio items",
+    "summary_period": "{{from}} – {{to}}",
+    "summary_empty": "There are no records to move.",
+    "confirm_label": "Do not move these if they belong to someone else's account. I confirm these records are mine.",
+    "move": "Move to my account",
+    "keep": "Leave them as they are",
+    "keep_desc": "If you do not move them, nothing is deleted; they stay on this device.",
+    "login_required": "Sign in first to move these records.",
+    "moved": "Moved to your account. The originals also remain on this device.",
+    "failed": "Could not move them. The records are unchanged. Please try again."
   }
 }

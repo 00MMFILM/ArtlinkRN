@@ -378,7 +378,30 @@
     "logout_confirm": "로그아웃 하시겠습니까?\n노트는 서버에 저장되어 있어 다시 로그인하면 복원됩니다.",
     "delete_confirm": "모든 데이터(노트, 프로필, 포트폴리오 등)가 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?",
     "delete_unavailable": "계정 삭제는 아직 완료되지 않았습니다. 현재 이 앱에서 서버 자료를 모두 삭제하는 절차를 제공하지 못하고 있습니다. 삭제 요청은 문의를 통해 접수할 수 있습니다.",
-    "legacy_records_notice": "이전 버전의 기기 기록 일부를 안전하게 보관 중입니다. 소유 계정을 확인할 수 없어 현재 계정에 자동으로 합치지 않았습니다. 기록을 삭제한 것은 아닙니다. 복원은 문의해 주세요."
+    "legacy_records_notice": "이전 버전의 기기 기록 일부를 안전하게 보관 중입니다. 소유 계정을 확인할 수 없어 현재 계정에 자동으로 합치지 않았습니다. 기록을 삭제한 것은 아닙니다. 복원은 문의해 주세요.",
+    "delete_confirm_msg": "계정과 서버에 저장된 내 자료를 삭제합니다. 되돌릴 수 없습니다. 기술적으로 삭제 범위에서 빠지는 항목이 있을 수 있고, 그 목록은 삭제 후 알려드립니다. 계속할까요?",
+    "delete_done_title": "삭제 완료",
+    "delete_done_msg": "계정과 서버에 저장된 자료를 삭제했습니다. 이 기기에 남아 있던 이 계정의 기록도 지웠습니다.",
+    "delete_excluded": "다만 아래 항목은 이번 삭제에 포함되지 않았습니다.",
+    "delete_exclude_training": "소유자를 확인할 수 없는 예전 AI 학습용 기록",
+    "delete_exclude_guest_media": "로그인 전(게스트)에 보관된 사진·영상·녹음",
+    "delete_exclude_usage_stats": "개인을 식별할 수 없는 기기 단위 사용 통계",
+    "delete_exclude_reports": "다른 이용자 보호를 위해 보관하는 신고 기록",
+    "delete_failed_msg": "삭제가 끝나지 않았습니다. 자료와 로그인 상태는 그대로 있습니다. 잠시 후 다시 시도해 주세요.",
+    "delete_failed_remaining": "아직 남아 있는 항목",
+    "delete_part_media": "보관된 사진·영상·녹음",
+    "delete_part_notes": "연습 노트",
+    "delete_part_profile": "공개 프로필",
+    "delete_part_growth": "성장 기록",
+    "delete_part_feedback": "피드백 평가",
+    "delete_part_practice": "연습 기록 연결",
+    "delete_part_usage": "AI 사용 기록",
+    "delete_part_subscription": "구독 권한",
+    "delete_part_account": "계정 정보",
+    "delete_part_other": "일부 자료",
+    "delete_login_required": "계정 삭제는 로그인 상태에서만 할 수 있습니다. 로그인한 뒤 다시 시도해 주세요.",
+    "legacy_records_notice_msg": "이전 버전에서 이 기기에 남은 기록이 있습니다. 소유 계정을 확인할 수 없어 현재 계정에 자동으로 합치지 않았습니다. 기록을 삭제한 것은 아닙니다.",
+    "legacy_records_open": "기록 확인하기"
   },
   "profileEdit": {
     "title": "프로필 편집",
@@ -423,7 +446,9 @@
     "collection_paused": "현재 새 학습자료 수집을 중단했습니다. AI 피드백은 계속 이용할 수 있습니다.",
     "archive_withdrawn": "로그인 계정에 연결된 보관 미디어 삭제가 확인됐습니다. 이전에 수집된 노트 원문과 게스트 자료는 이 삭제에 포함되지 않습니다.",
     "archive_withdraw_failed": "이 기기의 학습자료 제공은 꺼졌습니다. 기존 서버 자료의 삭제는 확인하지 못했습니다. 로그인 상태와 연결을 확인한 뒤 다시 요청해 주세요.",
-    "archive_withdraw_request": "기존 보관 미디어 삭제 요청"
+    "archive_withdraw_request": "기존 보관 미디어 삭제 요청",
+    "visibility_pending_private": "비공개 적용 중입니다. 서버에 반영되면 이 문구가 사라집니다.",
+    "visibility_pending_public": "공개 설정을 서버에 반영하는 중입니다."
   },
   "community": {
     "title": "커뮤니티",
@@ -971,5 +996,20 @@
     "record_discard": "녹음 버리고 나가기",
     "record_keep_practicing": "계속 연습하기",
     "record_save_failed": "녹음을 보관하지 못했어요. 이 화면에서 다시 시도해 주세요."
+  },
+  "legacyRecovery": {
+    "title": "이전 기록 복구",
+    "desc": "이 기기에 남아 있는, 소유 계정을 알 수 없는 기록입니다. 서버에서 가져온 자료가 아니라 이 기기에만 있던 자료입니다.",
+    "summary_notes": "노트 {{count}}개",
+    "summary_portfolio": "포트폴리오 {{count}}개",
+    "summary_period": "{{from}} ~ {{to}}",
+    "summary_empty": "옮길 수 있는 기록이 없습니다.",
+    "confirm_label": "다른 사람 계정의 기록이면 옮기지 마세요. 이 기록이 내 것이 맞습니다.",
+    "move": "현재 계정으로 옮기기",
+    "keep": "그대로 두기",
+    "keep_desc": "옮기지 않아도 기록은 지워지지 않고 이 기기에 그대로 남습니다.",
+    "login_required": "옮기려면 먼저 로그인해 주세요.",
+    "moved": "현재 계정으로 옮겼습니다. 원본도 이 기기에 그대로 남아 있습니다.",
+    "failed": "옮기지 못했습니다. 기록은 그대로 있습니다. 다시 시도해 주세요."
   }
 }

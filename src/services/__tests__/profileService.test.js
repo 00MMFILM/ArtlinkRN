@@ -6,7 +6,7 @@ jest.mock("../../utils/storage", () => ({
   STORAGE_KEYS: {},
 }));
 
-import { mergeServerStats } from "../profileService";
+import { mergeServerStats, nextVisibilityStamp, upsertArtistProfile, syncProfileVisibility } from "../profileService";
 
 describe("mergeServerStats — 앱 표시값과 B2B 대시보드 값 불일치 방지", () => {
   const local = {
@@ -52,5 +52,39 @@ describe("mergeServerStats — 앱 표시값과 B2B 대시보드 값 불일치 �
   it("local이 null/undefined면 그대로 반환한다 (초기 로딩 방어)", () => {
     expect(mergeServerStats(null, { score: 1 })).toBeNull();
     expect(mergeServerStats(undefined, { score: 1 })).toBeUndefined();
+  });
+});
+
+describe("공개 여부 — 단조 증가 타임스탬프와 서버 반영", () => {
+  beforeEach(() => { global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ ok: true }) })); });
+
+  it("이전 값이 더 미래여도 항상 더 큰 값을 만든다", () => {
+    const future = new Date(Date.now() + 60000).toISOString();
+    expect(Date.parse(nextVisibilityStamp(future))).toBeGreaterThan(Date.parse(future));
+    expect(Date.parse(nextVisibilityStamp(null))).toBeGreaterThan(0);
+  });
+
+  it("토글한 적 없는 프로필은 공개 여부를 주장하지 않는다", async () => {
+    await upsertArtistProfile("u1", { name: "차서원", profilePublic: true });
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body).not.toHaveProperty("visibilityUpdatedAt");
+    expect(body).not.toHaveProperty("profilePublic");
+  });
+
+  it("일반 프로필 업로드에도 profilePublic과 visibilityUpdatedAt이 실린다", async () => {
+    await upsertArtistProfile("u1", { name: "차서원", profilePublic: true, visibilityUpdatedAt: "2026-09-23T00:00:00.000Z" });
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body.profilePublic).toBe(true);
+    expect(body.visibilityUpdatedAt).toBe("2026-09-23T00:00:00.000Z");
+  });
+
+  it("공개 OFF만 따로 보낼 수 있고 ok가 아니면 실패로 올린다", async () => {
+    await syncProfileVisibility("u1", { profilePublic: false, visibilityUpdatedAt: "2026-09-23T01:00:00.000Z" });
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body.profilePublic).toBe(false);
+    expect(body.profile._visibilityOnly).toBe(true);
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({}) }));
+    await expect(syncProfileVisibility("u1", { profilePublic: false, visibilityUpdatedAt: "2026-09-23T01:00:00.000Z" }))
+      .rejects.toThrow("visibility sync failed");
   });
 });

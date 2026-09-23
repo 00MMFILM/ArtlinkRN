@@ -378,7 +378,30 @@
     "logout_confirm": "Bạn có muốn đăng xuất không?\nGhi chú được lưu trên máy chủ và sẽ được khôi phục khi bạn đăng nhập lại.",
     "delete_confirm": "Tất cả dữ liệu (ghi chú, hồ sơ, danh mục đầu tư, v.v.) sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.\n\nBạn có chắc muốn xóa không?",
     "delete_unavailable": "Tài khoản chưa bị xóa. Ứng dụng hiện chưa thể xóa toàn bộ dữ liệu máy chủ. Bạn có thể liên hệ hỗ trợ để yêu cầu xóa.",
-    "legacy_records_notice": "Một số ghi chép từ phiên bản cũ được lưu riêng an toàn. Chưa xác nhận được tài khoản sở hữu nên chưa tự động gộp vào tài khoản này. Dữ liệu chưa bị xóa. Hãy liên hệ hỗ trợ để khôi phục."
+    "legacy_records_notice": "Một số ghi chép từ phiên bản cũ được lưu riêng an toàn. Chưa xác nhận được tài khoản sở hữu nên chưa tự động gộp vào tài khoản này. Dữ liệu chưa bị xóa. Hãy liên hệ hỗ trợ để khôi phục.",
+    "delete_confirm_msg": "Thao tác này xóa tài khoản và dữ liệu lưu trên máy chủ. Không thể hoàn tác. Một số mục có thể nằm ngoài phạm vi xóa; chúng tôi sẽ liệt kê sau khi xóa. Tiếp tục?",
+    "delete_done_title": "Đã xóa xong",
+    "delete_done_msg": "Đã xóa tài khoản và dữ liệu trên máy chủ, cùng với các ghi chép của tài khoản này trên thiết bị.",
+    "delete_excluded": "Các mục sau không nằm trong lần xóa này.",
+    "delete_exclude_training": "Bản ghi huấn luyện AI cũ không xác định được chủ sở hữu",
+    "delete_exclude_guest_media": "Ảnh, video và bản ghi được lưu trước khi đăng nhập (khách)",
+    "delete_exclude_usage_stats": "Thống kê sử dụng theo thiết bị, không nhận dạng được cá nhân",
+    "delete_exclude_reports": "Báo cáo được giữ lại để bảo vệ người dùng khác",
+    "delete_failed_msg": "Việc xóa chưa hoàn tất. Dữ liệu và trạng thái đăng nhập của bạn không đổi. Vui lòng thử lại sau giây lát.",
+    "delete_failed_remaining": "Vẫn còn lại",
+    "delete_part_media": "Ảnh, video và bản ghi đã lưu",
+    "delete_part_notes": "Ghi chú luyện tập",
+    "delete_part_profile": "Hồ sơ công khai",
+    "delete_part_growth": "Hồ sơ tiến bộ",
+    "delete_part_feedback": "Đánh giá phản hồi",
+    "delete_part_practice": "Liên kết hoạt động luyện tập",
+    "delete_part_usage": "Bản ghi sử dụng AI",
+    "delete_part_subscription": "Quyền lợi đăng ký",
+    "delete_part_account": "Bản ghi tài khoản",
+    "delete_part_other": "Một số dữ liệu",
+    "delete_login_required": "Bạn chỉ có thể xóa tài khoản khi đã đăng nhập. Hãy đăng nhập và thử lại.",
+    "legacy_records_notice_msg": "Vẫn còn dữ liệu từ phiên bản cũ trên thiết bị này. Chúng tôi không xác định được tài khoản sở hữu nên không gộp vào tài khoản hiện tại. Không có gì bị xóa.",
+    "legacy_records_open": "Xem các bản ghi này"
   },
   "profileEdit": {
     "title": "Chỉnh sửa hồ sơ",
@@ -423,7 +446,9 @@
     "collection_paused": "Đang tạm dừng thu thập dữ liệu huấn luyện mới. Bạn vẫn có thể dùng phản hồi AI.",
     "archive_withdrawn": "Đã xóa nội dung đa phương tiện lưu trữ gắn với tài khoản đang đăng nhập. Không bao gồm văn bản ghi chú đã thu thập trước đây và dữ liệu khách.",
     "archive_withdraw_failed": "Đã tắt chia sẻ dữ liệu huấn luyện trên thiết bị này. Chưa xác nhận việc xóa dữ liệu hiện có trên máy chủ. Kiểm tra đăng nhập và kết nối rồi yêu cầu lại.",
-    "archive_withdraw_request": "Yêu cầu xóa nội dung đa phương tiện lưu trữ"
+    "archive_withdraw_request": "Yêu cầu xóa nội dung đa phương tiện lưu trữ",
+    "visibility_pending_private": "Đang áp dụng chế độ riêng tư. Thông báo này biến mất khi máy chủ xác nhận.",
+    "visibility_pending_public": "Đang áp dụng chế độ công khai trên máy chủ."
   },
   "community": {
     "title": "Cộng đồng",
@@ -971,5 +996,20 @@
     "record_discard": "Bỏ bản ghi âm và thoát",
     "record_keep_practicing": "Tiếp tục luyện tập",
     "record_save_failed": "Không thể lưu bản ghi âm. Hãy thử lại trên màn hình này."
+  },
+  "legacyRecovery": {
+    "title": "Khôi phục bản ghi cũ",
+    "desc": "Các bản ghi này nằm trên thiết bị và chúng tôi không biết chúng thuộc tài khoản nào. Chúng chỉ đến từ thiết bị này, không phải từ máy chủ.",
+    "summary_notes": "{{count}} ghi chú",
+    "summary_portfolio": "{{count}} mục hồ sơ năng lực",
+    "summary_period": "{{from}} – {{to}}",
+    "summary_empty": "Không có bản ghi nào để chuyển.",
+    "confirm_label": "Đừng chuyển nếu chúng thuộc tài khoản người khác. Tôi xác nhận các bản ghi này là của tôi.",
+    "move": "Chuyển sang tài khoản của tôi",
+    "keep": "Giữ nguyên",
+    "keep_desc": "Nếu không chuyển, không có gì bị xóa; chúng vẫn ở trên thiết bị này.",
+    "login_required": "Hãy đăng nhập trước để chuyển các bản ghi này.",
+    "moved": "Đã chuyển sang tài khoản của bạn. Bản gốc vẫn còn trên thiết bị.",
+    "failed": "Không thể chuyển. Các bản ghi không thay đổi. Vui lòng thử lại."
   }
 }
