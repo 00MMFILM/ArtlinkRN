@@ -406,7 +406,8 @@
     "ai_training": "提供AI训练数据",
     "ai_training_desc": "将匿名收集练习笔记和AI反馈，用于改善AI质量。",
     "name_required": "需要姓名",
-    "name_required_msg": "请输入姓名。"
+    "name_required_msg": "请输入姓名。",
+    "specialty_remove": "删除特长 {{name}}"
   },
   "community": {
     "title": "社区",

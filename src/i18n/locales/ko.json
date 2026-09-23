@@ -406,7 +406,8 @@
     "ai_training": "AI 학습 데이터 제공",
     "ai_training_desc": "연습 노트와 AI 피드백을 익명으로 수집하여 AI 품질 개선에 활용합니다.",
     "name_required": "이름 필요",
-    "name_required_msg": "이름을 입력해주세요."
+    "name_required_msg": "이름을 입력해주세요.",
+    "specialty_remove": "특기 {{name}} 삭제"
   },
   "community": {
     "title": "커뮤니티",

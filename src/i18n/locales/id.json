@@ -406,7 +406,8 @@
     "ai_training": "Berikan Data Pelatihan AI",
     "ai_training_desc": "Catatan latihan dan umpan balik AI dikumpulkan secara anonim untuk meningkatkan kualitas AI.",
     "name_required": "Nama Diperlukan",
-    "name_required_msg": "Silakan masukkan nama Anda."
+    "name_required_msg": "Silakan masukkan nama Anda.",
+    "specialty_remove": "Hapus keahlian {{name}}"
   },
   "community": {
     "title": "Komunitas",

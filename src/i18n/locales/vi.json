@@ -406,7 +406,8 @@
     "ai_training": "Cung cấp dữ liệu học AI",
     "ai_training_desc": "Ghi chú luyện tập và phản hồi AI được thu thập ẩn danh để cải thiện chất lượng AI.",
     "name_required": "Cần tên",
-    "name_required_msg": "Vui lòng nhập tên của bạn."
+    "name_required_msg": "Vui lòng nhập tên của bạn.",
+    "specialty_remove": "Xóa sở trường {{name}}"
   },
   "community": {
     "title": "Cộng đồng",

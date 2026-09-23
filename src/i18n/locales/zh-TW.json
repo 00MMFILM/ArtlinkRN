@@ -406,7 +406,8 @@
     "ai_training": "提供 AI 學習資料",
     "ai_training_desc": "匿名收集練習筆記和 AI 意見回饋，用於改善 AI 品質。",
     "name_required": "需要姓名",
-    "name_required_msg": "請輸入姓名。"
+    "name_required_msg": "請輸入姓名。",
+    "specialty_remove": "刪除專長 {{name}}"
   },
   "community": {
     "title": "社群",

@@ -406,7 +406,8 @@
     "ai_training": "ให้ข้อมูลสำหรับฝึก AI",
     "ai_training_desc": "บันทึกการฝึกซ้อมและฟีดแบ็ก AI จะถูกรวบรวมแบบไม่ระบุตัวตนเพื่อปรับปรุงคุณภาพ AI",
     "name_required": "ต้องการชื่อ",
-    "name_required_msg": "กรุณากรอกชื่อของคุณ"
+    "name_required_msg": "กรุณากรอกชื่อของคุณ",
+    "specialty_remove": "ลบความถนัด {{name}}"
   },
   "community": {
     "title": "ชุมชน",

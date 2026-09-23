@@ -102,3 +102,51 @@ describe("ProfileEditScreen — 이탈 경고", () => {
     );
   });
 });
+
+// 2026-09-23 사용자 제보: "직접 입력한 특기가 중복인데 지울 방법이 없다"
+// 원인 — 직접 입력한 특기는 추천 칩 목록에만 렌더링돼 화면에 아예 보이지 않았다.
+describe("ProfileEditScreen — 특기 삭제", () => {
+  const withSpecialties = (specialties) => {
+    useApp.mockReturnValue({
+      userProfile: { name: "차서원", bio: "", specialties },
+      handleUpdateProfile: jest.fn(),
+      dataConsent: false,
+      handleSetDataConsent: jest.fn(),
+    });
+  };
+
+  it("직접 입력한 특기가 화면에 보이고, 눌러서 지울 수 있다", () => {
+    withSpecialties(["검도", "판소리"]);
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+
+    const chip = utils.getByText("판소리 ✕"); // 추천 목록에 없는 직접 입력 특기
+    fireEvent.press(chip);
+    expect(utils.queryByText("판소리 ✕")).toBeNull();
+    expect(utils.getByText("검도")).toBeTruthy(); // 추천 칩은 그대로
+  });
+
+  it("공백·대소문자만 다른 특기는 중복으로 보고 추가하지 않는다", () => {
+    withSpecialties(["기타연주"]);
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+
+    fireEvent.changeText(utils.getByPlaceholderText("profileEdit.custom_input"), " 기타 연주 ");
+    fireEvent.press(utils.getByText("common.add"));
+    expect(utils.queryByText("기타 연주 ✕")).toBeNull();
+  });
+
+  it("이미 중복이 들어간 프로필도 저장하면 하나만 남는다", () => {
+    const handleUpdateProfile = jest.fn();
+    useApp.mockReturnValue({
+      userProfile: { name: "차서원", bio: "", specialties: ["판소리", "판소리 ", "수영"] },
+      handleUpdateProfile,
+      dataConsent: false,
+      handleSetDataConsent: jest.fn(),
+    });
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+    fireEvent.changeText(utils.getByPlaceholderText("profileEdit.name_placeholder"), "차서원");
+    fireEvent.press(utils.getByText("common.save"));
+    expect(handleUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ specialties: ["판소리", "수영"] })
+    );
+  });
+});

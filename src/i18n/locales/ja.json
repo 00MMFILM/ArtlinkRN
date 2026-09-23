@@ -406,7 +406,8 @@
     "ai_training": "AI学習データの提供",
     "ai_training_desc": "練習ノートとAIフィードバックを匿名で収集し、AI品質の改善に活用します。",
     "name_required": "名前が必要です",
-    "name_required_msg": "名前を入力してください。"
+    "name_required_msg": "名前を入力してください。",
+    "specialty_remove": "特技 {{name}} を削除"
   },
   "community": {
     "title": "コミュニティ",

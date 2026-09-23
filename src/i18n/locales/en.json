@@ -406,7 +406,8 @@
     "ai_training": "Provide AI training data",
     "ai_training_desc": "Practice notes and AI feedback are collected anonymously to improve AI quality.",
     "name_required": "Name required",
-    "name_required_msg": "Please enter your name."
+    "name_required_msg": "Please enter your name.",
+    "specialty_remove": "Remove specialty {{name}}"
   },
   "community": {
     "title": "Community",

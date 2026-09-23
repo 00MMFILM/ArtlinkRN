@@ -153,7 +153,7 @@ export default function ProfileEditScreen({ navigation }) {
       weight: weight ? Number(weight) : null,
       heightPrivate,
       weightPrivate,
-      specialties,
+      specialties: specialties.filter((s, i, arr) => arr.findIndex((x) => specialtyKey(x) === specialtyKey(s)) === i),
       school: school.trim(),
       location: location.trim(),
       agency: agency.trim(),
@@ -182,12 +182,19 @@ export default function ProfileEditScreen({ navigation }) {
     setCareerYear("");
   };
 
+  // 같은 특기인지 비교할 때 앞뒤·중간 공백과 대소문자 차이는 무시한다 ("기타 연주"와 "기타연주"를 같게)
+  const specialtyKey = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
+
   const handleAddCustomSpecialty = () => {
-    const trimmed = customSpecialty.trim();
-    if (!trimmed || specialties.includes(trimmed)) { setCustomSpecialty(""); return; }
+    const trimmed = customSpecialty.trim().replace(/\s+/g, " ");
+    if (!trimmed || specialties.some((s) => specialtyKey(s) === specialtyKey(trimmed))) { setCustomSpecialty(""); return; }
     setSpecialties((prev) => [...prev, trimmed]);
     setCustomSpecialty("");
   };
+
+  // 직접 입력한 특기는 추천 칩에 없어서 화면에 안 보였고, 그래서 지울 수도 없었다 (2026-09-23 사용자 제보)
+  const customSpecialties = specialties.filter((s) => !SPECIALTY_SUGGESTIONS.includes(s));
+  const handleRemoveSpecialty = (s) => setSpecialties((prev) => prev.filter((x) => x !== s));
 
   const age = calculateAge(birthDate);
 
@@ -317,6 +324,20 @@ export default function ProfileEditScreen({ navigation }) {
               );
             })}
           </View>
+          {customSpecialties.length > 0 && (
+            <View style={[styles.pillGrid, { marginTop: 8 }]}>
+              {customSpecialties.map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.miniPill, styles.miniPillActive]}
+                  onPress={() => handleRemoveSpecialty(s)}
+                  accessibilityLabel={t("profileEdit.specialty_remove", { name: s })}
+                >
+                  <Text style={[styles.miniPillText, styles.miniPillTextActive]}>{s} ✕</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <View style={[styles.tagInputRow, { marginTop: 8 }]}>
             <TextInput style={styles.tagInput} placeholder={t("profileEdit.custom_input")} placeholderTextColor={CLight.gray400} value={customSpecialty} onChangeText={setCustomSpecialty} onSubmitEditing={handleAddCustomSpecialty} returnKeyType="done" maxLength={20} />
             <TouchableOpacity style={[styles.tagAddBtn, !customSpecialty.trim() && styles.tagAddBtnDisabled]} onPress={handleAddCustomSpecialty} disabled={!customSpecialty.trim()}>

@@ -406,7 +406,8 @@
     "ai_training": "Contribuir a los datos de entrenamiento de IA",
     "ai_training_desc": "Las notas de práctica y los comentarios de IA se recopilarán de forma anónima para mejorar la calidad de la IA.",
     "name_required": "Nombre requerido",
-    "name_required_msg": "Por favor, introduce tu nombre."
+    "name_required_msg": "Por favor, introduce tu nombre.",
+    "specialty_remove": "Eliminar especialidad {{name}}"
   },
   "community": {
     "title": "Comunidad",
