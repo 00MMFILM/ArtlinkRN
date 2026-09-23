@@ -23,6 +23,7 @@ jest.mock("../../services/profileService", () => ({
   uploadProfilePhotos: jest.fn(),
   mergeServerStats: jest.fn((a) => a),
   syncProfileVisibility: jest.fn(async () => ({ ok: true })),
+  adoptServerVisibility: jest.requireActual("../../services/profileService").adoptServerVisibility,
   nextVisibilityStamp: jest.requireActual("../../services/profileService").nextVisibilityStamp,
 }));
 jest.mock("../../services/mauService", () => ({ trackAppOpen: jest.fn(), trackFunnelEvent: jest.fn() }));
@@ -94,4 +95,21 @@ test("공개 OFF 상태로는 프로필을 서버에 다시 올리지 않는다"
   await act(async () => { await current.handleUpdateProfile({ profilePublic: false }); await settle(); });
   await act(async () => { await current.handleUpdateProfile({ bio: "새 소개" }); await settle(); });
   expect(upsertArtistProfile).not.toHaveBeenCalled();
+});
+
+// 다른 기기에서 공개를 껐는데 이 기기가 그 사실을 모르는 경우.
+// 서버가 응답에 현재 공개 상태를 실어 주면 이 기기도 따라가야 한다(다시 공개로 되돌리면 안 된다).
+test("다른 기기에서 끈 비공개를 서버 응답으로 받아 이 기기도 따라간다", async () => {
+  upsertArtistProfile.mockResolvedValue({
+    ok: true,
+    profilePublic: false,
+    visibilityUpdatedAt: "2099-01-01T00:00:00.000Z",
+  });
+  await mount();
+  await act(settle);
+
+  expect(current.userProfile.profilePublic).toBe(false);
+  expect(current.userProfile.visibilityUpdatedAt).toBe("2099-01-01T00:00:00.000Z");
+  const saved = JSON.parse(await disk.getItem("artlink-profile::account:A"));
+  expect(saved.profilePublic).toBe(false);
 });

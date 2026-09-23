@@ -123,6 +123,23 @@ export async function uploadProfilePhoto(userId, localUri) {
 }
 
 // ─── 공개 여부만 서버에 반영 (끄는 즉시 전송, 실패하면 호출부가 재시도) ───
+// 서버가 알려준 공개 상태가 내 것보다 새로우면 그 값을 따른다.
+// (다른 기기에서 공개를 껐는데 이 기기가 그 사실을 모른 채 다시 켜는 것을 막는다.)
+export function adoptServerVisibility(profile, result) {
+  if (!result || typeof result.profilePublic !== "boolean") return null;
+  const serverTs = Date.parse(result.visibilityUpdatedAt || "");
+  const localTs = Date.parse(profile?.visibilityUpdatedAt || "");
+  const localKnown = Number.isFinite(localTs);
+  const serverKnown = Number.isFinite(serverTs);
+  if (localKnown && serverKnown && serverTs <= localTs) return null; // 내 설정이 더 최신
+  if (localKnown && !serverKnown) return null; // 서버가 시각을 모르면 내 값을 유지
+  if (profile?.profilePublic === result.profilePublic && (!serverKnown || profile?.visibilityUpdatedAt === result.visibilityUpdatedAt)) return null;
+  return {
+    profilePublic: result.profilePublic,
+    ...(serverKnown ? { visibilityUpdatedAt: result.visibilityUpdatedAt } : {}),
+  };
+}
+
 export async function syncProfileVisibility(userId, profile) {
   const fields = visibilityFields(profile);
   if (!fields.visibilityUpdatedAt) throw new Error("VISIBILITY_STAMP_REQUIRED");

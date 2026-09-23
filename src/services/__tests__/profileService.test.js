@@ -88,3 +88,33 @@ describe("공개 여부 — 단조 증가 타임스탬프와 서버 반영", () 
       .rejects.toThrow("visibility sync failed");
   });
 });
+
+// 다른 기기에서 공개를 껐는데 이 기기가 그 사실을 모른 채 다시 켜는 것을 막는다.
+describe("adoptServerVisibility — 서버가 알려준 공개 상태 따르기", () => {
+  const { adoptServerVisibility } = require("../profileService");
+
+  it("서버 값이 더 새로우면 그 값을 따른다", () => {
+    const local = { profilePublic: true, visibilityUpdatedAt: "2026-09-20T00:00:00.000Z" };
+    const res = adoptServerVisibility(local, { profilePublic: false, visibilityUpdatedAt: "2026-09-22T00:00:00.000Z" });
+    expect(res).toEqual({ profilePublic: false, visibilityUpdatedAt: "2026-09-22T00:00:00.000Z" });
+  });
+
+  it("내 설정이 더 새로우면 서버 값을 따르지 않는다", () => {
+    const local = { profilePublic: false, visibilityUpdatedAt: "2026-09-23T00:00:00.000Z" };
+    expect(adoptServerVisibility(local, { profilePublic: true, visibilityUpdatedAt: "2026-09-21T00:00:00.000Z" })).toBeNull();
+  });
+
+  it("같은 상태면 아무것도 바꾸지 않는다", () => {
+    const local = { profilePublic: false, visibilityUpdatedAt: "2026-09-22T00:00:00.000Z" };
+    expect(adoptServerVisibility(local, { profilePublic: false, visibilityUpdatedAt: "2026-09-22T00:00:00.000Z" })).toBeNull();
+  });
+
+  it("서버가 공개 상태를 알려주지 않으면 그대로 둔다", () => {
+    expect(adoptServerVisibility({ profilePublic: true }, { ok: true })).toBeNull();
+  });
+
+  it("이 기기가 한 번도 설정한 적 없으면 서버 값을 받아들인다", () => {
+    expect(adoptServerVisibility({ profilePublic: true }, { profilePublic: false, visibilityUpdatedAt: "2026-09-22T00:00:00.000Z" }))
+      .toEqual({ profilePublic: false, visibilityUpdatedAt: "2026-09-22T00:00:00.000Z" });
+  });
+});

@@ -8,7 +8,7 @@ import { supabase } from "../services/supabaseClient";
 import i18n from "i18next";
 import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
-import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats, syncProfileVisibility, nextVisibilityStamp } from "../services/profileService";
+import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats, syncProfileVisibility, nextVisibilityStamp, adoptServerVisibility } from "../services/profileService";
 import { requestAccountDelete } from "../services/accountDeleteService";
 import { syncAccountNotes } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
@@ -326,9 +326,15 @@ export function AppProvider({ children }) {
       mileage: artistProfile.mileage || 0,
     };
     upsertArtistProfile(deviceUserId, profileWithStats)
-      .then((res) => {
-        if (isCurrent() && res && res.ok) {
-          setServerStats({ score: res.score, mileage: res.mileage, level: res.level });
+      .then(async (res) => {
+        if (!isCurrent() || !res || !res.ok) return;
+        setServerStats({ score: res.score, mileage: res.mileage, level: res.level });
+        // 다른 기기에서 공개를 껐다면 서버가 그 사실을 함께 돌려준다 — 이 기기도 따라간다.
+        const adopted = adoptServerVisibility(snapshot, res);
+        if (adopted) {
+          const updated = { ...snapshot, ...adopted, visibilityPending: false };
+          const saved = await safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope);
+          if (saved && isCurrent()) setUserProfile(updated);
         }
       })
       .catch(() => {});
@@ -364,9 +370,9 @@ export function AppProvider({ children }) {
     const run = () => {
       if (!isCurrent()) return;
       syncProfileVisibility(deviceUserId, snapshot)
-        .then(async () => {
+        .then(async (res) => {
           if (!isCurrent()) return;
-          const updated = { ...snapshot, visibilityPending: false };
+          const updated = { ...snapshot, visibilityPending: false, ...adoptServerVisibility(snapshot, res) };
           const saved = await safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope);
           if (saved && isCurrent()) setUserProfile(updated);
         })

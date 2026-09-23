@@ -18,7 +18,8 @@ jest.mock("../../services/supabaseClient", () => ({ supabase: {
 jest.mock("i18next", () => ({ language: "ko", t: (k) => k }));
 jest.mock("../../services/analyticsService", () => ({ computeArtistProfile: jest.fn(() => ({})) }));
 jest.mock("../../services/communityService", () => ({ ensureDeviceUser: jest.fn(async () => ({ userId: "community-id", profileToken: "fake" })) }));
-jest.mock("../../services/profileService", () => ({ upsertArtistProfile: jest.fn(async () => ({ ok: true })), uploadProfilePhotos: jest.fn(), mergeServerStats: jest.fn((a) => a), syncProfileVisibility: jest.fn(async () => ({ ok: true })), nextVisibilityStamp: jest.requireActual("../../services/profileService").nextVisibilityStamp }));
+jest.mock("../../services/profileService", () => ({ upsertArtistProfile: jest.fn(async () => ({ ok: true })), uploadProfilePhotos: jest.fn(), mergeServerStats: jest.fn((a) => a), syncProfileVisibility: jest.fn(async () => ({ ok: true })),
+  adoptServerVisibility: jest.requireActual("../../services/profileService").adoptServerVisibility, nextVisibilityStamp: jest.requireActual("../../services/profileService").nextVisibilityStamp }));
 jest.mock("../../services/mauService", () => ({ trackAppOpen: jest.fn(), trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/matchingService", () => ({ createMatchingPost: jest.fn(), deleteMatchingPost: jest.fn() }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://invalid.test", getApiHeaders: () => ({}), setApiDeviceId: jest.fn(), setDataConsentCache: jest.fn() }));
