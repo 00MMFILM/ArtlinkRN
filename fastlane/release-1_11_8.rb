@@ -8,7 +8,7 @@ require "openssl"
 require_relative "asc_env"
 
 VERSION = "1.11.8"
-BUILD_NUMBER = "86"
+BUILD_NUMBER = "87"
 NOTES_PATH = File.expand_path("notes/1.11.8.json", __dir__)
 
 def token
