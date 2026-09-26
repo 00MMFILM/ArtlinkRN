@@ -939,6 +939,8 @@
     "purchase_fail": "No se pudo completar la compra. Inténtalo de nuevo.",
     "restore_success": "Compras restauradas.",
     "restore_none": "No hay compras para restaurar.",
+    "account_link_failed": "No pudimos vincular la suscripción a tu cuenta. Comprueba que hayas iniciado sesión y tengas conexión, e inténtalo de nuevo.",
+    "restore_fail": "No pudimos consultar tus compras. Comprueba tu conexión e inténtalo de nuevo.",
     "auto_renew_note": "Las suscripciones se renuevan automáticamente a menos que se cancelen al menos 24 horas antes de que finalice el período. Puedes administrarlas en cualquier momento en la configuración de tu cuenta de App Store.",
     "renew_notice": "Tu suscripción {{plan}} se cobra automáticamente por {{price}}. Se renueva automáticamente a menos que la canceles al menos 24 horas antes de que finalice el período; puedes administrarla en cualquier momento en la configuración de App Store.",
     "terms": "Términos de uso",

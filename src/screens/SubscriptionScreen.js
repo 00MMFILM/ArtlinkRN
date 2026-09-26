@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -14,13 +14,13 @@ import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
 import { useApp } from "../context/AppContext";
 import { formatDate } from "../utils/helpers";
+import { getStorageScope } from "../utils/accountStorage";
 import {
   purchasesReady,
   getPremiumOffering,
   purchasePremium,
   restorePurchases,
   getPremiumEntitlement,
-  logInPurchases,
 } from "../services/purchasesService";
 
 // 이용약관·개인정보 링크 + 자동갱신 고지
@@ -40,78 +40,123 @@ function manageUrl(planCode) {
 
 export default function SubscriptionScreen({ navigation }) {
   const { t } = useTranslation();
-  const { premium, usage, markPremiumActive, refreshPremium, userProfile, setAuthState } = useApp();
+  const { premium, usage, markPremiumActive, refreshPremium, userProfile, setAuthState, storageReady } = useApp();
   const isActive = !!premium?.active;
+  const authUserId = userProfile?.authUserId || null;
+  const scope = getStorageScope();
+  const ready = storageReady !== false;
+  const mountedRef = useRef(true);
+  const ownerRef = useRef(null);
+  if (!ownerRef.current || ownerRef.current.authUserId !== authUserId || ownerRef.current.scope !== scope || ownerRef.current.ready !== ready) {
+    ownerRef.current = { authUserId, scope, ready };
+  }
+  const owner = ownerRef.current;
+  // Bind every SDK result and alert callback to the render that started it.
+  // Storage can change before React renders the next account, so check both.
+  const isCurrent = () => mountedRef.current && ownerRef.current === owner && owner.ready && getStorageScope() === owner.scope;
+  const operationRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [buying, setBuying] = useState(false);
+  const [offering, setOffering] = useState(null);
+  const [entitlementResult, setEntitlementResult] = useState(null);
+  const entitlement = entitlementResult?.owner === owner ? entitlementResult.value : null;
+  const [selected, setSelected] = useState("yearly");
 
-  // 게스트(비로그인) 결제 방지 — RevenueCat 익명 ID로 결제하면 서버 웹훅이 계정과 못 묶어 프리미엄이 안 켜진다
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    operationRef.current = null;
+    setBuying(false);
+  }, [owner]);
+
+  // Both purchases and restored receipts must belong to the signed-in account.
   const requireLogin = () => {
-    if (userProfile?.authUserId) return false;
+    if (authUserId) return false;
     Alert.alert(t("premium.login_required_title"), t("premium.login_required_message"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("common.confirm"), onPress: () => setAuthState("auth") },
+      { text: t("common.confirm"), onPress: () => { if (isCurrent()) setAuthState("auth"); } },
     ]);
     return true;
   };
 
-  const [loading, setLoading] = useState(true);
-  const [buying, setBuying] = useState(false);
-  const [offering, setOffering] = useState(null);
-  const [entitlement, setEntitlement] = useState(null);
-  const [selected, setSelected] = useState("yearly"); // 연간이 기본 (마진·리텐션 유리)
-
   useEffect(() => {
+    let cancelled = false;
+    const canApply = () => !cancelled && isCurrent();
+    setEntitlementResult(null);
+    setOffering(null);
+    setLoading(true);
     (async () => {
-      if (purchasesReady()) {
-        // 구독 중이면 결제 상품 목록 대신 만료일(다음 결제일)만 필요하다
-        if (isActive) setEntitlement(await getPremiumEntitlement());
-        else setOffering(await getPremiumOffering());
+      try {
+        if (!canApply() || !purchasesReady()) return;
+        if (isActive && authUserId) {
+          const value = await getPremiumEntitlement(authUserId);
+          if (canApply()) setEntitlementResult({ owner, value });
+        } else {
+          const value = await getPremiumOffering();
+          if (canApply()) setOffering(value);
+        }
+      } catch (_) {
+        // An unavailable offering keeps the existing "not ready" purchase message.
+      } finally {
+        if (canApply()) setLoading(false);
       }
-      setLoading(false);
     })();
-  }, [isActive]);
+    return () => { cancelled = true; };
+  }, [isActive, owner]);
 
   const monthlyPkg = offering?.monthly || null;
   const yearlyPkg = offering?.annual || null;
   const selectedPkg = selected === "yearly" ? yearlyPkg : monthlyPkg;
 
-  const handlePurchase = async () => {
-    if (requireLogin()) return;
-    if (!selectedPkg) {
+  const showFailure = (result, restoring) => {
+    if (result?.cancelled || result?.reason === "account_changed") return;
+    if (result?.reason === "login_required") {
+      requireLogin();
+      return;
+    }
+    const key = result?.reason === "account_link_failed" ? "premium.account_link_failed"
+      : result?.reason === "not_configured" ? "premium.not_ready"
+      : restoring ? (result?.reason === "no_entitlement" ? "premium.restore_none" : "premium.restore_fail")
+      : "premium.purchase_fail";
+    Alert.alert(t("premium.title"), t(key));
+  };
+
+  const runTransaction = async (restoring) => {
+    if (!isCurrent() || operationRef.current || requireLogin()) return;
+    if (!restoring && !selectedPkg) {
       Alert.alert(t("premium.title"), t("premium.not_ready"));
       return;
     }
+    const operation = {};
+    operationRef.current = operation; // Synchronous lock: React state alone misses back-to-back taps.
     setBuying(true);
-    // RevenueCat app_user_id를 결제 전에 확정한다 — 익명 ID로 결제되면 웹훅이 계정과 못 묶는다
-    await logInPurchases(userProfile.authUserId);
-    const { success, cancelled } = await purchasePremium(selectedPkg);
-    setBuying(false);
-    if (success) {
-      // 서버 웹훅 반영 전에도 화면은 즉시 프리미엄으로 바뀌어야 한다
-      markPremiumActive({ kind: "sub", plan: selected });
-      refreshPremium();
-      Alert.alert(t("premium.title"), t("premium.purchase_success"), [
-        { text: "OK", onPress: () => navigation.goBack() },
+    try {
+      const options = { authUserId, isCurrent };
+      const result = restoring ? await restorePurchases(options) : await purchasePremium(selectedPkg, options);
+      if (!isCurrent()) return;
+      if (!result?.success) {
+        showFailure(result, restoring);
+        return;
+      }
+      markPremiumActive(restoring ? { kind: "sub" } : { kind: "sub", plan: selected });
+      Promise.resolve(refreshPremium()).catch(() => {});
+      Alert.alert(t("premium.title"), t(restoring ? "premium.restore_success" : "premium.purchase_success"), [
+        { text: "OK", onPress: () => { if (isCurrent()) navigation.goBack(); } },
       ]);
-    } else if (!cancelled) {
-      Alert.alert(t("premium.title"), t("premium.purchase_fail"));
+    } catch (_) {
+      if (isCurrent()) showFailure({ reason: "store_error" }, restoring);
+    } finally {
+      if (operationRef.current === operation) {
+        operationRef.current = null;
+        if (isCurrent()) setBuying(false);
+      }
     }
   };
-
-  // 복원은 로그인 없이도 열어 둔다 — 재설치한 유료 사용자와 스토어 심사가 계정 없이 복원을 시도한다
-  const handleRestore = async () => {
-    setBuying(true);
-    const restored = await restorePurchases();
-    setBuying(false);
-    if (restored) {
-      markPremiumActive({ kind: "sub" });
-      refreshPremium();
-    }
-    Alert.alert(
-      t("premium.title"),
-      restored ? t("premium.restore_success") : t("premium.restore_none"),
-      restored ? [{ text: "OK", onPress: () => navigation.goBack() }] : undefined
-    );
-  };
+  const handlePurchase = () => runTransaction(false);
+  const handleRestore = () => runTransaction(true);
 
   const benefits = [
     { icon: "✨", text: t("premium.benefit_text") },

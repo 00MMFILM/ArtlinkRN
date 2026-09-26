@@ -939,6 +939,8 @@
     "purchase_fail": "未能完成購買，請重試。",
     "restore_success": "購買已恢復。",
     "restore_none": "沒有可恢復的購買記錄。",
+    "account_link_failed": "無法將訂閱連結至你的帳號。請確認已登入並檢查網路連線，然後重試。",
+    "restore_fail": "無法查詢購買紀錄。請檢查網路連線後重試。",
     "auto_renew_note": "除非在訂閱期結束前至少24小時取消，否則將自動續訂。您可以隨時在App Store帳戶設定中管理。",
     "renew_notice": "{{plan}}訂閱將自動扣款{{price}}。除非在訂閱期結束前至少24小時取消，否則將自動續訂，您可以隨時在App Store設定中取消。",
     "terms": "使用條款",

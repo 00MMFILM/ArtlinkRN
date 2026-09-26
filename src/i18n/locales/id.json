@@ -939,6 +939,8 @@
     "purchase_fail": "Pembelian tidak dapat diselesaikan. Silakan coba lagi.",
     "restore_success": "Pembelian telah dipulihkan.",
     "restore_none": "Tidak ada pembelian untuk dipulihkan.",
+    "account_link_failed": "Langganan tidak dapat ditautkan ke akunmu. Pastikan kamu sudah masuk dan terhubung ke internet, lalu coba lagi.",
+    "restore_fail": "Riwayat pembelian tidak dapat diperiksa. Periksa koneksi internetmu, lalu coba lagi.",
     "auto_renew_note": "Langganan akan diperpanjang otomatis kecuali dibatalkan setidaknya 24 jam sebelum periode berakhir. Kelola kapan saja di pengaturan akun App Store.",
     "renew_notice": "Langganan {{plan}} akan ditagih otomatis sebesar {{price}}. Akan diperpanjang otomatis kecuali dibatalkan setidaknya 24 jam sebelum periode berakhir; kelola kapan saja di pengaturan App Store.",
     "terms": "Ketentuan Penggunaan",

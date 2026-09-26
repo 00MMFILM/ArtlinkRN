@@ -939,6 +939,8 @@
     "purchase_fail": "Không thể hoàn tất giao dịch mua. Vui lòng thử lại.",
     "restore_success": "Đã khôi phục giao dịch mua.",
     "restore_none": "Không có giao dịch mua nào để khôi phục.",
+    "account_link_failed": "Không thể liên kết gói đăng ký với tài khoản của bạn. Hãy kiểm tra trạng thái đăng nhập và kết nối mạng rồi thử lại.",
+    "restore_fail": "Không thể kiểm tra lịch sử mua hàng. Hãy kiểm tra kết nối mạng rồi thử lại.",
     "auto_renew_note": "Gói đăng ký sẽ tự động gia hạn trừ khi bạn hủy trước khi kết thúc kỳ hạn ít nhất 24 giờ. Bạn có thể quản lý bất cứ lúc nào trong cài đặt tài khoản App Store.",
     "renew_notice": "Gói {{plan}} sẽ tự động thanh toán {{price}}. Gói sẽ tự động gia hạn trừ khi bạn hủy trước khi kết thúc kỳ hạn ít nhất 24 giờ; bạn có thể hủy bất cứ lúc nào trong cài đặt App Store.",
     "terms": "Điều khoản sử dụng",

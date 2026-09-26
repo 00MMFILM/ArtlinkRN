@@ -939,6 +939,8 @@
     "purchase_fail": "未能完成购买，请重试。",
     "restore_success": "购买已恢复。",
     "restore_none": "没有可恢复的购买记录。",
+    "account_link_failed": "无法将订阅关联到你的账户。请确认已登录并检查网络连接，然后重试。",
+    "restore_fail": "无法查询购买记录。请检查网络连接后重试。",
     "auto_renew_note": "除非在订阅期结束前至少24小时取消，否则将自动续订。您可以随时在App Store账户设置中管理。",
     "renew_notice": "{{plan}}订阅将自动扣款{{price}}。除非在订阅期结束前至少24小时取消，否则将自动续订，您可以随时在App Store设置中取消。",
     "terms": "使用条款",

@@ -931,6 +931,8 @@
     "purchase_fail": "Purchase could not be completed. Please try again.",
     "restore_success": "Purchases restored.",
     "restore_none": "No purchases to restore.",
+    "account_link_failed": "We couldn’t link the subscription to your account. Check that you’re signed in and connected, then try again.",
+    "restore_fail": "We couldn’t check your purchases. Check your connection and try again.",
     "auto_renew_note": "Subscriptions auto-renew unless cancelled at least 24h before the period ends. Manage anytime in your App Store account settings.",
     "renew_notice": "Your {{plan}} subscription is billed {{price}} automatically. It renews automatically unless cancelled at least 24h before the period ends; manage anytime in App Store settings.",
     "terms": "Terms of Use",
