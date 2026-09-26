@@ -20,8 +20,9 @@ jest.mock("../../services/profileService", () => ({ upsertArtistProfile: jest.fn
 jest.mock("../../services/mauService", () => ({ trackAppOpen: jest.fn(), trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/matchingService", () => ({ createMatchingPost: jest.fn(), deleteMatchingPost: jest.fn() }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://invalid.test", getApiHeaders: () => ({}), setApiDeviceId: jest.fn(), setDataConsentCache: jest.fn() }));
-jest.mock("../../services/premiumService", () => ({ fetchPremiumStatus: jest.fn(async () => ({})), EMPTY_PREMIUM: {}, shouldApplyServerPremium: jest.fn(() => true), PREMIUM_OPTIMISTIC_MS: 1000 }));
+jest.mock("../../services/premiumService", () => ({ fetchUsageStatus: jest.fn(async () => ({ premium: null, usage: null })), syncStorePremium: jest.fn(async () => false), mergeRcPremium: jest.fn((p) => p || {}), EMPTY_PREMIUM: {}, shouldApplyServerPremium: jest.fn(() => true), PREMIUM_OPTIMISTIC_MS: 1000 }));
 jest.mock("../../services/practiceService", () => ({ getPracticeLog: jest.fn(async () => []) }));
+jest.mock("../../services/reminderService", () => ({ scheduleFirstNoteNudge: jest.fn(), cancelFirstNoteNudge: jest.fn() }));
 jest.mock("../../services/recordingMigration", () => ({ migrateCachedRecordings: jest.fn(async () => null) }));
 const disk = require("@react-native-async-storage/async-storage");
 const { AppProvider, useApp } = require("../AppContext");
@@ -131,4 +132,63 @@ test("A의 늦은 AI 소개문 결과가 B 포트폴리오에 저장되지 않�
   expect(() => oldSummary({ summaryText: "A private biography" })).toThrow("ACCOUNT_CHANGED");
   expect(current.portfolioSummary).toBeNull();
   expect(await disk.getItem("artlink-portfolio-summary::account:B")).toBeNull();
+});
+
+// 1.11.8 — 가입 직후 첫 체크인 화면·48시간 넛지는 "가입"에만 걸린다. 로그인·둘러보기는 해당 없음.
+describe("가입 직후 첫 체크인 게이트", () => {
+  const reminder = require("../../services/reminderService");
+
+  test("노트 0건으로 가입하면 첫 체크인이 걸리고 48시간 넛지를 예약한다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    mockUser = { id: "new-member", user_metadata: { name: "member" } };
+    await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
+    expect(current.firstCheckinPending).toBe(true);
+    expect(reminder.scheduleFirstNoteNudge).toHaveBeenCalled();
+  });
+
+  test("로그인은 첫 체크인을 띄우지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    mockUser = { id: "returning", user_metadata: { name: "returning" } };
+    await act(async () => { await current.handleAuth({ email: "r@example.test", _mergeExisting: true }); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
+  });
+
+  test("이미 노트가 있는 계정으로 가입 왕복하면 띄우지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    await act(async () => { await current.handleSaveNote({ title: "guest work" }); await settle(); });
+    mockUser = { id: "with-notes", user_metadata: { name: "member" } };
+    await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
+  });
+
+  test("닫으면 계정 스코프 키로 기록돼 다시 뜨지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    mockUser = { id: "dismissed", user_metadata: { name: "member" } };
+    await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
+    await act(async () => { current.dismissFirstCheckin(); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
+    expect(await disk.getItem("artlink-first-checkin-done::account:dismissed")).toBe("true");
+
+    await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
+  });
+
+  test("노트를 남기면 넛지를 취소한다", async () => {
+    await mount();
+    reminder.cancelFirstNoteNudge.mockClear();
+    await act(async () => { await current.handleSaveNote({ title: "first note" }); await settle(); });
+    expect(reminder.cancelFirstNoteNudge).toHaveBeenCalled();
+  });
+
+  test("로그아웃하면 넛지를 취소한다", async () => {
+    await mount();
+    reminder.cancelFirstNoteNudge.mockClear();
+    await act(async () => { await current.handleLogout(); await settle(); });
+    expect(reminder.cancelFirstNoteNudge).toHaveBeenCalled();
+  });
 });

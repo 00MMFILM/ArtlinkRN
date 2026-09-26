@@ -3,16 +3,18 @@ import { render, fireEvent, act } from "@testing-library/react-native";
 import HomeScreen from "../HomeScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
-import { startPractice, completePractice, getPracticeLog } from "../../services/practiceService";
+import { startPractice, completePractice, abandonPractice, getPracticeLog } from "../../services/practiceService";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }),
 }));
+jest.mock("i18next", () => ({ t: (k) => k, language: "ko" }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/practiceService", () => ({
   startPractice: jest.fn(() => ({ sessionId: "sess-home", kind: "checkin" })),
   completePractice: jest.fn(),
+  abandonPractice: jest.fn(),
   getPracticeLog: jest.fn(() => Promise.resolve([])),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -172,42 +174,81 @@ describe("HomeScreen — 이번 주 요약이 연습 기록(노트 없는 2인 �
 describe("HomeScreen — 체크인 연습 세션", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("분야 원을 펼칠 때 세션이 시작되고, 저장 시 같은 세션이 완료된다", async () => {
-    const ctx = buildCtx([]);
-    useApp.mockReturnValue(ctx);
+  // 1.11.8: 원을 눌러 펼치기만 한 것도 practice_started로 세느라 시작 대비 완료율이 왜곡됐다.
+  // 이제 메모를 쓰기 시작할 때(입력 포커스) 세션이 열린다.
+  it("분야 원을 펼치기만 해서는 세션을 시작하지 않는다", async () => {
+    useApp.mockReturnValue(buildCtx([]));
     const { getByText } = render(<HomeScreen navigation={navigation} />);
 
     fireEvent.press(getByText("fields.music"));
+    expect(startPractice).not.toHaveBeenCalled();
+  });
+
+  it("메모 입력을 시작할 때 세션이 시작되고, 저장 시 같은 세션이 완료된다", async () => {
+    const ctx = buildCtx([]);
+    useApp.mockReturnValue(ctx);
+    const { getByText, getByPlaceholderText } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music"));
+    fireEvent(getByPlaceholderText("notes.checkin_placeholder"), "focus");
     expect(startPractice).toHaveBeenCalledWith("checkin", "music", "music");
 
     await act(async () => { fireEvent.press(getByText("common.save")); });
+    expect(startPractice).toHaveBeenCalledTimes(1);
     expect(completePractice).toHaveBeenCalledTimes(1);
     expect(completePractice.mock.calls[0][0].sessionId).toBe("sess-home");
     // 기존 최초 1회 통계는 그대로 남는다
     expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
   });
 
-  it("원을 접을 때는 세션을 새로 시작하지 않는다", async () => {
+  // 메모 없이 바로 저장하는 사람도 연습 1회다 — 시작 시점을 늦추느라 완료를 잃으면 안 된다
+  it("메모를 건드리지 않고 바로 저장해도 시작·완료가 한 세션으로 남는다", async () => {
     useApp.mockReturnValue(buildCtx([]));
     const { getByText } = render(<HomeScreen navigation={navigation} />);
 
-    fireEvent.press(getByText("fields.music")); // 펼침
-    fireEvent.press(getByText("fields.music")); // 접음
+    fireEvent.press(getByText("fields.music"));
+    await act(async () => { fireEvent.press(getByText("common.save")); });
+
     expect(startPractice).toHaveBeenCalledTimes(1);
+    expect(completePractice).toHaveBeenCalledTimes(1);
+  });
+
+  it("쓰다 만 체크인을 접으면 그 세션은 이탈로 닫힌다", async () => {
+    useApp.mockReturnValue(buildCtx([]));
+    const { getByText, getByPlaceholderText } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music")); // 펼침
+    fireEvent(getByPlaceholderText("notes.checkin_placeholder"), "focus"); // 세션 시작
+    fireEvent.press(getByText("fields.music")); // 접음
+
+    expect(abandonPractice).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess-home" }));
     expect(completePractice).not.toHaveBeenCalled();
+  });
+
+  it("쓰다 만 채로 화면을 떠나면 이탈로 닫는다", async () => {
+    useApp.mockReturnValue(buildCtx([]));
+    const { getByText, getByPlaceholderText, unmount } = render(<HomeScreen navigation={navigation} />);
+
+    fireEvent.press(getByText("fields.music"));
+    fireEvent(getByPlaceholderText("notes.checkin_placeholder"), "focus");
+    unmount();
+
+    expect(abandonPractice).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess-home" }));
   });
 
   // 버그: 입력창을 연 채 다른 분야로 바꾸면 앞 세션의 시작 이벤트만 남고 완료가 안 됐다(2026-09-19)
   it("입력창을 연 채 다른 분야로 바꾸면 새 세션을 또 시작하지 않고 필드만 교체한다", async () => {
     const ctx = buildCtx([]);
     useApp.mockReturnValue(ctx);
-    const { getByText } = render(<HomeScreen navigation={navigation} />);
+    const { getByText, getByPlaceholderText } = render(<HomeScreen navigation={navigation} />);
 
-    fireEvent.press(getByText("fields.music")); // 펼침 — 세션 시작
+    fireEvent.press(getByText("fields.music")); // 펼침
+    fireEvent(getByPlaceholderText("notes.checkin_placeholder"), "focus"); // 세션 시작
     expect(startPractice).toHaveBeenCalledTimes(1);
 
     fireEvent.press(getByText("fields.acting")); // 열린 채로 다른 분야로 교체
     expect(startPractice).toHaveBeenCalledTimes(1); // 추가로 시작하지 않는다
+    expect(abandonPractice).not.toHaveBeenCalled(); // 분야 교체는 이탈이 아니다
 
     await act(async () => { fireEvent.press(getByText("common.save")); });
     expect(completePractice).toHaveBeenCalledTimes(1);

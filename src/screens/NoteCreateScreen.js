@@ -28,7 +28,7 @@ import { FIELDS } from "../utils/helpers";
 import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
 import { trackFunnelEvent } from "../services/mauService";
 import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
-import { startPractice, resumePractice, completePractice, aiFeedbackDone } from "../services/practiceService";
+import { startPractice, resumePractice, completePractice, abandonPractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
 import FocusPicker from "../components/FocusPicker";
 import { useTranslation } from "react-i18next";
@@ -50,7 +50,16 @@ async function markSignupNudgeAsked() {
 
 export default function NoteCreateScreen({ navigation, route }) {
   const { t, i18n } = useTranslation();
-  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState, premium } = useApp();
+  const { handleSaveNote, savedNotes, userProfile, aiDisclosureAccepted, handleAcceptAIDisclosure, isKoreanLocale, setAuthState, premium, usage, refreshPremium } = useApp();
+
+  // AI 버튼 옆 남은 횟수 — 한도에 부딪히고 나서야 알게 되던 문제(2026-09 한도 정직화).
+  // 게스트는 기존 체험 문구를 그대로 쓴다(서버가 usage를 안 준다).
+  const quotaCaption = usage?.text
+    ? t(premium?.active ? "quota.remaining_premium" : "quota.remaining_free", {
+        left: usage.text.left,
+        max: usage.text.max,
+      })
+    : null;
 
   // 초안 보관용 — 렌더마다 최신 상태를 담아두고, 인증 화면으로 떠날 때 그대로 저장한다
   const draftStateRef = useRef({});
@@ -67,6 +76,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       Alert.alert(t("noteCreate.draft_keep_failed"), t("noteCreate.draft_keep_failed_msg"));
       return;
     }
+    practiceRef.current = null; // 초안을 들고 가는 이동은 이탈이 아니다 — 돌아와 같은 세션으로 이어 쓴다
     setAuthState("auth");
   }, [setAuthState, t]);
 
@@ -91,6 +101,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         { text: t("premium.guest_trial_cta"), onPress: goToAuthWithDraft },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
+    } else if (premium?.active && premium.source === "purchase") {
+      // 앱은 스토어 영수증으로 프리미엄인데 서버는 아직 무료 한도를 적용 중 — 복구 안내를 준다
+      safeAlert(t("premium_recovery.pending_title"), t("premium_recovery.pending_msg"), [
+        { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+        { text: t("common.cancel") || "OK", style: "cancel" },
+      ]);
     } else if (premium?.active) {
       const max = info.max ?? (kind === "text" ? 10 : 15);
       const key = kind === "text" ? "premium.limit_text_reached" : "premium.limit_video_reached";
@@ -103,7 +119,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     }
-  }, [userProfile?.authUserId, premium?.active, goToAuthWithDraft, navigation, t, safeAlert]);
+  }, [userProfile?.authUserId, premium?.active, premium?.source, goToAuthWithDraft, navigation, t, safeAlert]);
 
   // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
   const prefill = route?.params?.prefill || null;
@@ -301,6 +317,10 @@ export default function NoteCreateScreen({ navigation, route }) {
     if (practiceRef.current) practiceRef.current.field = field;
   }, [field]);
 
+  // 저장 없이 화면을 떠나면 이탈 1건. 저장한 세션은 completePractice가 이미 닫았고,
+  // 초안으로 돌아와 이어받으면(resumePractice) 다시 열려 완료로 집계된다.
+  useEffect(() => () => abandonPractice(practiceRef.current), []);
+
   draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, sessionId: practiceRef.current?.sessionId, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions };
 
   // Handle back with unsaved changes warning
@@ -397,8 +417,9 @@ export default function NoteCreateScreen({ navigation, route }) {
       else safeAlert(t("noteCreate.ai_failed"), t(e?.message === "AI_AUDIO_INCOMPLETE" ? "common.audio_analysis_failed" : "noteCreate.ai_failed_msg"));
     } finally {
       if (isMountedRef.current) setAiLoading(false);
+      refreshPremium?.(); // 한 번 썼으니 남은 횟수 캡션을 즉시 갱신한다
     }
-  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, premium?.active, t, i18n.language, promptQuotaExceeded, focus, parentNote, safeAlert]);
+  }, [content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, premium?.active, t, i18n.language, promptQuotaExceeded, focus, parentNote, safeAlert, refreshPremium]);
 
   // 첫 AI 피드백 직후 딱 한 번 — 게스트는 가입 유도, 로그인 유저는 연습 알림 제안 (Calm 패턴)
   const maybeOfferReminder = useCallback(async () => {
@@ -1262,13 +1283,20 @@ export default function NoteCreateScreen({ navigation, route }) {
             <Text style={styles.aiLoadingText}>{t("noteCreate.ai_analyzing")}</Text>
           </View>
         ) : (
-          <TouchableOpacity
-            style={styles.aiButton}
-            onPress={handleAnalyze}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.aiButtonText}>{t("noteCreate.ai_analyze")}</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={styles.aiButton}
+              onPress={handleAnalyze}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.aiButtonText}>{t("noteCreate.ai_analyze")}</Text>
+            </TouchableOpacity>
+            {quotaCaption ? (
+              <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 8 }]}>
+                {quotaCaption}
+              </Text>
+            ) : null}
+          </>
         )}
 
         {/* AI Result — 영상 AI만 돌린 노트에도 고칠 점 칩이 떠야 한다 */}

@@ -133,6 +133,34 @@ export function formatDate(dateStr) {
   });
 }
 
+// 마감일(YYYY-MM-DD) 검증 — 달력에 실제로 있는 날짜만 통과시킨다.
+// new Date("2026-06-31")은 7월 1일로 넘어가고 new Date("아무말")은 Invalid Date라
+// 그대로 쓰면 "D-NaN"이 화면에 뜨거나 엉뚱한 날짜로 저장된다. 통과 못 하면 null.
+export function parseDeadline(str) {
+  if (typeof str !== "string") return null;
+  const m = str.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [, y, mo, d] = m.map(Number);
+  const date = new Date(y, mo - 1, d);
+  // 윤년·월말 초과(2026-02-29, 2026-06-31)는 다른 날짜로 굴러가므로 되돌려 비교한다
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return date;
+}
+
+// 마감일이 지났는지. 형식이 잘못됐거나 비어 있으면 "마감일 미정"으로 보고 만료 취급하지 않는다.
+export function isDeadlineExpired(deadline) {
+  const date = parseDeadline(deadline);
+  if (!date) return false;
+  return Math.ceil((date - new Date()) / 86400000) <= 0;
+}
+
+// 마감까지 남은 일수. 유효하지 않으면 null (호출부는 마감 표시를 생략한다 — "D-NaN" 방지).
+export function daysUntilDeadline(deadline) {
+  const date = parseDeadline(deadline);
+  if (!date) return null;
+  return Math.ceil((date - new Date()) / 86400000);
+}
+
 export function getWeekStart(date) {
   const d = new Date(date);
   const day = d.getDay();

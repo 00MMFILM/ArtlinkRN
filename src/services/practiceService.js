@@ -15,7 +15,7 @@ export const PRACTICE_QUEUE_KEY = "artlink-practice-queue";
 export const MAX_QUEUE = 200; // 넘치면 오래된 것부터 버린다
 const BATCH_SIZE = 50; // 서버 1회 최대
 
-const EVENTS = ["practice_started", "practice_completed", "ai_feedback_done"];
+const EVENTS = ["practice_started", "practice_completed", "ai_feedback_done", "practice_abandoned"];
 const KINDS = ["text", "video", "checkin", "duet", "reanalysis"];
 
 // expo-crypto가 설치돼 있으면 쓰고, 없으면 Math.random 폴백 (새 패키지 추가 없음)
@@ -87,6 +87,7 @@ async function enqueue(event, session, overrides = {}) {
       platform: Platform.OS,
       appVersion: APP_VERSION,
     };
+    if (Number.isInteger(overrides.elapsedMs)) item.elapsedMs = overrides.elapsedMs;
     await serialize(async () => {
       const queue = await readQueue(scope);
       queue.push(item);
@@ -101,28 +102,45 @@ async function enqueue(event, session, overrides = {}) {
 
 /** 연습 시작 — 세션 핸들을 돌려준다. 화면은 이걸 ref에 들고 있다가 완료 때 넘긴다. */
 export function startPractice(kind, subjectKey = null, field = null) {
-  const session = { sessionId: newUuid(), kind, subjectKey: asKey(subjectKey), field: asKey(field) };
+  const session = { sessionId: newUuid(), kind, subjectKey: asKey(subjectKey), field: asKey(field), startedAt: Date.now() };
   enqueue("practice_started", session);
   return session;
 }
 
 /** 이미 발급된 세션을 이어받는다 (초안 복원 — 가입 왕복이 연습 2회로 세이지 않게). */
 export function resumePractice(sessionId, kind, subjectKey = null, field = null) {
+  // 이탈로 닫힌 세션은 다시 연다 — 초안을 들고 돌아와 저장하면 그건 완료다.
+  // 이미 완료한 세션(2인 대사 → 노트)은 그대로 둬서 완료가 두 번 세이지 않게 한다.
+  if (closedSessions.get(String(sessionId)) === "abandoned") closedSessions.delete(String(sessionId));
   return { sessionId: String(sessionId), kind, subjectKey: asKey(subjectKey), field: asKey(field) };
 }
 
+// 한 세션은 완료 아니면 이탈, 둘 중 하나만 한 번 나간다 —
+// 2인 대사 화면이 완료한 세션을 노트 저장이 다시 완료하거나 화면 unmount가 이탈로 세지 않게.
+const closedSessions = new Map(); // sessionId → "completed" | "abandoned"
+function closeSession(id, how) {
+  if (!id) return true;
+  if (closedSessions.has(id)) return false;
+  closedSessions.set(id, how);
+  if (closedSessions.size > 200) closedSessions.delete(closedSessions.keys().next().value);
+  return true;
+}
+
+// 세션 시작부터 지금까지(ms). 이어받은 세션은 시작 시각을 모르니 없는 채로 둔다.
+const elapsedSince = (session) =>
+  Number.isFinite(session?.startedAt) ? Math.max(0, Math.round(Date.now() - session.startedAt)) : null;
+
 /** 연습 완료. 완료 시점에야 알 수 있는 값(노트 id, 영상 여부)은 overrides로 채운다. */
-// 한 세션의 완료는 한 번만 센다 — 2인 대사 화면이 완료한 세션을 노트 저장이 다시 완료해도 1회.
-const completedSessions = new Set();
 export function completePractice(session, overrides = {}) {
-  const id = session?.sessionId;
-  if (id) {
-    if (completedSessions.has(id)) return Promise.resolve(false);
-    completedSessions.add(id);
-    if (completedSessions.size > 200) completedSessions.delete(completedSessions.values().next().value);
-  }
+  if (!closeSession(session?.sessionId, "completed")) return Promise.resolve(false);
   appendPracticeLog(session, overrides);
-  return enqueue("practice_completed", session, overrides);
+  return enqueue("practice_completed", session, { elapsedMs: elapsedSince(session), ...overrides });
+}
+
+/** 완료 없이 떠났다 (화면 unmount·취소). 이미 완료·이탈한 세션은 다시 보내지 않는다. */
+export function abandonPractice(session, overrides = {}) {
+  if (!closeSession(session?.sessionId, "abandoned")) return Promise.resolve(false);
+  return enqueue("practice_abandoned", session, { elapsedMs: elapsedSince(session), ...overrides });
 }
 
 // ── 기기 로컬 연습 기록 ──

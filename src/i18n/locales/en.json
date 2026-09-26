@@ -1011,5 +1011,34 @@
     "login_required": "Sign in first to move these records.",
     "moved": "Moved to your account. The originals also remain on this device.",
     "failed": "Could not move them. The records are unchanged. Please try again."
+  },
+  "first_checkin": {
+    "title": "Your first entry takes one line",
+    "desc": "Write one line about what you practiced or felt today. Once entries add up, AI points out how you are growing.",
+    "memo_placeholder": "What did you practice today?",
+    "save": "Save",
+    "later": "Maybe later",
+    "done_title": "First entry saved",
+    "done_desc": "It is saved. You can get AI feedback on this entry right away.",
+    "ai_cta": "Get AI feedback",
+    "home_cta": "Go to home"
+  },
+  "practice_nudge": {
+    "title": "Your first entry is still waiting",
+    "body": "One line is enough. Write down today's practice."
+  },
+  "quota": {
+    "today_text": "Text AI today: {{used}}/{{max}}",
+    "month_video": "Video analysis this month: {{used}}/{{max}}",
+    "remaining_free": "{{left}} AI feedback left today · Premium gives you 10 a day",
+    "remaining_premium": "{{left}} AI feedback left today ({{max}} a day)",
+    "ai_cost_notice": "This uses one AI feedback."
+  },
+  "premium_recovery": {
+    "pending_title": "Confirming your subscription",
+    "pending_msg": "Your purchase is confirmed but the server hasn't caught up yet. Try again shortly, or tap Restore Purchases on the subscription screen once more."
+  },
+  "deadline": {
+    "invalid": "Enter the deadline as a real calendar date in YYYY-MM-DD format."
   }
 }

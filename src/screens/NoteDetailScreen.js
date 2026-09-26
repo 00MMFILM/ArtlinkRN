@@ -48,7 +48,17 @@ export default function NoteDetailScreen({ route, navigation }) {
     isKoreanLocale,
     setAuthState,
     premium,
+    usage,
+    refreshPremium,
   } = useApp();
+
+  // AI 버튼 아래 남은 횟수 — 한도에 부딪히고 나서야 알게 되던 문제(2026-09 한도 정직화)
+  const quotaCaption = usage?.text
+    ? t(premium?.active ? "quota.remaining_premium" : "quota.remaining_free", {
+        left: usage.text.left,
+        max: usage.text.max,
+      })
+    : null;
 
   // 게스트(비로그인)면 로그인 유도, 무료 로그인 유저면 프리미엄 안내,
   // 이미 프리미엄이면 결제 권유 대신 남은 한도 안내. AI 쿼터 소진 공통 처리.
@@ -56,6 +66,12 @@ export default function NoteDetailScreen({ route, navigation }) {
     if (!userProfile?.authUserId) {
       Alert.alert(t("premium.guest_trial_title"), t("premium.guest_trial_msg"), [
         { text: t("premium.guest_trial_cta"), onPress: () => setAuthState("auth") },
+        { text: t("common.cancel") || "OK", style: "cancel" },
+      ]);
+    } else if (premium?.active && premium.source === "purchase") {
+      // 앱은 스토어 영수증으로 프리미엄인데 서버는 아직 무료 한도를 적용 중 — 복구 안내를 준다
+      Alert.alert(t("premium_recovery.pending_title"), t("premium_recovery.pending_msg"), [
+        { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     } else if (premium?.active) {
@@ -70,7 +86,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         { text: t("common.cancel") || "OK", style: "cancel" },
       ]);
     }
-  }, [userProfile?.authUserId, premium?.active, setAuthState, navigation, t]);
+  }, [userProfile?.authUserId, premium?.active, premium?.source, setAuthState, navigation, t]);
 
   const note = useMemo(
     () => savedNotes.find((n) => n.id === noteId),
@@ -437,8 +453,9 @@ export default function NoteDetailScreen({ route, navigation }) {
     } finally {
       aiRequestBusyRef.current = false;
       setAiLoading(false);
+      refreshPremium?.(); // 한 번 썼으니 남은 횟수 캡션을 즉시 갱신한다
     }
-  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded]);
+  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded, refreshPremium]);
 
   const handleRequestAI = useCallback(async () => {
     if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
@@ -1059,6 +1076,11 @@ export default function NoteDetailScreen({ route, navigation }) {
             <TouchableOpacity style={styles.requestAIBtn} onPress={handleRequestAI}>
               <Text style={[T.bodyBold, { color: CLight.white }]}>{t("noteDetail.ai_request")}</Text>
             </TouchableOpacity>
+            {quotaCaption ? (
+              <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 8 }]}>
+                {quotaCaption}
+              </Text>
+            ) : null}
           </View>
         )}
 

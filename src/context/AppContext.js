@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { safeStorageGet, safeStorageSet, strictStorageGet, STORAGE_KEYS } from "../utils/storage";
-import { accountScope, getStorageScope, isGuestScope, guestStorageScope, initializeAccountStorage, setStorageScope, transferGuestData, hasUnassignedLegacyData, clearAccountStorage, claimUnassignedLegacyData } from "../utils/accountStorage";
+import { accountScope, getStorageScope, isGuestScope, guestStorageScope, initializeAccountStorage, setStorageScope, transferGuestData, hasUnassignedLegacyData, clearAccountStorage, claimUnassignedLegacyData, rawStorageForScope, FIRST_CHECKIN_DONE_KEY } from "../utils/accountStorage";
 import { readNoteState, mutateNoteState } from "../services/noteStore";
 import { supabase } from "../services/supabaseClient";
 import i18n from "i18next";
@@ -16,8 +16,9 @@ import { createMatchingPost, deleteMatchingPost } from "../services/matchingServ
 import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
 import { getPracticeLog } from "../services/practiceService";
 import { applyPracticeActivityStats } from "../utils/practiceStats";
-import { fetchPremiumStatus, EMPTY_PREMIUM, shouldApplyServerPremium, PREMIUM_OPTIMISTIC_MS } from "../services/premiumService";
+import { fetchUsageStatus, syncStorePremium, mergeRcPremium, EMPTY_PREMIUM, shouldApplyServerPremium, PREMIUM_OPTIMISTIC_MS } from "../services/premiumService";
 import { migrateCachedRecordings } from "../services/recordingMigration";
+import { scheduleFirstNoteNudge, cancelFirstNoteNudge } from "../services/reminderService";
 
 const AppContext = createContext();
 
@@ -66,6 +67,8 @@ export function AppProvider({ children }) {
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
   const [authState, setAuthState] = useState("auth"); // "auth" | "app"
   const [eulaAccepted, setEulaAccepted] = useState(false);
+  // 가입 직후 첫 체크인 화면 — 노트 0건인 새 계정에만, 홈 대신 한 번 (1.11.8 활성화)
+  const [firstCheckinPending, setFirstCheckinPending] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [reportedContent, setReportedContent] = useState([]);
   const [deviceUserId, setDeviceUserId] = useState(null);
@@ -73,8 +76,12 @@ export function AppProvider({ children }) {
   const [dataConsentAsked, setDataConsentAsked] = useState(false);
   const [aiDisclosureAccepted, setAiDisclosureAccepted] = useState(false);
   const [language, setLanguage] = useState(i18n.language || "ko");
-  // 프리미엄 상태 — 화면(왕관 배지·구독 화면·한도 안내)이 읽는 유일한 정본
-  const [premium, setPremium] = useState(EMPTY_PREMIUM);
+  // 프리미엄 상태 — 화면(왕관 배지·구독 화면·한도 안내)이 읽는 유일한 정본.
+  // 서버 판정과 스토어 영수증(RevenueCat)을 따로 들고 있다가 premium으로 합친다.
+  const [serverPremium, setServerPremium] = useState(EMPTY_PREMIUM);
+  const [rcPremiumActive, setRcPremiumActive] = useState(false);
+  // 남은 AI 횟수 — usage-status의 text/video used·max. 못 받으면 null(표시 생략).
+  const [usage, setUsage] = useState(null);
   const isKoreanLocale = language === "ko";
 
   // 기기 연습 기록(2인 대사 등 노트 없이 끝낸 연습) — 연속·이번 주·월별을 홈·성장 리포트와 같은
@@ -140,9 +147,10 @@ export function AppProvider({ children }) {
   const clearVisibleAccount = useCallback(() => {
     setSavedNotes([]); setUserProfile(EMPTY_PROFILE); setGoals([]); setFeedbacks([]);
     setPortfolioItems([]); setPortfolioSummary(null); setMatchingPosts([]); setMatchingDeletedIds([]);
-    setBlockedUsers([]); setReportedContent([]); setDeviceUserId(null); setPremium(EMPTY_PREMIUM);
+    setBlockedUsers([]); setReportedContent([]); setDeviceUserId(null); setServerPremium(EMPTY_PREMIUM);
     setServerStats(null); setPracticeLog([]); setDataConsent(false); setDataConsentCache(false);
     setDataConsentAsked(false); setAiDisclosureAccepted(false); setEulaAccepted(false);
+    setFirstCheckinPending(false);
     premiumOptimisticUntilRef.current = 0;
   }, []);
 
@@ -279,26 +287,41 @@ export function AppProvider({ children }) {
   }, [storageReady, authState, userProfile.authUserId]);
 
   // ─── 프리미엄 상태 ───
-  // 서버(premium_members)가 정본. 실패하면 이전 값을 유지한다(화면 깜빡임 방지).
+  // 서버(premium_members)와 RevenueCat 중 하나라도 활성이면 프리미엄이다. 서버만 믿으면
+  // 익명 결제·웹훅 유실 때 실결제자가 무료로 떨어진다(2026-09 복구 경로). 서버 조회가
+  // 실패하면 이전 값을 유지한다(화면 깜빡임 방지).
   const premiumOptimisticUntilRef = useRef(0);
   const refreshPremium = useCallback(async () => {
     if (!userProfile.authUserId) {
-      setPremium(EMPTY_PREMIUM); // 로그아웃·게스트는 프리미엄 없음
+      setServerPremium(EMPTY_PREMIUM); // 로그아웃·게스트는 프리미엄 없음
+      setRcPremiumActive(false);
+      setUsage(null);
       return;
     }
     const generation = accountGenerationRef.current;
-    const next = await fetchPremiumStatus();
+    const { premium: next, usage: nextUsage } = await fetchUsageStatus();
     if (generation !== accountGenerationRef.current) return;
     // 결제 직후 3분은 서버의 false(웹훅 지연)로 낙관적 활성 상태를 되돌리지 않는다(2026-09-17 리뷰 지적)
-    if (shouldApplyServerPremium(next, premiumOptimisticUntilRef.current)) setPremium(next);
+    if (shouldApplyServerPremium(next, premiumOptimisticUntilRef.current)) setServerPremium(next);
+    if (nextUsage) setUsage(nextUsage);
+
+    // 스토어 영수증(RevenueCat)이 결제 정본 — 서버가 못 따라와도 앱은 이쪽을 믿는다.
+    const rc = await syncStorePremium(!!next?.active);
+    if (generation !== accountGenerationRef.current) return;
+    setRcPremiumActive(rc);
   }, [userProfile.authUserId]);
 
   // 결제·복원 성공 직후 즉시 활성 표시 — 서버 웹훅 반영까지 수 초~수십 초 걸린다.
   // 다음 refreshPremium에서 서버 값(kind/plan/since 포함)으로 교체된다.
   const markPremiumActive = useCallback((info = {}) => {
     premiumOptimisticUntilRef.current = Date.now() + PREMIUM_OPTIMISTIC_MS;
-    setPremium((prev) => ({ ...prev, ...info, active: true, source: "purchase" }));
+    setServerPremium((prev) => ({ ...prev, ...info, active: true, source: "purchase" }));
   }, []);
+
+  const premium = useMemo(
+    () => mergeRcPremium(serverPremium, rcPremiumActive),
+    [serverPremium, rcPremiumActive]
+  );
 
   // 앱 진입 + 백그라운드 복귀 시 갱신
   useEffect(() => {
@@ -437,6 +460,7 @@ export function AppProvider({ children }) {
       return { ...state, notes: [newNote, ...state.notes] };
     });
     showToast(i18n.t("toast.note_saved"), "success");
+    cancelFirstNoteNudge(); // 노트를 남겼으면 48시간 넛지는 필요 없다
     return newNote.id;
   }, [commitNotes, showToast]);
 
@@ -563,7 +587,8 @@ export function AppProvider({ children }) {
     await safeStorageSet(STORAGE_KEYS.LANGUAGE, langCode);
   }, []);
 
-  const handleAuth = useCallback(async (profileData) => {
+  // 가입(isSignup)일 때만 첫 체크인 화면·48시간 넛지를 건다. 로그인·둘러보기는 해당 없음.
+  const handleAuth = useCallback(async (profileData, { isSignup = false } = {}) => {
     const generation = ++accountGenerationRef.current;
     setStorageReady(false); clearVisibleAccount();
     try {
@@ -586,6 +611,14 @@ export function AppProvider({ children }) {
         if (_mergeExisting) finalProfile.name = existing?.name || user.user_metadata?.name || loginData.email?.split("@")[0] || "";
         if (!await safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile, scope)) throw new Error("LOCAL_STORAGE_WRITE_FAILED");
         await hydrateAccount(scope, generation);
+        if (isSignup) {
+          const [done, state] = await Promise.all([
+            rawStorageForScope(scope).getItem(FIRST_CHECKIN_DONE_KEY), readNoteState(scope),
+          ]);
+          if (generation !== accountGenerationRef.current) return;
+          setFirstCheckinPending(!done && state.notes.length === 0);
+          scheduleFirstNoteNudge(i18n.t("practice_nudge.title"), i18n.t("practice_nudge.body"));
+        }
       } else {
         const scope = await guestStorageScope();
         await setStorageScope(scope, { isCurrent });
@@ -600,6 +633,12 @@ export function AppProvider({ children }) {
       throw error;
     }
   }, [clearVisibleAccount, hydrateAccount, ensureStorageInitialized]);
+
+  // 저장했거나 "나중에"를 눌렀다 — 이 계정에서는 첫 체크인 화면을 다시 띄우지 않는다.
+  const dismissFirstCheckin = useCallback(() => {
+    setFirstCheckinPending(false);
+    rawStorageForScope().setItem(FIRST_CHECKIN_DONE_KEY, "true").catch(() => {});
+  }, []);
 
   // ─── EULA ───
   const handleAcceptEula = useCallback(() => {
@@ -674,6 +713,7 @@ export function AppProvider({ children }) {
   }, [showToast, notifyServer]);
 
   const handleLogout = useCallback(async () => {
+    await cancelFirstNoteNudge();
     await supabase.auth.signOut();
     setAuthState("auth");
   }, []);
@@ -684,6 +724,7 @@ export function AppProvider({ children }) {
     const scope = getStorageScope();
     if (!userProfile.authUserId || !scope?.startsWith("account:")) throw new Error("ACCOUNT_DELETION_REQUIRES_LOGIN");
     const result = await requestAccountDelete();
+    await cancelFirstNoteNudge();
     await clearAccountStorage(scope);
     await supabase.auth.signOut();
     return result;
@@ -704,7 +745,8 @@ export function AppProvider({ children }) {
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
-    premium, refreshPremium, markPremiumActive,
+    premium, usage, refreshPremium, markPremiumActive,
+    firstCheckinPending, dismissFirstCheckin,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
@@ -720,7 +762,8 @@ export function AppProvider({ children }) {
     portfolioItems, portfolioSummary, matchingPosts, matchingDeletedIds,
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
-    premium, refreshPremium, markPremiumActive,
+    premium, usage, refreshPremium, markPremiumActive,
+    firstCheckinPending, dismissFirstCheckin,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,

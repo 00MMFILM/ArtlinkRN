@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import { FIELDS } from "../utils/helpers";
+import { FIELDS, isDeadlineExpired, daysUntilDeadline } from "../utils/helpers";
 import { computeMatchPercent } from "../services/analyticsService";
 import { fetchMatchingFeed, fetchUserMatchingPosts, mergeUserMatchingPosts } from "../services/matchingService";
 import TopBar from "../components/TopBar";
@@ -36,13 +36,6 @@ const FIELD_TAB_FIELD_KEYS = FIELDS.map((f) => ({
   labelKey: "fields." + f,
   emoji: FIELD_EMOJIS[f] || "📝",
 }));
-
-// 마감일이 지났는지(로컬 date 기준) — AI 공고 목록 필터·D-day 배지 표시 양쪽에서 공용.
-// deadline이 없으면 "마감일 미정"이므로 지난 것으로 취급하지 않는다.
-function isDeadlineExpired(deadline) {
-  if (!deadline) return false;
-  return Math.ceil((new Date(deadline) - new Date()) / 86400000) <= 0;
-}
 
 export default function MatchingScreen({ navigation }) {
   const { t } = useTranslation();
@@ -141,8 +134,8 @@ export default function MatchingScreen({ navigation }) {
   ];
 
   const getDaysLeft = (deadline) => {
-    if (!deadline) return null;
-    const diff = Math.ceil((new Date(deadline) - new Date()) / 86400000);
+    const diff = daysUntilDeadline(deadline);
+    if (diff === null) return null; // 마감일 없음·형식 깨짐 → 배지 생략("D-NaN" 방지)
     if (diff <= 0) return t("matching.deadline_expired");
     return `D-${diff}`;
   };
@@ -286,7 +279,7 @@ export default function MatchingScreen({ navigation }) {
         {/* Footer */}
         <View style={styles.cardFooter}>
           <Text style={[T.micro, { color: CLight.gray400 }]}>
-            {item.deadline ? t("matching.deadline_prefix", { date: item.deadline }) : t("matching.deadline_none")}
+            {daysLeft ? t("matching.deadline_prefix", { date: item.deadline }) : t("matching.deadline_none")}
           </Text>
           {daysLeft && (
             <View style={[styles.dDayBadge, daysLeft === t("matching.deadline_expired") ? { backgroundColor: CLight.red + "18" } : {}]}>

@@ -1011,5 +1011,34 @@
     "login_required": "Inicia sesión primero para mover estos registros.",
     "moved": "Movidos a tu cuenta. Los originales también permanecen en este dispositivo.",
     "failed": "No se pudieron mover. Los registros no han cambiado. Inténtalo de nuevo."
+  },
+  "first_checkin": {
+    "title": "Tu primera nota cabe en una línea",
+    "desc": "Escribe una línea sobre lo que ensayaste o sentiste hoy. Cuando las notas se acumulan, la IA te señala cómo vas creciendo.",
+    "memo_placeholder": "¿Qué ensayaste hoy?",
+    "save": "Guardar",
+    "later": "Más tarde",
+    "done_title": "Primera nota guardada",
+    "done_desc": "Ya está guardada. Puedes pedir comentarios de la IA sobre esta nota.",
+    "ai_cta": "Pedir comentarios de la IA",
+    "home_cta": "Ir al inicio"
+  },
+  "practice_nudge": {
+    "title": "Aún te falta la primera nota",
+    "body": "Con una línea basta. Anota el ensayo de hoy."
+  },
+  "quota": {
+    "today_text": "IA de texto hoy: {{used}}/{{max}}",
+    "month_video": "Análisis de vídeo este mes: {{used}}/{{max}}",
+    "remaining_free": "Te quedan {{left}} retroalimentaciones de IA hoy · Premium te da 10 al día",
+    "remaining_premium": "Te quedan {{left}} retroalimentaciones de IA hoy ({{max}} al día)",
+    "ai_cost_notice": "Esto usa una retroalimentación de IA."
+  },
+  "premium_recovery": {
+    "pending_title": "Confirmando tu suscripción",
+    "pending_msg": "Tu compra está confirmada, pero el servidor aún no la ha registrado. Inténtalo de nuevo en un momento o pulsa «Restaurar compras» otra vez en la pantalla de suscripción."
+  },
+  "deadline": {
+    "invalid": "Introduce la fecha límite como una fecha real con formato AAAA-MM-DD."
   }
 }

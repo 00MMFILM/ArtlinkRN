@@ -1011,5 +1011,34 @@
     "login_required": "Masuk dulu untuk memindahkan catatan ini.",
     "moved": "Dipindahkan ke akun Anda. Salinan aslinya tetap ada di perangkat ini.",
     "failed": "Tidak dapat dipindahkan. Catatan tidak berubah. Silakan coba lagi."
+  },
+  "first_checkin": {
+    "title": "Catatan pertama cukup satu baris",
+    "desc": "Tulis satu baris tentang apa yang kamu latih atau rasakan hari ini. Begitu catatan menumpuk, AI akan menunjukkan perkembanganmu.",
+    "memo_placeholder": "Apa yang kamu latih hari ini?",
+    "save": "Simpan",
+    "later": "Nanti saja",
+    "done_title": "Catatan pertama tersimpan",
+    "done_desc": "Sudah tersimpan. Kamu bisa meminta masukan AI untuk catatan ini.",
+    "ai_cta": "Minta masukan AI",
+    "home_cta": "Ke beranda"
+  },
+  "practice_nudge": {
+    "title": "Catatan pertamamu masih kosong",
+    "body": "Satu baris sudah cukup. Catat latihanmu hari ini."
+  },
+  "quota": {
+    "today_text": "AI teks hari ini: {{used}}/{{max}}",
+    "month_video": "Analisis video bulan ini: {{used}}/{{max}}",
+    "remaining_free": "Sisa {{left}} umpan balik AI hari ini · Premium memberi 10 per hari",
+    "remaining_premium": "Sisa {{left}} umpan balik AI hari ini ({{max}} per hari)",
+    "ai_cost_notice": "Ini memakai 1 umpan balik AI."
+  },
+  "premium_recovery": {
+    "pending_title": "Sedang memastikan langganan",
+    "pending_msg": "Pembayaran sudah terkonfirmasi, tetapi server belum menyusul. Coba lagi sebentar lagi, atau tekan “Pulihkan Pembelian” sekali lagi di layar langganan."
+  },
+  "deadline": {
+    "invalid": "Masukkan tenggat sebagai tanggal yang benar-benar ada dengan format YYYY-MM-DD."
   }
 }

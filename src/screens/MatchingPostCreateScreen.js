@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
-import { FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS } from "../utils/helpers";
+import { FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, parseDeadline } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 
 // Data values must stay as-is to match item.tab from the data store
@@ -95,6 +95,13 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
       return;
     }
 
+    // 마감일은 달력에 실제로 있는 날짜만 — 2026-06-31 같은 값이 저장되면 목록에 D-NaN이 뜬다
+    const trimmedDeadline = deadline.trim();
+    if (trimmedDeadline && !parseDeadline(trimmedDeadline)) {
+      Alert.alert(t("common.error"), t("deadline.invalid"));
+      return;
+    }
+
     const requirements = {};
     if (showRequirements) {
       if (reqGender) requirements.gender = reqGender;
@@ -109,7 +116,7 @@ export default function MatchingPostCreateScreen({ navigation, route }) {
       title: title.trim(),
       field,
       description: description.trim(),
-      deadline: deadline.trim() || undefined,
+      deadline: trimmedDeadline || undefined,
       tags,
       contact: contact.trim() || undefined,
       ...(Object.keys(requirements).length > 0 ? { requirements } : {}),

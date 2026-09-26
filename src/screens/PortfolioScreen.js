@@ -32,9 +32,22 @@ export default function PortfolioScreen({ navigation }) {
   const { t, i18n } = useTranslation();
   const {
     artistProfile, userProfile, savedNotes,
-    portfolioItems, portfolioSummary,
+    portfolioItems, portfolioSummary, premium,
     handleAddPortfolioItem, handleDeletePortfolioItem, handleUpdatePortfolioSummary,
   } = useApp();
+
+  // 포트폴리오 AI도 노트 AI와 같은 무료 한도를 쓴다(한도 분리 없음 — 비용 정책).
+  // 429를 실패로 삼켜 heuristic 문구를 돌려주면 한도를 쓴 사실조차 안 보인다.
+  const alertQuotaExceeded = useCallback(() => {
+    if (premium?.active) {
+      Alert.alert(t("premium.active_title"), t("premium.limit_text_reached", { max: 10 }));
+    } else {
+      Alert.alert(t("common.text_quota_exceeded"), "", [
+        { text: t("premium.quota_cta"), onPress: () => navigation.navigate("Subscription") },
+        { text: t("common.cancel"), style: "cancel" },
+      ]);
+    }
+  }, [premium?.active, navigation, t]);
 
   const FIELD_TABS = useMemo(() => [
     { key: "all", label: t("common.all"), emoji: "📋" },
@@ -164,12 +177,13 @@ export default function PortfolioScreen({ navigation }) {
         cardText: text,
         cardGeneratedAt: new Date().toISOString(),
       });
-    } catch {
-      Alert.alert(t("portfolio.generate_failed"), t("portfolio.card_failed_msg"));
+    } catch (e) {
+      if (e?.message === "AI_QUOTA") alertQuotaExceeded();
+      else Alert.alert(t("portfolio.generate_failed"), t("portfolio.card_failed_msg"));
     } finally {
       setCardLoading(false);
     }
-  }, [userProfile, portfolioItems, artistProfile, savedNotes, portfolioSummary, handleUpdatePortfolioSummary]);
+  }, [userProfile, portfolioItems, artistProfile, savedNotes, portfolioSummary, handleUpdatePortfolioSummary, alertQuotaExceeded, t]);
 
   const handleGenerateSummary = useCallback(async () => {
     if (portfolioItems.length === 0) {
@@ -180,12 +194,13 @@ export default function PortfolioScreen({ navigation }) {
     try {
       const text = await generatePortfolioSummary(portfolioItems, userProfile, artistProfile);
       handleUpdatePortfolioSummary({ summaryText: text, generatedAt: new Date().toISOString() });
-    } catch {
-      Alert.alert(t("portfolio.generate_failed"), t("portfolio.bio_failed_msg"));
+    } catch (e) {
+      if (e?.message === "AI_QUOTA") alertQuotaExceeded();
+      else Alert.alert(t("portfolio.generate_failed"), t("portfolio.bio_failed_msg"));
     } finally {
       setSummaryLoading(false);
     }
-  }, [portfolioItems, userProfile, artistProfile, handleUpdatePortfolioSummary]);
+  }, [portfolioItems, userProfile, artistProfile, handleUpdatePortfolioSummary, alertQuotaExceeded, t]);
 
   // ─── Render ───
 
@@ -263,8 +278,12 @@ export default function PortfolioScreen({ navigation }) {
         </View>
 
         {/* ─── AI Profile Card ─── */}
-        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
+        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 4 }]}>
           {t("portfolio.ai_profile_card")}
+        </Text>
+        {/* 이 버튼도 노트 AI와 같은 한도를 쓴다 — 누르기 전에 알려준다 */}
+        <Text style={[T.micro, { color: CLight.gray400, marginBottom: 12 }]}>
+          {t("quota.ai_cost_notice")}
         </Text>
         {portfolioSummary?.cardText ? (
           <View style={styles.profileCard}>
@@ -290,8 +309,11 @@ export default function PortfolioScreen({ navigation }) {
         )}
 
         {/* ─── AI Summary ─── */}
-        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 12 }]}>
+        <Text style={[T.title, { color: CLight.gray900, marginTop: 24, marginBottom: 4 }]}>
           {t("portfolio.ai_bio")}
+        </Text>
+        <Text style={[T.micro, { color: CLight.gray400, marginBottom: 12 }]}>
+          {t("quota.ai_cost_notice")}
         </Text>
         {portfolioSummary ? (
           <View style={styles.summaryCard}>

@@ -8,8 +8,10 @@ export const PERSONAL_KEYS = [
   "artlink-matching-posts", "artlink-matching-deleted", "artlink-blocked-users", "artlink-reported-content",
   "artlink-device-user-id", "artlink-profile-token", "artlink-data-consent", "artlink-data-consent-asked",
   "artlink-ai-disclosure-accepted", "artlink-eula-accepted", "artlink-note-draft",
-  "artlink-practice-log", "artlink-practice-queue",
+  "artlink-practice-log", "artlink-practice-queue", "artlink-first-checkin-done",
 ];
+// 가입 직후 첫 체크인 화면을 이 계정에서 이미 봤는가 (1.11.8)
+export const FIRST_CHECKIN_DONE_KEY = "artlink-first-checkin-done";
 const personal = new Set(PERSONAL_KEYS);
 let currentScope = null; // null is only used before the one-time legacy migration
 export const accountScope = (userId) => `account:${userId}`;

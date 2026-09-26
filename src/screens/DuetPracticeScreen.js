@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
 import { useApp } from "../context/AppContext";
 import bundledData from "../data/duet-scenes.json";
-import { startPractice, completePractice } from "../services/practiceService";
+import { startPractice, completePractice, abandonPractice } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
 import { preserveMediaFile } from "../services/persistentMedia";
@@ -299,10 +299,14 @@ export default function DuetPracticeScreen({ navigation }) {
   const noteTransferRef = useRef(false);
   const leavePromptRef = useRef(false);
   const beginPractice = (s) => {
+    abandonPractice(practiceRef.current); // 앞 장면을 끝내지 않고 새로 골랐으면 그건 이탈이다
     completedRef.current = false;
     setNoteSent(false);
     practiceRef.current = startPractice("duet", s?.id, "acting");
   };
+
+  // 끝내지 않고 화면을 떠나면 이탈 1건 (끝낸 세션은 이미 닫혀 중복되지 않는다)
+  useEffect(() => () => abandonPractice(practiceRef.current), []);
 
   // 연습을 끝냈다는 신호 — 큐 모드 마지막 줄, 대본 모드의 "연습 끝" 버튼이 공유한다 (중복 완료 방지)
   const finishPractice = () => {

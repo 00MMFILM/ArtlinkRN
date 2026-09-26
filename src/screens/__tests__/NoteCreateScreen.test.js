@@ -16,6 +16,7 @@ jest.mock("../../services/practiceService", () => ({
   startPractice: jest.fn(() => ({ sessionId: "sess-new", kind: "text", subjectKey: null, field: "acting" })),
   resumePractice: jest.fn((sessionId, kind, subjectKey, field) => ({ sessionId, kind, subjectKey, field })),
   completePractice: jest.fn(),
+  abandonPractice: jest.fn(),
   aiFeedbackDone: jest.fn(),
 }));
 jest.mock("../../services/aiService", () => ({

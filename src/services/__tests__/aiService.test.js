@@ -326,3 +326,44 @@ describe("항목14 — 타임아웃·재시도 정책", () => {
     expect(analyzeCalls).toHaveLength(2);
   });
 });
+
+// 포트폴리오 AI는 429(한도 소진)를 실패로 삼켜 heuristic 문구를 돌려줬다.
+// 사용자는 "AI가 대충 써줬다"로 보고, 한도를 썼다는 사실도 프리미엄 안내도 못 받았다(1.11.8).
+describe("포트폴리오 AI는 429를 삼키지 않는다", () => {
+  const { generatePortfolioSummary, generateStructuredPortfolio } = require("../aiService");
+  const items = [{ type: "photo", field: "acting", description: "단편 주연" }];
+  const profile = { name: "차서원", fields: ["acting"] };
+  const stats = { overallScore: 70 };
+
+  afterEach(() => { global.fetch = undefined; });
+
+  it("generatePortfolioSummary: 429면 AI_QUOTA로 throw하고 used/max를 실어 보낸다", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: false, status: 429, json: async () => ({ used: 1, max: 1 }),
+    }));
+    await expect(generatePortfolioSummary(items, profile, stats)).rejects.toMatchObject({
+      message: "AI_QUOTA", quotaUsed: 1, quotaMax: 1,
+    });
+  });
+
+  it("generateStructuredPortfolio: 429면 AI_QUOTA로 throw한다", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: false, status: 429, json: async () => ({ used: 10, max: 10 }),
+    }));
+    await expect(generateStructuredPortfolio(profile, items, stats, [])).rejects.toThrow("AI_QUOTA");
+  });
+
+  it("429가 아닌 실패(500·네트워크)는 기존대로 heuristic 문구를 돌려준다", async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    expect(typeof (await generatePortfolioSummary(items, profile, stats))).toBe("string");
+    global.fetch = jest.fn(async () => { throw new Error("offline"); });
+    expect(typeof (await generateStructuredPortfolio(profile, items, stats, []))).toBe("string");
+  });
+
+  it("정상 응답은 그대로 쓴다", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true, status: 200, json: async () => ({ analysis: "AI 소개 문구" }),
+    }));
+    expect(await generatePortfolioSummary(items, profile, stats)).toBe("AI 소개 문구");
+  });
+});

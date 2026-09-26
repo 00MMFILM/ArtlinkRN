@@ -23,8 +23,9 @@ jest.mock("../../services/profileService", () => ({ upsertArtistProfile: jest.fn
 jest.mock("../../services/mauService", () => ({ trackAppOpen: jest.fn(), trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/matchingService", () => ({ createMatchingPost: jest.fn(), deleteMatchingPost: jest.fn() }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://invalid.test", getApiHeaders: () => ({}), setApiDeviceId: jest.fn(), setDataConsentCache: jest.fn() }));
-jest.mock("../../services/premiumService", () => ({ fetchPremiumStatus: jest.fn(async () => ({})), EMPTY_PREMIUM: {}, shouldApplyServerPremium: jest.fn(() => true), PREMIUM_OPTIMISTIC_MS: 1000 }));
+jest.mock("../../services/premiumService", () => ({ fetchUsageStatus: jest.fn(async () => ({ premium: null, usage: null })), syncStorePremium: jest.fn(async () => false), mergeRcPremium: jest.fn((p) => p || {}), EMPTY_PREMIUM: {}, shouldApplyServerPremium: jest.fn(() => true), PREMIUM_OPTIMISTIC_MS: 1000 }));
 jest.mock("../../services/practiceService", () => ({ getPracticeLog: jest.fn(async () => []) }));
+jest.mock("../../services/reminderService", () => ({ scheduleFirstNoteNudge: jest.fn(), cancelFirstNoteNudge: jest.fn() }));
 jest.mock("../../services/recordingMigration", () => ({ migrateCachedRecordings: jest.fn(async () => null) }));
 jest.mock("../../services/accountDeleteService", () => ({ requestAccountDelete: jest.fn() }));
 const disk = require("@react-native-async-storage/async-storage");

@@ -4,6 +4,7 @@ import {
   startPractice,
   resumePractice,
   completePractice,
+  abandonPractice,
   aiFeedbackDone,
   flushPracticeQueue,
   getPracticeLog,
@@ -134,7 +135,9 @@ describe("practiceService — 큐잉", () => {
     await settle();
 
     queue().forEach((e) => {
-      expect(Object.keys(e).sort()).toEqual([...allowed].sort());
+      // 완료·이탈에만 소요 시간이 붙는다 (1.11.8)
+      const expected = e.event === "practice_started" ? allowed : [...allowed, "elapsedMs"];
+      expect(Object.keys(e).sort()).toEqual([...expected].sort());
       const blob = JSON.stringify(e);
       ["title", "content", "aiComment", "videoAnalysis", "transcript", "tags", "text"].forEach((k) => {
         expect(blob).not.toContain(`"${k}"`);
@@ -162,6 +165,96 @@ describe("practiceService — 완료 중복 방지", () => {
     completePractice(resumed, { subjectKey: 123 });
     await settle();
     expect(queue().filter((e) => e.event === "practice_completed")).toHaveLength(1);
+  });
+});
+
+// 1.11.8 — 시작 대비 완료가 21%다. 어디서 얼마나 붙들다 그만두는지 보려면 이탈도 세야 한다.
+describe("practiceService — 이탈", () => {
+  beforeEach(() => {
+    Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
+    global.fetch = offline();
+  });
+
+  it("완료 없이 떠나면 practice_abandoned 1건이 쌓인다", async () => {
+    const session = startPractice("text", null, "acting");
+    await settle();
+    abandonPractice(session);
+    await settle();
+
+    const q = queue();
+    expect(q.map((e) => e.event)).toEqual(["practice_started", "practice_abandoned"]);
+    expect(q[1].sessionId).toBe(session.sessionId);
+    expect(q[1].kind).toBe("text");
+  });
+
+  it("완료한 세션은 이탈로 세지 않는다 (화면 unmount가 완료 뒤에 와도)", async () => {
+    const session = startPractice("checkin", "acting", "acting");
+    await settle();
+    completePractice(session);
+    abandonPractice(session);
+    await settle();
+
+    expect(queue().filter((e) => e.event === "practice_abandoned")).toHaveLength(0);
+    expect(queue().filter((e) => e.event === "practice_completed")).toHaveLength(1);
+  });
+
+  it("이탈한 세션을 또 이탈시켜도 1건", async () => {
+    const session = startPractice("duet", "hamlet-1", "acting");
+    await settle();
+    abandonPractice(session);
+    abandonPractice(session);
+    await settle();
+
+    expect(queue().filter((e) => e.event === "practice_abandoned")).toHaveLength(1);
+  });
+
+  it("이탈한 세션을 초안으로 이어받아 저장하면 완료로 다시 열린다", async () => {
+    const session = startPractice("text", null, "acting");
+    await settle();
+    abandonPractice(session);
+    await settle();
+
+    completePractice(resumePractice(session.sessionId, "text", null, "acting"));
+    await settle();
+    expect(queue().filter((e) => e.event === "practice_completed")).toHaveLength(1);
+  });
+
+  it("이탈은 기기 연습 기록에 남기지 않는다 (요약·연속 기록은 완료만 센다)", async () => {
+    const session = startPractice("duet", "hamlet-1", "acting");
+    await settle();
+    abandonPractice(session);
+    await settle();
+    await expect(getPracticeLog()).resolves.toEqual([]);
+  });
+});
+
+describe("practiceService — 소요 시간(elapsedMs)", () => {
+  beforeEach(() => {
+    Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
+    global.fetch = offline();
+  });
+
+  it("완료·이탈에 세션 시작부터의 경과 시간이 정수로 실린다", async () => {
+    const now = Date.now();
+    const spy = jest.spyOn(Date, "now").mockReturnValue(now);
+    const done = startPractice("text", null, "acting");
+    const left = startPractice("video", null, "acting");
+    spy.mockReturnValue(now + 4500);
+    completePractice(done);
+    abandonPractice(left);
+    await settle();
+    spy.mockRestore();
+
+    const byEvent = Object.fromEntries(queue().map((e) => [e.event, e]));
+    expect(byEvent.practice_completed.elapsedMs).toBe(4500);
+    expect(byEvent.practice_abandoned.elapsedMs).toBe(4500);
+    expect(byEvent.practice_started.elapsedMs).toBeUndefined();
+  });
+
+  it("시작 시각을 모르는 이어받은 세션에는 붙이지 않는다 (서버는 없어도 받는다)", async () => {
+    completePractice(resumePractice("22222222-2222-4222-8222-222222222222", "text", null, "acting"));
+    await settle();
+    expect(queue()[0]).not.toHaveProperty("elapsedMs");
   });
 });
 

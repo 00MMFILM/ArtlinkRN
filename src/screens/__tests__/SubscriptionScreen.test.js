@@ -20,13 +20,15 @@ jest.mock("../../services/purchasesService", () => ({
   purchasePremium: jest.fn(async () => ({ success: true, cancelled: false })),
   restorePurchases: jest.fn(async () => true),
   getPremiumEntitlement: jest.fn(async () => null),
+  logInPurchases: jest.fn(async () => {}),
 }));
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn() };
 
 // 기본은 로그인된 유저 — 게스트 결제 방지 테스트는 userProfile을 따로 넘긴다
-const ctx = (premium, userProfile = { authUserId: "u1" }) => ({
+const ctx = (premium, userProfile = { authUserId: "u1" }, usage = null) => ({
   premium,
+  usage,
   markPremiumActive: jest.fn(),
   refreshPremium: jest.fn(),
   userProfile,
@@ -172,5 +174,31 @@ describe("SubscriptionScreen — 자동갱신 안내 플랫폼 분기", () => {
     await waitFor(() => expect(queryByText("premium.cta_subscribe")).toBeTruthy());
     expect(queryByText(/^premium\.renew_notice:/)).toBeTruthy();
     expect(queryByText(/^premium\.renew_notice_android:/)).toBeNull();
+  });
+});
+
+// 서버는 text/video의 used·max를 주는데 앱이 버려서, 프리미엄 사용자도 한도에 부딪히기
+// 전까지 자기가 얼마나 남았는지 볼 방법이 없었다 (1.11.8 한도 정직화)
+describe("SubscriptionScreen — 남은 횟수 표시", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("구독 중이면 오늘 텍스트·이달 영상 사용량을 보여준다", async () => {
+    useApp.mockReturnValue(
+      ctx({ active: true, kind: "sub", plan: "monthly", since: null }, { authUserId: "u1" }, {
+        text: { used: 3, max: 10, left: 7 },
+        video: { used: 2, max: 15, left: 13 },
+      })
+    );
+    const { queryByText } = render(<SubscriptionScreen navigation={navigation} />);
+    await waitFor(() => expect(queryByText("premium.active_title")).toBeTruthy());
+    expect(queryByText('quota.today_text:{"used":3,"max":10}')).toBeTruthy();
+    expect(queryByText('quota.month_video:{"used":2,"max":15}')).toBeTruthy();
+  });
+
+  it("사용량을 못 받았으면(구서버·오프라인) 아무것도 안 보여준다", async () => {
+    useApp.mockReturnValue(ctx({ active: true, kind: "sub", plan: "monthly", since: null }));
+    const { queryByText } = render(<SubscriptionScreen navigation={navigation} />);
+    await waitFor(() => expect(queryByText("premium.active_title")).toBeTruthy());
+    expect(queryByText(/^quota\./)).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
+import { daysUntilDeadline } from "../utils/helpers";
 
 export default function MatchingPostDetailScreen({ route, navigation }) {
   const { t } = useTranslation();
@@ -23,8 +24,8 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
   const fieldLabel = t("fields." + post.field);
 
   const getDaysLeft = (deadline) => {
-    if (!deadline) return null;
-    const diff = Math.ceil((new Date(deadline) - new Date()) / 86400000);
+    const diff = daysUntilDeadline(deadline);
+    if (diff === null) return null; // 마감일 없음·형식 깨짐 → 마감 표시 생략("D-NaN" 방지)
     if (diff <= 0) return t("matchingDetail.deadline_expired");
     return `D-${diff}`;
   };
@@ -160,8 +161,8 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
             {post.title}
           </Text>
 
-          {/* Deadline */}
-          {post.deadline && (
+          {/* Deadline — 형식이 깨진 값이면 통째로 생략한다 */}
+          {daysLeft && (
             <View style={styles.deadlineRow}>
               <Text style={[T.caption, { color: CLight.gray500 }]}>
                 {t("matchingDetail.deadline_prefix", { date: post.deadline })}

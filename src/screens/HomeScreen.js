@@ -11,8 +11,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { trackFunnelEvent } from "../services/mauService";
-import { startPractice, completePractice, getPracticeLog } from "../services/practiceService";
+import { abandonPractice, getPracticeLog } from "../services/practiceService";
+import { ensureCheckinSession, saveCheckinNote } from "../services/checkinNote";
 import { buildPracticeActivities } from "../utils/practiceStats";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
@@ -21,7 +21,7 @@ import PremiumBadge from "../components/PremiumBadge";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function HomeScreen({ navigation }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const {
     savedNotes,
@@ -159,9 +159,12 @@ export default function HomeScreen({ navigation }) {
     return set;
   }, [savedNotes, todayKey]);
 
-  // 체크인 한 번 = 연습 세션 하나 (펼칠 때 시작 → 저장 때 완료)
+  // 체크인 한 번 = 연습 세션 하나 (메모를 쓰기 시작할 때 시작 → 저장 때 완료)
   const checkinSessionRef = useRef(null);
   const checkinSavingRef = useRef(false);
+
+  // 완료 없이 화면을 떠난 체크인은 이탈 1건 (저장한 세션은 이미 닫혀 중복되지 않는다)
+  useEffect(() => () => abandonPractice(checkinSessionRef.current), []);
 
   const handleCheckinTap = useCallback((field) => {
     if (checkinSavingRef.current) return;
@@ -171,14 +174,15 @@ export default function HomeScreen({ navigation }) {
       return;
     }
     if (expandedField === field) {
-      // 같은 원을 다시 눌러 접기 — 세션은 그대로 둔다
+      // 같은 원을 다시 눌러 접기 — 쓰다 만 세션은 이탈로 닫는다
+      abandonPractice(checkinSessionRef.current);
+      checkinSessionRef.current = null;
       setExpandedField(null);
-    } else if (expandedField) {
-      // 입력창을 연 채 다른 분야로 바꾼다 — 새 세션을 또 시작하지 않고 기존 세션의 field만 교체
-      checkinSessionRef.current = { ...checkinSessionRef.current, subjectKey: field, field };
-      setExpandedField(field);
     } else {
-      checkinSessionRef.current = startPractice("checkin", field, field);
+      // 입력창을 연 채 다른 분야로 바꾼다 — 새 세션을 또 시작하지 않고 기존 세션의 field만 교체
+      if (checkinSessionRef.current) {
+        checkinSessionRef.current = { ...checkinSessionRef.current, subjectKey: field, field };
+      }
       setExpandedField(field);
     }
     setCheckinMemo("");
@@ -188,20 +192,9 @@ export default function HomeScreen({ navigation }) {
     if (checkinSavingRef.current) return;
     checkinSavingRef.current = true;
     try {
-      const title = checkinMemo.trim() || t("fields." + field) + " " + t("notes.checkin_badge");
-      await handleSaveNote({
-        title,
-        field,
-        type: "checkin",
-        // 이 체크인이 어느 연습 세션에서 나왔는지 — 연습 기록(getPracticeLog)과 중복 집계 방지
-        practiceSessionId: checkinSessionRef.current?.sessionId,
-      });
-      // 홈 체크인도 노트 저장이다 — 계측이 빠져 있어 실사용 저장의 75%가 집계되지 않았다(2026-09-07)
-      trackFunnelEvent("note_saved", i18n.language);
-      if (checkinSessionRef.current) {
-        completePractice(checkinSessionRef.current, { subjectKey: field, field });
-        checkinSessionRef.current = null;
-      }
+      checkinSessionRef.current = ensureCheckinSession(checkinSessionRef.current, field);
+      await saveCheckinNote({ field, memo: checkinMemo, session: checkinSessionRef.current, saveNote: handleSaveNote });
+      checkinSessionRef.current = null;
       setExpandedField(null);
       setCheckinMemo("");
     } catch (_) {
@@ -209,7 +202,7 @@ export default function HomeScreen({ navigation }) {
     } finally {
       checkinSavingRef.current = false;
     }
-  }, [checkinMemo, handleSaveNote, t, i18n.language, showToast]);
+  }, [checkinMemo, handleSaveNote, t, showToast]);
 
   // ---- Quick actions ----
   const quickActions = [
@@ -398,6 +391,8 @@ export default function HomeScreen({ navigation }) {
                 placeholderTextColor={CLight.gray400}
                 value={checkinMemo}
                 onChangeText={(value) => { if (!checkinSavingRef.current) setCheckinMemo(value); }}
+                // 분야 원을 눌러 펼친 것만으로는 연습이 아니다 — 메모를 쓰기 시작할 때 세션이 열린다
+                onFocus={() => { checkinSessionRef.current = ensureCheckinSession(checkinSessionRef.current, expandedField); }}
                 returnKeyType="done"
                 onSubmitEditing={() => handleCheckinSave(expandedField)}
               />

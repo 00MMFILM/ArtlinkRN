@@ -2,6 +2,7 @@
 // 오늘 기준 +30일(기기 로컬 날짜, YYYY-MM-DD)로 기본값을 계산해야 한다.
 import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
+import { Alert } from "react-native";
 import GoalsScreen from "../GoalsScreen";
 import { useApp } from "../../context/AppContext";
 
@@ -47,7 +48,7 @@ describe("GoalsScreen — 목표 마감일 기본값", () => {
     expect(newGoal.deadline).not.toBe("2026-06-30");
   });
 
-  it("마감일을 직접 입력하면 그 값을 그대로 쓴다", () => {
+  it("달력에 있는 날짜를 직접 입력하면 그 값을 그대로 쓴다", () => {
     const handleUpdateGoals = jest.fn();
     useApp.mockReturnValue({ goals: [], handleUpdateGoals });
     const utils = render(<GoalsScreen navigation={navigation} />);
@@ -60,4 +61,24 @@ describe("GoalsScreen — 목표 마감일 기본값", () => {
     const [newGoal] = handleUpdateGoals.mock.calls[0][0];
     expect(newGoal.deadline).toBe("2027-01-01");
   });
+
+  // 예전엔 아무 문자열이나 그대로 저장돼서 목록에 "D-NaN"이 떴다 (1.11.8에서 저장 차단)
+  it.each(["2026-06-31", "2026-02-29", "2026/01/01", "다음 달까지"])(
+    "달력에 없는 마감일(%s)은 저장을 막고 오류를 띄운다",
+    (bad) => {
+      const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+      const handleUpdateGoals = jest.fn();
+      useApp.mockReturnValue({ goals: [], handleUpdateGoals });
+      const utils = render(<GoalsScreen navigation={navigation} />);
+
+      fireEvent.press(utils.getByText("goals.add"));
+      fireEvent.changeText(utils.getByPlaceholderText("goals.goal_placeholder"), "목표 제목");
+      fireEvent.changeText(utils.getByPlaceholderText("goals.deadline_placeholder"), bad);
+      fireEvent.press(utils.getByText("common.add"));
+
+      expect(handleUpdateGoals).not.toHaveBeenCalled();
+      expect(alertSpy).toHaveBeenCalledWith("common.error", "deadline.invalid");
+      alertSpy.mockRestore();
+    }
+  );
 });

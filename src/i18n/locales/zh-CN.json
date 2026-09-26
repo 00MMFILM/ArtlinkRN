@@ -1011,5 +1011,34 @@
     "login_required": "请先登录再迁移。",
     "moved": "已迁移到当前账号。原始记录也仍保留在本设备上。",
     "failed": "迁移失败。记录未发生变化，请重试。"
+  },
+  "first_checkin": {
+    "title": "第一条记录，一句话就够",
+    "desc": "写下今天练了什么、有什么感受，一句话就好。记录多了，AI 会帮你看出成长。",
+    "memo_placeholder": "今天练了什么？",
+    "save": "保存",
+    "later": "以后再说",
+    "done_title": "第一条记录完成",
+    "done_desc": "已经保存好了。可以让 AI 对这条记录给出反馈。",
+    "ai_cta": "获取 AI 反馈",
+    "home_cta": "回到首页"
+  },
+  "practice_nudge": {
+    "title": "还没有第一条记录",
+    "body": "一句话就够了，记下今天的练习吧。"
+  },
+  "quota": {
+    "today_text": "今日文本AI {{used}}/{{max}}次",
+    "month_video": "本月视频分析 {{used}}/{{max}}次",
+    "remaining_free": "今日剩余AI反馈 {{left}}次 · 高级会员每天10次",
+    "remaining_premium": "今日剩余AI反馈 {{left}}次（每天{{max}}次）",
+    "ai_cost_notice": "将使用1次AI反馈"
+  },
+  "premium_recovery": {
+    "pending_title": "正在确认订阅",
+    "pending_msg": "已确认付款，但服务器尚未同步。请稍后重试，或在订阅页面再次点击「恢复购买」。"
+  },
+  "deadline": {
+    "invalid": "请按YYYY-MM-DD格式输入真实存在的截止日期。"
   }
 }

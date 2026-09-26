@@ -1011,5 +1011,34 @@
     "login_required": "Hãy đăng nhập trước để chuyển các bản ghi này.",
     "moved": "Đã chuyển sang tài khoản của bạn. Bản gốc vẫn còn trên thiết bị.",
     "failed": "Không thể chuyển. Các bản ghi không thay đổi. Vui lòng thử lại."
+  },
+  "first_checkin": {
+    "title": "Ghi chép đầu tiên chỉ cần một dòng",
+    "desc": "Hãy viết một dòng về những gì bạn đã luyện tập hay cảm nhận hôm nay. Khi ghi chép nhiều lên, AI sẽ chỉ ra bạn đang tiến bộ ra sao.",
+    "memo_placeholder": "Hôm nay bạn đã luyện tập gì?",
+    "save": "Lưu",
+    "later": "Để sau",
+    "done_title": "Đã có ghi chép đầu tiên",
+    "done_desc": "Ghi chép đã được lưu. Bạn có thể nhận phản hồi của AI cho ghi chép này.",
+    "ai_cta": "Nhận phản hồi AI",
+    "home_cta": "Về trang chủ"
+  },
+  "practice_nudge": {
+    "title": "Bạn vẫn chưa có ghi chép đầu tiên",
+    "body": "Một dòng là đủ. Hãy ghi lại buổi luyện tập hôm nay."
+  },
+  "quota": {
+    "today_text": "AI văn bản hôm nay: {{used}}/{{max}} lượt",
+    "month_video": "Phân tích video tháng này: {{used}}/{{max}} lượt",
+    "remaining_free": "Còn {{left}} lượt phản hồi AI hôm nay · Premium cho 10 lượt mỗi ngày",
+    "remaining_premium": "Còn {{left}} lượt phản hồi AI hôm nay ({{max}} lượt mỗi ngày)",
+    "ai_cost_notice": "Thao tác này dùng 1 lượt phản hồi AI."
+  },
+  "premium_recovery": {
+    "pending_title": "Đang xác nhận gói đăng ký",
+    "pending_msg": "Thanh toán đã được xác nhận nhưng máy chủ chưa cập nhật. Hãy thử lại sau giây lát hoặc nhấn “Khôi phục giao dịch” một lần nữa ở màn hình đăng ký."
+  },
+  "deadline": {
+    "invalid": "Hãy nhập hạn chót là một ngày có thật theo định dạng YYYY-MM-DD."
   }
 }

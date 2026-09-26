@@ -167,7 +167,7 @@ export default function AuthScreen({ navigation }) {
         pendingPhotoUris: [],
       };
       trackFunnelEvent("signup_completed", language);
-      await handleAuth(profileData);
+      await handleAuth(profileData, { isSignup: true });
     } catch (e) {
       Alert.alert(t("common.error"), t("auth.signup_error"));
     } finally {

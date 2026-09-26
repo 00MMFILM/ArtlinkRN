@@ -38,6 +38,7 @@ import NotificationsScreen from "./src/screens/NotificationsScreen";
 import B2BDashboardScreen from "./src/screens/B2BDashboardScreen";
 import DevRoadmapScreen from "./src/screens/DevRoadmapScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import FirstCheckinScreen from "./src/screens/FirstCheckinScreen";
 import MatchingPostCreateScreen from "./src/screens/MatchingPostCreateScreen";
 import ProfileEditScreen from "./src/screens/ProfileEditScreen";
 import EULAScreen from "./src/screens/EULAScreen";
@@ -277,7 +278,7 @@ const resetStyles = StyleSheet.create({
 
 export function AppNavigator() {
   const { t } = useTranslation();
-  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady } = useApp();
+  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady, firstCheckinPending } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
@@ -406,6 +407,8 @@ export function AppNavigator() {
             <Stack.Screen name="Auth" component={AuthScreen} />
           ) : (
             <>
+              {/* 가입 직후 첫 체크인 — 첫 화면으로 한 번 뜨고, 끝내면 이 화면만 빠진다 */}
+              {firstCheckinPending && <Stack.Screen name="FirstCheckin" component={FirstCheckinScreen} />}
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen
                 name="NoteCreate"

@@ -20,6 +20,7 @@ import {
   purchasePremium,
   restorePurchases,
   getPremiumEntitlement,
+  logInPurchases,
 } from "../services/purchasesService";
 
 // 이용약관·개인정보 링크 + 자동갱신 고지
@@ -39,7 +40,7 @@ function manageUrl(planCode) {
 
 export default function SubscriptionScreen({ navigation }) {
   const { t } = useTranslation();
-  const { premium, markPremiumActive, refreshPremium, userProfile, setAuthState } = useApp();
+  const { premium, usage, markPremiumActive, refreshPremium, userProfile, setAuthState } = useApp();
   const isActive = !!premium?.active;
 
   // 게스트(비로그인) 결제 방지 — RevenueCat 익명 ID로 결제하면 서버 웹훅이 계정과 못 묶어 프리미엄이 안 켜진다
@@ -80,6 +81,8 @@ export default function SubscriptionScreen({ navigation }) {
       return;
     }
     setBuying(true);
+    // RevenueCat app_user_id를 결제 전에 확정한다 — 익명 ID로 결제되면 웹훅이 계정과 못 묶는다
+    await logInPurchases(userProfile.authUserId);
     const { success, cancelled } = await purchasePremium(selectedPkg);
     setBuying(false);
     if (success) {
@@ -168,6 +171,22 @@ export default function SubscriptionScreen({ navigation }) {
             ))}
           </View>
 
+          {/* 남은 횟수 — 한도에 부딪히기 전에 보여준다 (2026-09 한도 정직화) */}
+          {usage?.text || usage?.video ? (
+            <View style={styles.usageBox}>
+              {usage.text ? (
+                <Text style={[T.caption, { color: CLight.gray700 }]}>
+                  {t("quota.today_text", { used: usage.text.used, max: usage.text.max })}
+                </Text>
+              ) : null}
+              {usage.video ? (
+                <Text style={[T.caption, { color: CLight.gray700, marginTop: 4 }]}>
+                  {t("quota.month_video", { used: usage.video.used, max: usage.video.max })}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
           <TouchableOpacity style={styles.ctaBtn} onPress={() => Linking.openURL(manageUrl(planCode))}>
             <Text style={[T.bodyBold, { color: "#FFFFFF" }]}>{t("premium.manage")}</Text>
           </TouchableOpacity>
@@ -254,6 +273,11 @@ export default function SubscriptionScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
+        {/* 익명 결제 방지 — 누르기 전에 로그인이 필요하다는 걸 보여준다 */}
+        {!userProfile?.authUserId ? (
+          <Text style={[T.caption, styles.note]}>{t("premium.login_required_message")}</Text>
+        ) : null}
+
         <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore} disabled={buying}>
           <Text style={[T.small, { color: CLight.gray500 }]}>{t("premium.restore")}</Text>
         </TouchableOpacity>
@@ -300,6 +324,7 @@ const styles = StyleSheet.create({
   saveBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   planName: { color: CLight.gray500, marginBottom: 6 },
   planPrice: { color: CLight.gray900 },
+  usageBox: { backgroundColor: CLight.gray100, borderRadius: 12, padding: 14, marginBottom: 20 },
   ctaBtn: { width: "100%", height: 54, backgroundColor: CLight.pink, borderRadius: 14, justifyContent: "center", alignItems: "center", marginBottom: 12 },
   restoreBtn: { alignItems: "center", paddingVertical: 8, marginBottom: 16 },
   note: { color: CLight.gray400, textAlign: "center", marginBottom: 12, lineHeight: 16 },

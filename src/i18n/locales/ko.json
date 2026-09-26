@@ -1011,5 +1011,34 @@
     "login_required": "옮기려면 먼저 로그인해 주세요.",
     "moved": "현재 계정으로 옮겼습니다. 원본도 이 기기에 그대로 남아 있습니다.",
     "failed": "옮기지 못했습니다. 기록은 그대로 있습니다. 다시 시도해 주세요."
+  },
+  "first_checkin": {
+    "title": "첫 기록, 지금 한 줄이면 됩니다",
+    "desc": "오늘 연습한 것이나 느낀 것을 한 줄만 남겨 보세요. 기록이 쌓이면 AI가 성장을 짚어 줍니다.",
+    "memo_placeholder": "오늘 무엇을 연습했나요?",
+    "save": "저장",
+    "later": "나중에 할게요",
+    "done_title": "첫 기록 완료",
+    "done_desc": "기록이 저장됐습니다. 이 기록에 바로 AI 피드백을 받아 볼 수 있어요.",
+    "ai_cta": "AI 피드백 받기",
+    "home_cta": "홈으로"
+  },
+  "practice_nudge": {
+    "title": "아직 첫 기록 전이에요",
+    "body": "한 줄이면 충분합니다. 오늘 연습을 기록해 보세요."
+  },
+  "quota": {
+    "today_text": "오늘 텍스트 AI {{used}}/{{max}}회",
+    "month_video": "이달 영상 분석 {{used}}/{{max}}회",
+    "remaining_free": "오늘 남은 AI 피드백 {{left}}회 · 프리미엄은 하루 10회",
+    "remaining_premium": "오늘 남은 AI 피드백 {{left}}회 (하루 {{max}}회)",
+    "ai_cost_notice": "AI 피드백 1회를 사용합니다"
+  },
+  "premium_recovery": {
+    "pending_title": "구독 확인 중이에요",
+    "pending_msg": "결제는 확인됐지만 서버 반영이 아직이에요. 잠시 뒤 다시 시도하거나 구독 화면에서 '구매 복원'을 한 번 더 눌러주세요."
+  },
+  "deadline": {
+    "invalid": "마감일은 YYYY-MM-DD 형식의 실제 날짜로 입력해 주세요."
   }
 }

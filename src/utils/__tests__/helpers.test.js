@@ -1,5 +1,8 @@
 import {
   isActor,
+  parseDeadline,
+  isDeadlineExpired,
+  daysUntilDeadline,
   postMatchesField,
   visibleCommunityPosts,
   toLocalDateKey,
@@ -97,5 +100,89 @@ describe("toLocalDateKey (KST 자정~오전9시 UTC 이월 버그 재현/검증)
   it("KST 낮 시간은 UTC와 로컬 날짜가 같음", () => {
     const d = new Date("2026-08-27T05:00:00.000Z"); // KST 08-27 14:00
     expect(toLocalDateKey(d)).toBe("2026-08-27");
+  });
+});
+
+// 마감일에 2026-06-31 같은 없는 날짜를 넣으면 new Date가 7월 1일로 굴러가고,
+// 아무 문자열이나 넣으면 Invalid Date라 화면에 "D-NaN"이 뜬다 (1.11.8에서 차단).
+describe("parseDeadline (마감일 검증)", () => {
+  it("실제로 있는 YYYY-MM-DD만 통과한다", () => {
+    expect(parseDeadline("2027-01-01")).toBeInstanceOf(Date);
+    expect(parseDeadline("2026-12-31")).toBeInstanceOf(Date);
+  });
+
+  it("윤년이 아닌 2월 29일은 거부", () => {
+    expect(parseDeadline("2026-02-29")).toBeNull();
+  });
+
+  it("윤년 2월 29일은 허용", () => {
+    const d = parseDeadline("2028-02-29");
+    expect(d).toBeInstanceOf(Date);
+    expect(d.getMonth()).toBe(1);
+    expect(d.getDate()).toBe(29);
+  });
+
+  it("30일까지인 달의 31일은 거부", () => {
+    expect(parseDeadline("2026-06-31")).toBeNull();
+    expect(parseDeadline("2026-09-31")).toBeNull();
+  });
+
+  it("월·일 범위를 벗어나면 거부", () => {
+    expect(parseDeadline("2026-13-01")).toBeNull();
+    expect(parseDeadline("2026-00-10")).toBeNull();
+    expect(parseDeadline("2026-05-00")).toBeNull();
+    expect(parseDeadline("2026-05-32")).toBeNull();
+  });
+
+  it("형식이 다르면 거부 (한 자리 월·일, 슬래시, 자유 텍스트)", () => {
+    expect(parseDeadline("2026-6-5")).toBeNull();
+    expect(parseDeadline("2026/06/05")).toBeNull();
+    expect(parseDeadline("다음 달까지")).toBeNull();
+    expect(parseDeadline("")).toBeNull();
+    expect(parseDeadline(undefined)).toBeNull();
+    expect(parseDeadline(null)).toBeNull();
+    expect(parseDeadline(20260605)).toBeNull();
+  });
+
+  it("앞뒤 공백은 허용", () => {
+    expect(parseDeadline(" 2027-01-01 ")).toBeInstanceOf(Date);
+  });
+});
+
+describe("isDeadlineExpired / daysUntilDeadline (만료 필터 · D-day)", () => {
+  const future = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 10);
+    return toLocalDateKey(d);
+  };
+  const past = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 10);
+    return toLocalDateKey(d);
+  };
+
+  it("지난 마감일은 만료", () => {
+    expect(isDeadlineExpired(past())).toBe(true);
+  });
+
+  it("남은 마감일은 만료가 아니다", () => {
+    expect(isDeadlineExpired(future())).toBe(false);
+  });
+
+  it("마감일이 없으면 '미정'이므로 만료로 취급하지 않는다", () => {
+    expect(isDeadlineExpired(undefined)).toBe(false);
+    expect(isDeadlineExpired("")).toBe(false);
+  });
+
+  it("형식이 깨진 값도 만료로 취급하지 않는다 (공고가 조용히 사라지면 안 된다)", () => {
+    expect(isDeadlineExpired("2026-06-31")).toBe(false);
+    expect(isDeadlineExpired("상시모집")).toBe(false);
+  });
+
+  it("daysUntilDeadline은 유효하지 않으면 NaN이 아니라 null", () => {
+    expect(daysUntilDeadline("2026-06-31")).toBeNull();
+    expect(daysUntilDeadline("상시모집")).toBeNull();
+    expect(daysUntilDeadline(undefined)).toBeNull();
+    expect(daysUntilDeadline(future())).toBe(10);
   });
 });

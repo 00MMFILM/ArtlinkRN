@@ -1,4 +1,5 @@
 import { SERVER_URL, getApiHeaders } from "./apiConfig";
+import { checkPremium } from "./purchasesService";
 
 /**
  * 프리미엄 상태 — 앱이 화면에 쓰는 유일한 정본.
@@ -42,15 +43,74 @@ export function parsePremiumStatus(data) {
   return null;
 }
 
-/** 서버에서 프리미엄 상태 조회. 실패·판정불가면 null. */
-export async function fetchPremiumStatus() {
+/**
+ * usage-status 응답 → 남은 횟수.
+ * 서버는 텍스트(오늘)·영상(이달)의 used/max를 함께 주는데 앱이 이걸 버려서
+ * 사용자는 한도에 부딪히기 전까지 남은 횟수를 볼 방법이 없었다. 판정 불가면 null.
+ */
+export function parseUsage(data) {
+  if (!data || typeof data !== "object") return null;
+  const pick = (u) =>
+    u && typeof u === "object" && Number.isFinite(u.used) && Number.isFinite(u.max)
+      ? { used: u.used, max: u.max, left: Math.max(0, u.max - u.used) }
+      : null;
+  const text = pick(data.text);
+  const video = pick(data.video);
+  return text || video ? { text, video } : null;
+}
+
+/** 서버에서 프리미엄 상태 + 남은 횟수 조회. 실패·판정불가면 각각 null. */
+export async function fetchUsageStatus() {
   try {
     const res = await fetch(`${SERVER_URL}/api/usage-status`, { headers: getApiHeaders() });
-    if (!res.ok) return null;
-    return parsePremiumStatus(await res.json());
+    if (!res.ok) return { premium: null, usage: null };
+    const data = await res.json();
+    return { premium: parsePremiumStatus(data), usage: parseUsage(data) };
   } catch (_) {
-    return null;
+    return { premium: null, usage: null };
   }
+}
+
+/**
+ * 결제 복구 요청 — RevenueCat은 활성인데 서버가 비활성일 때만 부른다.
+ * 서버가 RevenueCat REST로 직접 확인해 premium_members를 되살린다.
+ * 실패해도 앱은 RevenueCat 판정을 그대로 쓰므로 조용히 삼킨다.
+ */
+export async function requestPremiumResync() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/premium-resync`, {
+      method: "POST",
+      headers: getApiHeaders(),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data?.active;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * 스토어 영수증(RevenueCat) 기준 활성 여부. 서버가 못 따라왔으면 복구까지 걸어 둔다.
+ * 앱 기동·포그라운드 복귀·결제·복원 직후에 부른다.
+ */
+export async function syncStorePremium(serverActive) {
+  const rc = await checkPremium();
+  if (rc && !serverActive) requestPremiumResync(); // 부가 경로 — 결과를 기다리지 않는다
+  return rc;
+}
+
+/**
+ * 화면에 쓸 최종 프리미엄 판정 = 서버 || RevenueCat.
+ *
+ * 서버(웹훅)만 믿으면 익명 결제·웹훅 유실 때 실결제자가 무료로 떨어진다. 결제 정본은
+ * RevenueCat이므로 서버가 아직 false여도 RevenueCat이 active면 프리미엄으로 본다.
+ * 이때 source는 "purchase" — 한도 안내가 "구독 확인 중" 문구로 갈리는 기준이 된다.
+ */
+export function mergeRcPremium(serverPremium, rcActive) {
+  const base = serverPremium || EMPTY_PREMIUM;
+  if (base.active || !rcActive) return base;
+  return { ...base, active: true, kind: base.kind || "sub", source: "purchase" };
 }
 
 /**

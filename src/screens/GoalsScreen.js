@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS } from "../constants/theme";
 import TopBar from "../components/TopBar";
-import { FIELDS, getFieldLabel, getFieldEmoji } from "../utils/helpers";
+import { FIELDS, getFieldLabel, getFieldEmoji, parseDeadline, daysUntilDeadline } from "../utils/helpers";
 
 export default function GoalsScreen({ navigation }) {
   const { t } = useTranslation();
@@ -39,6 +39,12 @@ export default function GoalsScreen({ navigation }) {
       Alert.alert(t("common.error"), t("goals.goal_required"));
       return;
     }
+    // 직접 입력한 마감일은 달력에 실제로 있는 날짜여야 한다 (2026-06-31 같은 값이 통과하면 D-NaN)
+    const typedDeadline = formDeadline.trim();
+    if (typedDeadline && !parseDeadline(typedDeadline)) {
+      Alert.alert(t("common.error"), t("deadline.invalid"));
+      return;
+    }
     const target = parseInt(formTarget, 10) || 10;
     const newGoal = {
       id: Date.now(),
@@ -46,7 +52,7 @@ export default function GoalsScreen({ navigation }) {
       field: formField,
       targetCount: target,
       currentCount: 0,
-      deadline: formDeadline.trim() || getDefaultDeadline(),
+      deadline: typedDeadline || getDefaultDeadline(),
       completed: false,
       createdAt: new Date().toISOString(),
     };
@@ -83,8 +89,10 @@ export default function GoalsScreen({ navigation }) {
     return Math.min(100, Math.round((goal.currentCount / goal.targetCount) * 100));
   };
 
+  // 마감일이 없거나 형식이 깨진 옛 목표는 남은 날짜 대신 아무것도 보여주지 않는다("D-NaN" 방지)
   const getDaysLeft = (deadline) => {
-    const diff = Math.ceil((new Date(deadline) - new Date()) / 86400000);
+    const diff = daysUntilDeadline(deadline);
+    if (diff === null) return null;
     if (diff <= 0) return t("goals.overdue");
     return t("goals.days_remaining", { count: diff });
   };
@@ -207,7 +215,7 @@ export default function GoalsScreen({ navigation }) {
                     },
                   ]}
                 >
-                  {goal.deadline} | {getDaysLeft(goal.deadline)}
+                  {getDaysLeft(goal.deadline) ? `${goal.deadline} | ${getDaysLeft(goal.deadline)}` : ""}
                 </Text>
                 <TouchableOpacity
                   style={[

@@ -1153,6 +1153,20 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
   }
 }
 
+/**
+ * 429 → 노트 AI와 같은 AI_QUOTA 에러.
+ *
+ * 포트폴리오 생성은 429를 그냥 실패로 보고 heuristic 텍스트를 돌려줬다. 사용자 입장에선
+ * "AI가 대충 써줬다"로 보이고, 한도를 썼다는 사실도 프리미엄 안내도 못 받는다.
+ */
+async function quotaError(response) {
+  const info = await response.json().catch(() => ({}));
+  const err = new Error("AI_QUOTA");
+  err.quotaUsed = info.used;
+  err.quotaMax = info.max;
+  return err;
+}
+
 function heuristicPortfolioSummary(portfolioItems, userProfile, artistProfile) {
   const lang = getAILanguage();
   const photoCount = portfolioItems.filter((i) => i.type === "photo").length;
@@ -1243,10 +1257,12 @@ Overall score: ${score}`;
       headers: getApiHeaders(),
       body: JSON.stringify({ prompt, field: "general" }),
     });
+    if (response.status === 429) throw await quotaError(response);
     if (!response.ok) throw new Error("Server error");
     const data = await response.json();
     return data.analysis || data.content || heuristicPortfolioSummary(portfolioItems, userProfile, artistProfile);
   } catch (e) {
+    if (e?.message === "AI_QUOTA") throw e;
     return heuristicPortfolioSummary(portfolioItems, userProfile, artistProfile);
   }
 }
@@ -1404,10 +1420,12 @@ Write a professional yet distinctive profile introduction.`;
       headers: getApiHeaders(),
       body: JSON.stringify({ prompt, field: "general" }),
     });
+    if (response.status === 429) throw await quotaError(response);
     if (!response.ok) throw new Error("Server error");
     const data = await response.json();
     return data.analysis || data.content || heuristicStructuredPortfolio(userProfile, portfolioItems, artistProfile);
-  } catch {
+  } catch (e) {
+    if (e?.message === "AI_QUOTA") throw e;
     return heuristicStructuredPortfolio(userProfile, portfolioItems, artistProfile);
   }
 }

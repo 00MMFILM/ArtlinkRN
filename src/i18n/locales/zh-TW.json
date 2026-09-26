@@ -1011,5 +1011,34 @@
     "login_required": "請先登入再移動。",
     "moved": "已移至目前帳號。原始紀錄也仍保留在本裝置上。",
     "failed": "移動失敗。紀錄未變更，請再試一次。"
+  },
+  "first_checkin": {
+    "title": "第一則記錄，一句話就夠",
+    "desc": "寫下今天練了什麼、有什麼感受，一句話就好。記錄多了，AI 會幫你看出成長。",
+    "memo_placeholder": "今天練了什麼？",
+    "save": "儲存",
+    "later": "之後再說",
+    "done_title": "第一則記錄完成",
+    "done_desc": "已經儲存好了。可以讓 AI 針對這則記錄給出回饋。",
+    "ai_cta": "取得 AI 回饋",
+    "home_cta": "回到首頁"
+  },
+  "practice_nudge": {
+    "title": "還沒有第一則記錄",
+    "body": "一句話就夠了，記下今天的練習吧。"
+  },
+  "quota": {
+    "today_text": "今日文字AI {{used}}/{{max}}次",
+    "month_video": "本月影片分析 {{used}}/{{max}}次",
+    "remaining_free": "今日剩餘AI回饋 {{left}}次 · 高級會員每天10次",
+    "remaining_premium": "今日剩餘AI回饋 {{left}}次（每天{{max}}次）",
+    "ai_cost_notice": "將使用1次AI回饋"
+  },
+  "premium_recovery": {
+    "pending_title": "正在確認訂閱",
+    "pending_msg": "已確認付款，但伺服器尚未同步。請稍後再試，或在訂閱頁面再次點擊「回復購買」。"
+  },
+  "deadline": {
+    "invalid": "請以YYYY-MM-DD格式輸入實際存在的截止日期。"
   }
 }
