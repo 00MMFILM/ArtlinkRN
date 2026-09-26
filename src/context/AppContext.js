@@ -130,6 +130,12 @@ export function AppProvider({ children }) {
   }, []);
 
   const accountGenerationRef = useRef(0);
+  // Async screen callbacks retain the account render they came from. Checking only
+  // after a request is too late for an old guest callback (it can clear state first).
+  const renderedAccountGeneration = accountGenerationRef.current;
+  const isCurrentAccount = useCallback(() => (
+    renderedAccountGeneration === accountGenerationRef.current && renderedScope === getStorageScope()
+  ), [renderedAccountGeneration, renderedScope]);
   const bootstrapRef = useRef(null);
   const ensureStorageInitialized = useCallback(() => {
     if (!bootstrapRef.current) {
@@ -148,6 +154,7 @@ export function AppProvider({ children }) {
     setSavedNotes([]); setUserProfile(EMPTY_PROFILE); setGoals([]); setFeedbacks([]);
     setPortfolioItems([]); setPortfolioSummary(null); setMatchingPosts([]); setMatchingDeletedIds([]);
     setBlockedUsers([]); setReportedContent([]); setDeviceUserId(null); setServerPremium(EMPTY_PREMIUM);
+    setRcPremiumActive(false); setUsage(null);
     setServerStats(null); setPracticeLog([]); setDataConsent(false); setDataConsentCache(false);
     setDataConsentAsked(false); setAiDisclosureAccepted(false); setEulaAccepted(false);
     setFirstCheckinPending(false);
@@ -292,31 +299,32 @@ export function AppProvider({ children }) {
   // 실패하면 이전 값을 유지한다(화면 깜빡임 방지).
   const premiumOptimisticUntilRef = useRef(0);
   const refreshPremium = useCallback(async () => {
+    if (!isCurrentAccount()) return;
     if (!userProfile.authUserId) {
       setServerPremium(EMPTY_PREMIUM); // 로그아웃·게스트는 프리미엄 없음
       setRcPremiumActive(false);
       setUsage(null);
       return;
     }
-    const generation = accountGenerationRef.current;
     const { premium: next, usage: nextUsage } = await fetchUsageStatus();
-    if (generation !== accountGenerationRef.current) return;
+    if (!isCurrentAccount()) return;
     // 결제 직후 3분은 서버의 false(웹훅 지연)로 낙관적 활성 상태를 되돌리지 않는다(2026-09-17 리뷰 지적)
     if (shouldApplyServerPremium(next, premiumOptimisticUntilRef.current)) setServerPremium(next);
     if (nextUsage) setUsage(nextUsage);
 
     // 스토어 영수증(RevenueCat)이 결제 정본 — 서버가 못 따라와도 앱은 이쪽을 믿는다.
-    const rc = await syncStorePremium(!!next?.active);
-    if (generation !== accountGenerationRef.current) return;
+    const rc = await syncStorePremium(!!next?.active, { authUserId: userProfile.authUserId, isCurrent: isCurrentAccount });
+    if (!isCurrentAccount()) return;
     setRcPremiumActive(rc);
-  }, [userProfile.authUserId]);
+  }, [userProfile.authUserId, isCurrentAccount]);
 
   // 결제·복원 성공 직후 즉시 활성 표시 — 서버 웹훅 반영까지 수 초~수십 초 걸린다.
   // 다음 refreshPremium에서 서버 값(kind/plan/since 포함)으로 교체된다.
   const markPremiumActive = useCallback((info = {}) => {
+    if (!isCurrentAccount()) return;
     premiumOptimisticUntilRef.current = Date.now() + PREMIUM_OPTIMISTIC_MS;
     setServerPremium((prev) => ({ ...prev, ...info, active: true, source: "purchase" }));
-  }, []);
+  }, [isCurrentAccount]);
 
   const premium = useMemo(
     () => mergeRcPremium(serverPremium, rcPremiumActive),
@@ -406,21 +414,9 @@ export function AppProvider({ children }) {
     return () => { cancelled = true; sub?.remove?.(); };
   }, [storageReady, deviceUserId, userProfile]);
 
-  // 1.11.6 이하는 공개를 꺼도 서버에 알리지 않았다(동기화만 멈춤). 한 번 ON했던 사람의 행이
-  // 그대로 남아 대시보드에 계속 떴고, 1.11.7 마이그레이션은 기존 행을 전부 공개로 표시했다.
-  // 1.11.7은 토글할 때만 OFF를 보내므로, 스탬프 없는 OFF 프로필은 한 번 pending으로 올려
-  // 서버에 묘비를 남긴다(스탬프가 찍히면 다시 돌지 않는다). 실운영 대시보드 제보(2026-09-26).
-  useEffect(() => {
-    if (!storageReady || !deviceUserId) return;
-    const p = userProfile;
-    if (p.profilePublic || p.visibilityUpdatedAt || p.visibilityPending) return;
-    const generation = accountGenerationRef.current;
-    const scope = getStorageScope();
-    const updated = { ...p, profilePublic: false, visibilityUpdatedAt: nextVisibilityStamp(null), visibilityPending: true };
-    safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope).then((saved) => {
-      if (saved && generation === accountGenerationRef.current && profileRef.current === p) setUserProfile(updated);
-    });
-  }, [storageReady, deviceUserId, userProfile]);
+  // No automatic OFF backfill: an unstamped false can be a signup default or a
+  // stale copy from another device, not an explicit privacy choice. Only a user
+  // choice below may mint a new visibility timestamp and override server state.
 
   // Migrate cache recordings within their owner's namespace. A late migration
   // must not rewrite another account's notes or overwrite newer note edits.
@@ -585,8 +581,9 @@ export function AppProvider({ children }) {
     const scope = getStorageScope(), generation = accountGenerationRef.current;
     const previous = profileRef.current;
     const updated = { ...previous, ...partial };
-    // Every toggle gets a newer stamp and stays pending until the server accepts it.
-    if ("profilePublic" in partial && !!partial.profilePublic !== !!previous.profilePublic) {
+    // ProfileEdit includes profilePublic only after the user operates the switch.
+    // An explicit OFF must also work when the local unknown/default value is OFF.
+    if (typeof partial.profilePublic === "boolean") {
       updated.visibilityUpdatedAt = nextVisibilityStamp(previous.visibilityUpdatedAt);
       updated.visibilityPending = true;
     }
@@ -633,7 +630,9 @@ export function AppProvider({ children }) {
           ]);
           if (generation !== accountGenerationRef.current) return;
           setFirstCheckinPending(!done && state.notes.length === 0);
-          scheduleFirstNoteNudge(i18n.t("practice_nudge.title"), i18n.t("practice_nudge.body"));
+          if (state.notes.length === 0) {
+            scheduleFirstNoteNudge(i18n.t("practice_nudge.title"), i18n.t("practice_nudge.body"));
+          }
         }
       } else {
         const scope = await guestStorageScope();

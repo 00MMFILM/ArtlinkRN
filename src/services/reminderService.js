@@ -9,6 +9,16 @@ const REMINDER_ID = "daily-practice-reminder";
 const FIRST_NOTE_NUDGE_ID = "first-note-nudge";
 const FIRST_NOTE_NUDGE_SECONDS = 48 * 60 * 60;
 
+// 권한 조회가 늦게 끝나거나 네이티브 예약 중 취소해도 이전 예약이 되살아나지 않게 한다.
+// 권한 조회는 큐 밖에서 하고, 실제 예약/취소만 순서대로 실행한다.
+let firstNoteNudgeGeneration = 0;
+let firstNoteNudgeChain = Promise.resolve();
+function mutateFirstNoteNudge(fn) {
+  const run = firstNoteNudgeChain.then(fn, fn);
+  firstNoteNudgeChain = run.catch(() => {});
+  return run;
+}
+
 // 앱이 포그라운드일 때도 알림 표시
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -74,9 +84,10 @@ export async function scheduleDailyPracticeReminder(hour, minute, title, body) {
 // 서버 푸시가 없어 로컬 예약으로 한다. 권한을 새로 묻지는 않는다 — 가입 직후 권한 팝업은
 // 그 자체가 이탈 요인이라, 이미 허용한 사람에게만 건다.
 export async function scheduleFirstNoteNudge(title, body) {
+  const generation = ++firstNoteNudgeGeneration;
   try {
     const { status } = await Notifications.getPermissionsAsync();
-    if (status !== "granted") return false;
+    if (status !== "granted" || generation !== firstNoteNudgeGeneration) return false;
 
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("practice-reminder", {
@@ -85,21 +96,26 @@ export async function scheduleFirstNoteNudge(title, body) {
       });
     }
 
-    await Notifications.cancelScheduledNotificationAsync(FIRST_NOTE_NUDGE_ID).catch(() => {});
+    return await mutateFirstNoteNudge(async () => {
+      if (generation !== firstNoteNudgeGeneration) return false;
+      await Notifications.cancelScheduledNotificationAsync(FIRST_NOTE_NUDGE_ID);
+      if (generation !== firstNoteNudgeGeneration) return false;
 
-    await Notifications.scheduleNotificationAsync({
-      identifier: FIRST_NOTE_NUDGE_ID,
-      content: {
-        title,
-        body,
-        ...(Platform.OS === "android" ? { channelId: "practice-reminder" } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: FIRST_NOTE_NUDGE_SECONDS,
-      },
+      await Notifications.scheduleNotificationAsync({
+        identifier: FIRST_NOTE_NUDGE_ID,
+        content: {
+          title,
+          body,
+          ...(Platform.OS === "android" ? { channelId: "practice-reminder" } : {}),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: FIRST_NOTE_NUDGE_SECONDS,
+        },
+      });
+      // 진행 중 취소가 들어왔으면 바로 다음 큐 작업에서 네이티브 예약도 지운다.
+      return generation === firstNoteNudgeGeneration;
     });
-    return true;
   } catch (e) {
     console.log("[reminder] first-note nudge failed:", e?.message);
     return false;
@@ -108,8 +124,9 @@ export async function scheduleFirstNoteNudge(title, body) {
 
 // 첫 노트를 남겼거나(어떤 경로든) 로그아웃·탈퇴하면 예약을 지운다.
 export async function cancelFirstNoteNudge() {
+  ++firstNoteNudgeGeneration;
   try {
-    await Notifications.cancelScheduledNotificationAsync(FIRST_NOTE_NUDGE_ID);
+    await mutateFirstNoteNudge(() => Notifications.cancelScheduledNotificationAsync(FIRST_NOTE_NUDGE_ID));
     return true;
   } catch (e) {
     return false;

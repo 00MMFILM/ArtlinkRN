@@ -256,6 +256,27 @@ describe("practiceService — 소요 시간(elapsedMs)", () => {
     await settle();
     expect(queue()[0]).not.toHaveProperty("elapsedMs");
   });
+
+  it("화면을 하루 넘게 열어 두어도 완료·이탈 이벤트는 시간만 생략하고 보존한다", async () => {
+    const done = startPractice("text", null, "acting");
+    const left = startPractice("video", null, "acting");
+    done.startedAt -= 25 * 60 * 60 * 1000;
+    left.startedAt -= 25 * 60 * 60 * 1000;
+    await completePractice(done);
+    await abandonPractice(left);
+    await settle();
+
+    const closed = queue().filter((e) => e.event !== "practice_started");
+    expect(closed).toHaveLength(2);
+    closed.forEach((e) => expect(e).not.toHaveProperty("elapsedMs"));
+  });
+
+  it.each([-1, 86400001, Infinity, NaN, 1.5])("잘못된 경과 시간 %s를 명시해도 서버를 막지 않는다", async (elapsedMs) => {
+    const session = startPractice("text", null, "acting");
+    await completePractice(session, { elapsedMs });
+    await settle();
+    expect(queue().find((e) => e.event === "practice_completed")).not.toHaveProperty("elapsedMs");
+  });
 });
 
 describe("practiceService — flush", () => {
@@ -340,13 +361,12 @@ describe("practiceService — flush", () => {
     expect(queue()).toHaveLength(0);
   });
 
-  // 버그: 4xx를 받아도 큐에 그대로 남아 재전송이 영원히 같은 결과로 정체됐다(2026-09)
-  it("4xx(400)는 재전송해도 같은 결과라 그 배치를 버리고 진행한다", async () => {
+  it("400 invalid event는 서버가 지목한 잘못된 이벤트를 버리고 진행한다", async () => {
     const session = startPractice("text", null, "acting");
     await settle();
     expect(queue()).toHaveLength(1);
 
-    global.fetch = jest.fn(async () => ({ ok: false, status: 400 }));
+    global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: "invalid event", index: 0 }) }));
     const result = await flushPracticeQueue();
 
     expect(queue()).toHaveLength(0); // 버려졌다 — 다음에도 똑같이 재전송되지 않는다
@@ -364,7 +384,7 @@ describe("practiceService — flush", () => {
     expect(result.sent).toBe(0);
   });
 
-  it("한 배치가 4xx여도 다음 배치는 정상 전송한다", async () => {
+  it("50건 중 1건이 잘못돼도 나머지 49건과 다음 배치는 정상 전송한다", async () => {
     const many = [];
     for (let i = 0; i < 60; i++) {
       many.push({
@@ -386,14 +406,63 @@ describe("practiceService — flush", () => {
     let call = 0;
     global.fetch = jest.fn(async () => {
       call += 1;
-      if (call === 1) return { ok: false, status: 400 };
+      if (call === 1) return { ok: false, status: 400, json: async () => ({ error: "invalid event", index: 17 }) };
       return { ok: true, status: 200 };
     });
 
     const result = await flushPracticeQueue();
 
-    expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(result.sent).toBe(10); // 두 번째(마지막 10건) 배치만 성공으로 집계
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(result.sent).toBe(59);
+    const retried = global.fetch.mock.calls.slice(1).flatMap(([, request]) => JSON.parse(request.body).events);
+    expect(retried.some((e) => e.clientEventId === "e-17")).toBe(false);
+    expect(new Set(retried.map((e) => e.clientEventId)).size).toBe(59);
+    expect(queue()).toHaveLength(0);
+  });
+
+  it.each([400, 403, 405, 429])("원인이 특정되지 않은 HTTP %s에서는 정상 큐를 버리지 않는다", async (status) => {
+    startPractice("text", null, "acting");
+    await settle();
+    const pending = queue();
+    global.fetch = jest.fn(async () => ({ ok: false, status, json: async () => ({ error: "unavailable" }) }));
+
+    await expect(flushPracticeQueue()).resolves.toEqual({ sent: 0 });
+    expect(queue()).toEqual(pending);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("구버전이 저장한 24시간 초과 시간은 보내기 전에 생략한다", async () => {
+    AsyncStorage.__store[PRACTICE_QUEUE_KEY] = JSON.stringify([
+      { clientEventId: "legacy-long", elapsedMs: 90000000 },
+      { clientEventId: "normal", elapsedMs: 86400000 },
+    ]);
+    global.fetch = online();
+
+    await expect(flushPracticeQueue()).resolves.toEqual({ sent: 2 });
+    const sent = JSON.parse(global.fetch.mock.calls[0][1].body).events;
+    expect(sent[0]).not.toHaveProperty("elapsedMs");
+    expect(sent[1].elapsedMs).toBe(86400000);
+    expect(queue()).toHaveLength(0);
+  });
+
+  it("400 응답을 기다리는 동안 추가된 이벤트도 보존해서 다시 보낸다", async () => {
+    AsyncStorage.__store[PRACTICE_QUEUE_KEY] = JSON.stringify([
+      { clientEventId: "good-a" }, { clientEventId: "bad" }, { clientEventId: "good-b" },
+    ]);
+    let rejectBadEvent;
+    global.fetch = online().mockImplementationOnce(() => new Promise((resolve) => {
+      rejectBadEvent = () => resolve({ ok: false, status: 400, json: async () => ({ error: "invalid event", index: 1 }) });
+    }));
+    const flushing = flushPracticeQueue();
+    await settle();
+    const newSession = startPractice("text", null, "acting");
+    await settle();
+    rejectBadEvent();
+
+    await expect(flushing).resolves.toEqual({ sent: 3 });
+    const retried = JSON.parse(global.fetch.mock.calls[1][1].body).events;
+    expect(retried.map((e) => e.clientEventId)).toEqual(expect.arrayContaining(["good-a", "good-b"]));
+    expect(retried.some((e) => e.sessionId === newSession.sessionId)).toBe(true);
     expect(queue()).toHaveLength(0);
   });
 

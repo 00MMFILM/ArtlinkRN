@@ -87,10 +87,14 @@ export async function getPremiumEntitlement() {
 }
 
 /** 프리미엄 활성 여부 */
-export async function checkPremium() {
+export async function checkPremium(expectedAuthUserId) {
   if (!configured) return false;
   try {
+    // SDK login is asynchronous. A fresh app account must not reuse the previous
+    // SDK user's receipt while AppNavigator is still linking the new identity.
+    if (expectedAuthUserId && await Purchases.getAppUserID() !== expectedAuthUserId) return false;
     const customerInfo = await Purchases.getCustomerInfo();
+    if (expectedAuthUserId && await Purchases.getAppUserID() !== expectedAuthUserId) return false;
     return !!customerInfo.entitlements.active[ENTITLEMENT_ID];
   } catch {
     return false;

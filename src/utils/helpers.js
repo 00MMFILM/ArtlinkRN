@@ -149,16 +149,18 @@ export function parseDeadline(str) {
 
 // 마감일이 지났는지. 형식이 잘못됐거나 비어 있으면 "마감일 미정"으로 보고 만료 취급하지 않는다.
 export function isDeadlineExpired(deadline) {
-  const date = parseDeadline(deadline);
-  if (!date) return false;
-  return Math.ceil((date - new Date()) / 86400000) <= 0;
+  const days = daysUntilDeadline(deadline);
+  return days !== null && days <= 0;
 }
 
 // 마감까지 남은 일수. 유효하지 않으면 null (호출부는 마감 표시를 생략한다 — "D-NaN" 방지).
 export function daysUntilDeadline(deadline) {
   const date = parseDeadline(deadline);
   if (!date) return null;
-  return Math.ceil((date - new Date()) / 86400000);
+  const today = new Date();
+  // 현지 달력의 날짜끼리 비교한다. DST 전환일은 23/25시간이므로 시간차를 나누면 D-day가 틀린다.
+  const calendarDay = (d) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000;
+  return calendarDay(date) - calendarDay(today);
 }
 
 export function getWeekStart(date) {

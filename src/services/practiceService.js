@@ -14,6 +14,19 @@ const APP_VERSION = require("../../app.json").expo.version;
 export const PRACTICE_QUEUE_KEY = "artlink-practice-queue";
 export const MAX_QUEUE = 200; // 넘치면 오래된 것부터 버린다
 const BATCH_SIZE = 50; // 서버 1회 최대
+const MAX_ELAPSED_MS = 24 * 60 * 60 * 1000; // 서버 practice-event 계약과 동일
+
+// 오래 열린 화면의 체류 시간을 실제 연습 24시간으로 부풀리지 않는다.
+// 유효하지 않은 시간은 생략해도 시작/완료 이벤트 자체는 정상 수집할 수 있다.
+const validElapsedMs = (value) =>
+  Number.isInteger(value) && value >= 0 && value <= MAX_ELAPSED_MS ? value : undefined;
+
+function normalizeQueuedEvent(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item) || !("elapsedMs" in item)) return item;
+  const { elapsedMs, ...rest } = item;
+  const elapsed = validElapsedMs(elapsedMs);
+  return elapsed === undefined ? rest : { ...rest, elapsedMs: elapsed };
+}
 
 const EVENTS = ["practice_started", "practice_completed", "ai_feedback_done", "practice_abandoned"];
 const KINDS = ["text", "video", "checkin", "duet", "reanalysis"];
@@ -87,7 +100,8 @@ async function enqueue(event, session, overrides = {}) {
       platform: Platform.OS,
       appVersion: APP_VERSION,
     };
-    if (Number.isInteger(overrides.elapsedMs)) item.elapsedMs = overrides.elapsedMs;
+    const elapsed = validElapsedMs(overrides.elapsedMs);
+    if (elapsed !== undefined) item.elapsedMs = elapsed;
     await serialize(async () => {
       const queue = await readQueue(scope);
       queue.push(item);
@@ -191,8 +205,8 @@ let flushing = false;
 
 /**
  * 큐를 최대 50건씩 보낸다. 2xx면 그 건만 지우고 다음 배치로 진행한다.
- * 4xx(401 제외)는 재전송해도 같은 결과라 그 배치를 버리고 다음 배치로 진행한다.
- * 401(토큰 문제일 수 있음)·5xx·네트워크 오류는 큐에 그대로 두고 중단한다.
+ * 400 invalid event는 서버가 지목한 한 건만 버린다. 같은 배치의 정상 기록은 다시 보낸다.
+ * 원인 불명의 4xx·429·5xx·네트워크 오류는 큐에 그대로 두고 중단한다.
  */
 export async function flushPracticeQueue() {
   const scope = getStorageScope();
@@ -205,9 +219,11 @@ export async function flushPracticeQueue() {
       const queue = await readQueue(scope);
       if (getStorageScope() !== scope) break;
       if (queue.length === 0) break;
-      const batch = queue.slice(0, BATCH_SIZE);
+      // 이전 버전이 저장한 24시간 초과 시간도 전송 직전에 정리한다.
+      const batch = queue.slice(0, BATCH_SIZE).map(normalizeQueuedEvent);
       let ok = false;
       let status = null;
+      let rejectedIndex = null;
       try {
         const res = await fetch(`${SERVER_URL}/api/practice-event`, {
           method: "POST",
@@ -216,18 +232,28 @@ export async function flushPracticeQueue() {
         });
         status = res?.status;
         ok = !!res && (typeof res.ok === "boolean" ? res.ok : status >= 200 && status < 300);
+        if (!ok && status === 400) {
+          const error = await res.json();
+          if (error?.error === "invalid event" && Number.isInteger(error.index) && error.index >= 0 && error.index < batch.length) {
+            rejectedIndex = error.index;
+          }
+        }
       } catch (e) {
         ok = false;
       }
       if (!ok) {
-        const discardable4xx = status && status >= 400 && status < 500 && status !== 401;
-        if (!discardable4xx) break; // 401·5xx·네트워크 오류는 큐에 남기고 중단
-        const dropped = new Set(batch.map((e) => e.clientEventId));
+        if (rejectedIndex === null) break;
+        const rejected = queue[rejectedIndex];
         await serialize(async () => {
           const current = await readQueue(scope);
-          await writeQueue(current.filter((e) => !dropped.has(e.clientEventId)), scope);
+          // 유효한 이벤트 ID가 없는 손상된 항목도 그 한 건만 제거한다.
+          const index = current.findIndex((e) =>
+            rejected?.clientEventId ? e?.clientEventId === rejected.clientEventId : JSON.stringify(e) === JSON.stringify(rejected)
+          );
+          if (index >= 0) current.splice(index, 1);
+          await writeQueue(current, scope);
         });
-        continue; // 이 배치는 버리고 다음 배치로
+        continue;
       }
       const posted = new Set(batch.map((e) => e.clientEventId));
       await serialize(async () => {

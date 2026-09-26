@@ -32,15 +32,18 @@ const { AppNavigator } = require("../../App");
 const { useApp } = require("../context/AppContext");
 const { supabase } = require("../services/supabaseClient");
 const { loadDraft } = require("../services/noteDraft");
+const { initPurchases, logInPurchases } = require("../services/purchasesService");
 let context;
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
   jest.spyOn(Linking, "addEventListener").mockReturnValue({ remove: jest.fn() });
-  context = { authState: "app", storageReady: true, eulaAccepted: true, userProfile: { email: "member@example.test", name: "guest" }, toast: {}, handleAuth: jest.fn() };
+  context = { authState: "app", storageReady: true, eulaAccepted: true, userProfile: { email: "member@example.test", name: "guest" }, toast: {}, handleAuth: jest.fn(), refreshPremium: jest.fn() };
   useApp.mockImplementation(() => context);
   supabase.auth.signUp.mockResolvedValue({ data: { user: { id: "member" }, session: { user: { id: "member" }, access_token: "fake-session" } }, error: null });
   loadDraft.mockResolvedValue(null);
+  initPurchases.mockResolvedValue(undefined);
+  logInPurchases.mockResolvedValue(undefined);
 });
 const submit = (ui) => {
   fireEvent.changeText(ui.getByPlaceholderText("app.password_min"), "test-password");
@@ -88,4 +91,31 @@ test("이메일 확인 전 user만 반환되면 계정 연결/완료 안내를 �
   await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith("common.error", "app.link_error"));
   expect(context.handleAuth).not.toHaveBeenCalled();
   expect(Alert.alert).not.toHaveBeenCalledWith("common.done", "app.signup_complete");
+});
+
+
+test("RevenueCat 계정 연결이 완료된 뒤 프리미엄을 다시 확인한다", async () => {
+  let finishLogin;
+  context.userProfile = { authUserId: "A" };
+  logInPurchases.mockImplementationOnce(() => new Promise((resolve) => { finishLogin = resolve; }));
+  render(<AppNavigator />);
+  await waitFor(() => expect(logInPurchases).toHaveBeenCalledWith("A"));
+  expect(context.refreshPremium).not.toHaveBeenCalled();
+  await act(async () => finishLogin());
+  expect(context.refreshPremium).toHaveBeenCalledTimes(1);
+});
+
+test("A의 늦은 RevenueCat 연결 결과는 B 로그인 뒤 A 갱신을 실행하지 않는다", async () => {
+  let finishA;
+  const refreshA = jest.fn(), refreshB = jest.fn();
+  context = { ...context, userProfile: { authUserId: "A" }, refreshPremium: refreshA };
+  logInPurchases.mockImplementationOnce(() => new Promise((resolve) => { finishA = resolve; }));
+  const ui = render(<AppNavigator />);
+  await waitFor(() => expect(logInPurchases).toHaveBeenCalledWith("A"));
+  context = { ...context, userProfile: { authUserId: "B" }, refreshPremium: refreshB };
+  ui.rerender(<AppNavigator />);
+  await waitFor(() => expect(refreshB).toHaveBeenCalledTimes(1));
+  await act(async () => finishA());
+  expect(refreshA).not.toHaveBeenCalled();
+  expect(refreshB).toHaveBeenCalledTimes(1);
 });

@@ -20,7 +20,8 @@ jest.mock("../../services/profileService", () => ({ upsertArtistProfile: jest.fn
 jest.mock("../../services/mauService", () => ({ trackAppOpen: jest.fn(), trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/matchingService", () => ({ createMatchingPost: jest.fn(), deleteMatchingPost: jest.fn() }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://invalid.test", getApiHeaders: () => ({}), setApiDeviceId: jest.fn(), setDataConsentCache: jest.fn() }));
-jest.mock("../../services/premiumService", () => ({ fetchUsageStatus: jest.fn(async () => ({ premium: null, usage: null })), syncStorePremium: jest.fn(async () => false), mergeRcPremium: jest.fn((p) => p || {}), EMPTY_PREMIUM: {}, shouldApplyServerPremium: jest.fn(() => true), PREMIUM_OPTIMISTIC_MS: 1000 }));
+jest.mock("../../services/purchasesService", () => ({ checkPremium: jest.fn(async () => false) }));
+jest.mock("../../services/premiumService", () => ({ fetchUsageStatus: jest.fn(async () => ({ premium: null, usage: null })), syncStorePremium: jest.fn(async () => false), mergeRcPremium: jest.requireActual("../../services/premiumService").mergeRcPremium, EMPTY_PREMIUM: jest.requireActual("../../services/premiumService").EMPTY_PREMIUM, shouldApplyServerPremium: jest.requireActual("../../services/premiumService").shouldApplyServerPremium, PREMIUM_OPTIMISTIC_MS: 1000 }));
 jest.mock("../../services/practiceService", () => ({ getPracticeLog: jest.fn(async () => []) }));
 jest.mock("../../services/reminderService", () => ({ scheduleFirstNoteNudge: jest.fn(), cancelFirstNoteNudge: jest.fn() }));
 jest.mock("../../services/recordingMigration", () => ({ migrateCachedRecordings: jest.fn(async () => null) }));
@@ -32,7 +33,11 @@ function Probe() { current = useApp(); return null; }
 const settle = async () => { for (let i = 0; i < 12; i += 1) await Promise.resolve(); };
 const mount = async () => { await act(async () => { tree = create(<AppProvider><Probe /></AppProvider>); await settle(); }); await act(settle); };
 beforeEach(async () => {
-  await disk.clear(); mockUser = { id: "A", user_metadata: { name: "A" } };
+  await disk.clear(); jest.clearAllMocks();
+  const premiumService = require("../../services/premiumService");
+  premiumService.fetchUsageStatus.mockResolvedValue({ premium: null, usage: null });
+  premiumService.syncStorePremium.mockResolvedValue(false);
+  mockUser = { id: "A", user_metadata: { name: "A" } };
   await disk.setItem("artlink-profile", JSON.stringify({ name: "A", authUserId: "A" }));
   await disk.setItem("artlink-notes", JSON.stringify([{ id: 1, title: "A only", content: "A private", createdAt: "2026-09-20", updatedAt: "2026-09-20" }]));
   await disk.setItem("artlink-portfolio-items", JSON.stringify([{ id: 2, uri: "file://A-photo" }]));
@@ -163,6 +168,7 @@ describe("가입 직후 첫 체크인 게이트", () => {
     mockUser = { id: "with-notes", user_metadata: { name: "member" } };
     await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
     expect(current.firstCheckinPending).toBe(false);
+    expect(reminder.scheduleFirstNoteNudge).not.toHaveBeenCalled();
   });
 
   test("닫으면 계정 스코프 키로 기록돼 다시 뜨지 않는다", async () => {
@@ -190,5 +196,63 @@ describe("가입 직후 첫 체크인 게이트", () => {
     reminder.cancelFirstNoteNudge.mockClear();
     await act(async () => { await current.handleLogout(); await settle(); });
     expect(reminder.cancelFirstNoteNudge).toHaveBeenCalled();
+  });
+});
+
+
+describe("계정을 바꾼 뒤 늦게 끝난 결제 상태 갱신", () => {
+  const service = require("../../services/premiumService");
+  const paid = { active: true, kind: "sub", plan: "monthly", source: "server" };
+  const quota = { text: { used: 8, max: 10, left: 2 }, video: { used: 9, max: 15, left: 6 } };
+
+  test("게스트 AI 완료 콜백이 로그인 뒤 실행돼도 현재 계정의 프리미엄과 사용량을 지우지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    const guestRefresh = current.refreshPremium;
+    service.fetchUsageStatus.mockResolvedValue({ premium: paid, usage: quota });
+    service.syncStorePremium.mockResolvedValue(true);
+    mockUser = { id: "paid", user_metadata: { name: "paid" } };
+    await act(async () => { await current.handleAuth({ name: "paid" }); await settle(); });
+    expect(current.premium.active).toBe(true);
+    await act(async () => { await guestRefresh(); await settle(); });
+    expect(current.premium.active).toBe(true);
+    expect(current.usage).toEqual(quota);
+  });
+
+  test("A에서 B로 전환 중 B 조회가 지연돼도 A의 영수증·사용량이 B 화면에 남지 않는다", async () => {
+    service.fetchUsageStatus.mockResolvedValue({ premium: { active: false }, usage: quota });
+    service.syncStorePremium.mockResolvedValue(true);
+    await mount();
+    expect(current.premium.active).toBe(true);
+    expect(current.usage).toEqual(quota);
+    let resolveUsage;
+    service.fetchUsageStatus.mockImplementation(() => new Promise((resolve) => { resolveUsage = resolve; }));
+    mockUser = { id: "B", user_metadata: { name: "B" } };
+    await act(async () => { await current.handleAuth({ name: "B" }); await settle(); });
+    expect(current.userProfile.authUserId).toBe("B");
+    expect(current.premium.active).toBe(false);
+    expect(current.usage).toBeNull();
+    service.syncStorePremium.mockResolvedValue(false);
+    await act(async () => { resolveUsage({ premium: null, usage: null }); await settle(); });
+  });
+
+  test("A에서 시작한 결제의 완료 콜백은 B를 유료 회원으로 만들지 않는다", async () => {
+    await mount();
+    const markAPurchased = current.markPremiumActive;
+    mockUser = { id: "B", user_metadata: { name: "B" } };
+    await act(async () => { await current.handleAuth({ name: "B" }); await settle(); });
+    await act(async () => { markAPurchased({ plan: "monthly" }); await settle(); });
+    expect(current.premium.active).toBe(false);
+  });
+
+  test("A에서 보관한 refresh 콜백은 B 로그인 뒤 새 조회를 시작하지 않는다", async () => {
+    await mount();
+    const refreshA = current.refreshPremium;
+    mockUser = { id: "B", user_metadata: { name: "B" } };
+    await act(async () => { await current.handleAuth({ name: "B" }); await settle(); });
+    service.fetchUsageStatus.mockClear();
+    await act(async () => { await refreshA(); await settle(); });
+    expect(service.fetchUsageStatus).not.toHaveBeenCalled();
   });
 });

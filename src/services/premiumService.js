@@ -94,8 +94,10 @@ export async function requestPremiumResync() {
  * 스토어 영수증(RevenueCat) 기준 활성 여부. 서버가 못 따라왔으면 복구까지 걸어 둔다.
  * 앱 기동·포그라운드 복귀·결제·복원 직후에 부른다.
  */
-export async function syncStorePremium(serverActive) {
-  const rc = await checkPremium();
+export async function syncStorePremium(serverActive, { authUserId, isCurrent = () => true } = {}) {
+  if (!isCurrent()) return false;
+  const rc = await checkPremium(authUserId);
+  if (!isCurrent()) return false;
   if (rc && !serverActive) requestPremiumResync(); // 부가 경로 — 결과를 기다리지 않는다
   return rc;
 }

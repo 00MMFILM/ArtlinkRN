@@ -7,6 +7,7 @@ import {
   visibleCommunityPosts,
   toLocalDateKey,
 } from "../helpers";
+import { execFileSync } from "child_process";
 
 describe("isActor (배우 게이팅)", () => {
   it("연기 전공이면 true", () => {
@@ -184,5 +185,35 @@ describe("isDeadlineExpired / daysUntilDeadline (만료 필터 · D-day)", () =>
     expect(daysUntilDeadline("상시모집")).toBeNull();
     expect(daysUntilDeadline(undefined)).toBeNull();
     expect(daysUntilDeadline(future())).toBe(10);
+  });
+
+  it("뉴욕 DST 종료의 25시간 하루도 내일은 D-1, 오늘은 D-0이다", () => {
+    // Jest 워커의 TZ를 중간에 바꾸면 Date의 시간대가 바뀌지 않을 수 있어 별도 Node에서 검증한다.
+    // 실제 helpers 모듈을 불러오되 날짜 외 UI/i18n 의존성만 비운다.
+    const result = execFileSync(process.execPath, ["-e", `
+      const { transformFileSync } = require("@babel/core");
+      const { runInNewContext } = require("vm");
+      const code = transformFileSync(process.argv[1], {
+        configFile: false, babelrc: false,
+        plugins: ["@babel/plugin-transform-modules-commonjs"],
+      }).code;
+      let now = "2026-11-01T00:15:00-04:00";
+      class FixedDate extends Date {
+        constructor(...args) { super(...(args.length ? args : [now])); }
+      }
+      const exported = {};
+      runInNewContext(code, { exports: exported, require: () => ({}), Date: FixedDate });
+      const fall = [exported.daysUntilDeadline("2026-11-02"), exported.daysUntilDeadline("2026-11-01"), exported.isDeadlineExpired("2026-11-02")];
+      now = "2026-03-08T23:30:00-04:00";
+      const spring = [exported.daysUntilDeadline("2026-03-09"), exported.daysUntilDeadline("2026-03-07")];
+      now = "2028-02-28T23:30:00-05:00";
+      const leap = exported.daysUntilDeadline("2028-03-01");
+      process.stdout.write(JSON.stringify({ fall, spring, leap }));
+    `, require.resolve("../helpers")], {
+      cwd: process.cwd(),
+      env: { ...process.env, TZ: "America/New_York" },
+      encoding: "utf8",
+    });
+    expect(JSON.parse(result)).toEqual({ fall: [1, 0, false], spring: [1, -1], leap: 2 });
   });
 });

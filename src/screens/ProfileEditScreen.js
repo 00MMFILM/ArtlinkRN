@@ -50,6 +50,7 @@ export default function ProfileEditScreen({ navigation }) {
   const [career, setCareer] = useState(userProfile.career || []);
   const [selectedFields, setSelectedFields] = useState(userProfile.fields || []);
   const [profilePublic, setProfilePublic] = useState(userProfile.profilePublic || false);
+  const visibilityTouchedRef = useRef(false);
   const [photos, setPhotos] = useState(userProfile.photos || []);
   const photoBusyRef = useRef(false);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -181,7 +182,7 @@ export default function ProfileEditScreen({ navigation }) {
         bio: bio.trim(),
         career,
         fields: selectedFields,
-        profilePublic,
+        ...(visibilityTouchedRef.current ? { profilePublic } : {}),
         photos: keptPhotos,
         photoUrl: keptPhotos[0] || null,
         pendingPhotoUris: localPhotos.length > 0 ? localPhotos : undefined,
@@ -446,7 +447,7 @@ export default function ProfileEditScreen({ navigation }) {
             </View>
             <Switch
               value={profilePublic}
-              onValueChange={setProfilePublic}
+              onValueChange={(value) => { visibilityTouchedRef.current = true; setProfilePublic(value); }}
               trackColor={{ false: CLight.gray200, true: CLight.pink }}
               thumbColor={CLight.white}
             />

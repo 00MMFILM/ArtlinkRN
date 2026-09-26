@@ -301,3 +301,18 @@ describe("shouldApplyServerPremium — 결제 직후 낙관적 활성 보호", (
     expect(PREMIUM_OPTIMISTIC_MS).toBe(180000);
   });
 });
+
+
+test("영수증 조회 중 앱 계정이 바뀌면 새 계정 헤더로 이전 영수증의 복구 요청을 보내지 않는다", async () => {
+  let resolveReceipt;
+  let current = true;
+  global.fetch = jest.fn();
+  checkPremium.mockImplementationOnce(() => new Promise((resolve) => { resolveReceipt = resolve; }));
+  const result = syncStorePremium(false, { authUserId: "A", isCurrent: () => current });
+  expect(checkPremium).toHaveBeenLastCalledWith("A");
+  current = false;
+  resolveReceipt(true);
+  expect(await result).toBe(false);
+  expect(global.fetch).not.toHaveBeenCalled();
+  global.fetch = undefined;
+});

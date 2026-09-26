@@ -1,7 +1,7 @@
 // 프로필 편집 화면에 이탈 경고가 없던 문제 — NoteCreateScreen/CommunityPostCreateScreen과 같은
 // beforeRemove + 변경 여부 가드를 추가한다. 저장으로 나갈 때는 경고가 뜨면 안 된다.
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, Switch } from "react-native";
 import { render, fireEvent, act, waitFor } from "@testing-library/react-native";
 import ProfileEditScreen from "../ProfileEditScreen";
 import { useApp } from "../../context/AppContext";
@@ -198,5 +198,27 @@ describe("ProfileEditScreen — 공개 OFF 서버 반영 대기 표시", () => {
     const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
     expect(utils.queryByText("profileEdit.visibility_pending_private")).toBeNull();
     expect(utils.queryByText("profileEdit.visibility_pending_public")).toBeNull();
+  });
+});
+
+
+describe("ProfileEditScreen — 공개 여부를 직접 선택했을 때만 저장", () => {
+  it("새 기기의 미확인 기본 OFF는 이름을 저장할 때 공개 변경으로 보내지 않는다", async () => {
+    const ctx = useApp();
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+    fireEvent.changeText(utils.getByPlaceholderText("profileEdit.name_placeholder"), "새 이름");
+    fireEvent.press(utils.getByText("common.save"));
+    await waitFor(() => expect(ctx.handleUpdateProfile).toHaveBeenCalled());
+    expect(ctx.handleUpdateProfile.mock.calls[0][0]).not.toHaveProperty("profilePublic");
+  });
+
+  it("스위치를 ON 뒤 OFF로 직접 선택하면 원래 기본값과 같아도 명시 OFF를 보낸다", async () => {
+    const ctx = useApp();
+    const utils = render(<ProfileEditScreen navigation={buildNavigation()} />);
+    const toggle = utils.UNSAFE_getAllByType(Switch).find((item) => item.props.trackColor?.true);
+    fireEvent(toggle, "valueChange", true);
+    fireEvent(toggle, "valueChange", false);
+    fireEvent.press(utils.getByText("common.save"));
+    await waitFor(() => expect(ctx.handleUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({ profilePublic: false })));
   });
 });

@@ -278,16 +278,25 @@ const resetStyles = StyleSheet.create({
 
 export function AppNavigator() {
   const { t } = useTranslation();
-  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady, firstCheckinPending } = useApp();
+  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady, firstCheckinPending, refreshPremium } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
 
   // RevenueCat 초기화 — authUserId 있으면 app_user_id로 연결 (웹훅 → premium_members 매칭 기준)
   useEffect(() => {
-    initPurchases(userProfile?.authUserId);
-    if (userProfile?.authUserId) logInPurchases(userProfile.authUserId);
-  }, [userProfile?.authUserId]);
+    if (!storageReady) return;
+    let cancelled = false;
+    (async () => {
+      await initPurchases(userProfile?.authUserId);
+      if (cancelled || !userProfile?.authUserId) return;
+      await logInPurchases(userProfile.authUserId);
+      // The initial account refresh may precede RevenueCat's async identity switch.
+      // Refresh once linked, using the owner-bound callback from this render.
+      if (!cancelled) await refreshPremium();
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, [storageReady, userProfile?.authUserId, refreshPremium]);
 
   useEffect(() => {
     AsyncStorage.getItem("artlink-onboarding-seen").then((v) => {

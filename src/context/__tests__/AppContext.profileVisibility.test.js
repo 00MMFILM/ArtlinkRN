@@ -75,24 +75,23 @@ test("서버 반영 실패는 다음 앱 실행에서 다시 보내고 성공하
   expect(JSON.parse(await disk.getItem("artlink-profile::account:A")).visibilityPending).toBe(false);
 });
 
-test("1.11.6 이하에서 OFF였던 프로필(스탬프 없음)은 첫 실행에 한 번 서버로 OFF를 보낸다", async () => {
-  await disk.setItem("artlink-profile", JSON.stringify({ name: "A", authUserId: "A", profilePublic: false }));
-  syncProfileVisibility.mockImplementation(async (_id, p) => ({ ok: true, profilePublic: false, visibilityUpdatedAt: p.visibilityUpdatedAt }));
+test.each([
+  { name: "A", authUserId: "A" },
+  { name: "A", authUserId: "A", profilePublic: false },
+])("시각 없는 기본 비공개/미확인 상태는 다른 기기의 서버 공개 프로필을 자동으로 끄지 않는다: %j", async (profile) => {
+  await disk.setItem("artlink-profile", JSON.stringify(profile));
+  syncProfileVisibility.mockResolvedValue({ ok: true });
   await mount();
   await act(settle);
-  expect(syncProfileVisibility).toHaveBeenCalledTimes(1);
-  expect(syncProfileVisibility).toHaveBeenCalledWith("community-id", expect.objectContaining({
-    profilePublic: false, visibilityUpdatedAt: expect.any(String),
-  }));
-  expect(current.userProfile.visibilityPending).toBe(false);
-  expect(current.userProfile.profilePublic).toBe(false);
-  // 스탬프가 찍혔으니 다음 실행에서는 다시 보내지 않는다
+  expect(syncProfileVisibility).not.toHaveBeenCalled();
+  expect(current.userProfile.visibilityUpdatedAt).toBeUndefined();
+  expect(current.userProfile.visibilityPending).toBeUndefined();
   await unmount();
-  syncProfileVisibility.mockClear();
   await mount();
   await act(settle);
   expect(syncProfileVisibility).not.toHaveBeenCalled();
 });
+
 
 test("토글할 때마다 visibilityUpdatedAt이 커지고 모든 프로필 업로드에 실린다", async () => {
   syncProfileVisibility.mockResolvedValue({ ok: true });
@@ -132,4 +131,16 @@ test("다른 기기에서 끈 비공개를 서버 응답으로 받아 이 기기
   expect(current.userProfile.visibilityUpdatedAt).toBe("2099-01-01T00:00:00.000Z");
   const saved = JSON.parse(await disk.getItem("artlink-profile::account:A"));
   expect(saved.profilePublic).toBe(false);
+});
+
+
+test("미확인 기본 OFF라도 사용자가 명시적으로 OFF를 저장하면 서버에 전달한다", async () => {
+  await disk.setItem("artlink-profile", JSON.stringify({ name: "A", authUserId: "A" }));
+  syncProfileVisibility.mockImplementation(async (_id, p) => ({ ok: true, profilePublic: false, visibilityUpdatedAt: p.visibilityUpdatedAt }));
+  await mount();
+  expect(syncProfileVisibility).not.toHaveBeenCalled();
+  await act(async () => { await current.handleUpdateProfile({ profilePublic: false }); await settle(); });
+  expect(syncProfileVisibility).toHaveBeenCalledWith("community-id", expect.objectContaining({
+    profilePublic: false, visibilityUpdatedAt: expect.any(String),
+  }));
 });
