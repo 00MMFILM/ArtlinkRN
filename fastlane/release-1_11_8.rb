@@ -9,7 +9,7 @@ require_relative "asc_env"
 
 VERSION = "1.11.8"
 BUILD_NUMBER = "86"
-NOTES_PATH = "/private/tmp/claude-501/-Users-leechangyeop/7846a8ad-8bca-489f-b0ef-94b5d694327c/scratchpad/release-notes-1.11.8.json"
+NOTES_PATH = File.expand_path("notes/1.11.8.json", __dir__)
 
 def token
   key = OpenSSL::PKey::EC.new(File.read(KEY_PATH))
