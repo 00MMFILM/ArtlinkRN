@@ -584,7 +584,19 @@
     "open_error": "원본 사이트를 열 수 없습니다.",
     "source_attribution": "{{platform}}에서 가져온 공고입니다",
     "call": "전화하기",
-    "send_email": "메일 보내기"
+    "send_email": "메일 보내기",
+    "source_title": "출처",
+    "source_unknown": "출처 미확인",
+    "application_method": "지원 방법",
+    "open_form": "지원 페이지 열기",
+    "check_source": "원문에서 지원 방법 확인",
+    "info_unavailable": "지원 정보 미확인",
+    "copy_contact": "복사하기",
+    "copied": "복사했습니다",
+    "copy_error": "복사하지 못했습니다. 위 내용을 길게 눌러 복사해주세요.",
+    "link_error": "연결할 수 없습니다. 주소를 복사해 직접 확인해주세요.",
+    "closed_notice": "마감되었거나 종료된 공고입니다. 원문에서 현재 상태를 확인해주세요.",
+    "deadline_today": "오늘 마감"
   },
   "goals": {
     "title": "목표 관리",

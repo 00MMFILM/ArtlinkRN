@@ -584,7 +584,19 @@
     "open_error": "原文サイトを開けません。",
     "source_attribution": "{{platform}}から取得した公募です",
     "call": "電話する",
-    "send_email": "メールを送る"
+    "send_email": "メールを送る",
+    "source_title": "出典",
+    "source_unknown": "出典未確認",
+    "application_method": "応募方法",
+    "open_form": "応募ページを開く",
+    "check_source": "元のページで応募方法を確認",
+    "info_unavailable": "応募情報未確認",
+    "copy_contact": "コピー",
+    "copied": "コピーしました",
+    "copy_error": "コピーできませんでした。上のテキストを長押ししてコピーしてください。",
+    "link_error": "リンクを開けませんでした。アドレスをコピーして確認してください。",
+    "closed_notice": "募集は締め切られたか終了しています。元のページで現在の状況を確認してください。",
+    "deadline_today": "本日締切"
   },
   "goals": {
     "title": "目標管理",

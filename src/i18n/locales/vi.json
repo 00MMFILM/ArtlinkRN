@@ -584,7 +584,19 @@
     "open_error": "Không thể mở trang gốc.",
     "source_attribution": "Thông báo được lấy từ {{platform}}",
     "call": "Gọi điện",
-    "send_email": "Gửi email"
+    "send_email": "Gửi email",
+    "source_title": "Nguồn",
+    "source_unknown": "Chưa xác minh nguồn",
+    "application_method": "Cách ứng tuyển",
+    "open_form": "Mở trang ứng tuyển",
+    "check_source": "Xem cách ứng tuyển trong bài gốc",
+    "info_unavailable": "Chưa có thông tin ứng tuyển",
+    "copy_contact": "Sao chép",
+    "copied": "Đã sao chép",
+    "copy_error": "Không thể sao chép. Hãy nhấn giữ văn bản phía trên để sao chép.",
+    "link_error": "Không thể mở liên kết. Hãy sao chép địa chỉ để kiểm tra thủ công.",
+    "closed_notice": "Thông báo này đã kết thúc hoặc hết hạn. Hãy kiểm tra trạng thái hiện tại trong bài gốc.",
+    "deadline_today": "Hạn chót hôm nay"
   },
   "goals": {
     "title": "Quản lý mục tiêu",

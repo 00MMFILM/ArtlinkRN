@@ -584,7 +584,19 @@
     "open_error": "無法開啟原始網站。",
     "source_attribution": "此公告來自 {{platform}}",
     "call": "撥打電話",
-    "send_email": "傳送郵件"
+    "send_email": "傳送郵件",
+    "source_title": "來源",
+    "source_unknown": "來源未確認",
+    "application_method": "申請方式",
+    "open_form": "開啟申請頁面",
+    "check_source": "前往原文查看申請方式",
+    "info_unavailable": "申請資訊未確認",
+    "copy_contact": "複製",
+    "copied": "已複製",
+    "copy_error": "複製失敗。請長按上方文字進行複製。",
+    "link_error": "無法開啟連結。請複製地址後手動查看。",
+    "closed_notice": "此招募已截止或結束。請前往原文確認目前狀態。",
+    "deadline_today": "今日截止"
   },
   "goals": {
     "title": "目標管理",

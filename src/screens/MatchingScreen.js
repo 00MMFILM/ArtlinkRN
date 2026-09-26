@@ -8,13 +8,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import { FIELDS, isDeadlineExpired, daysUntilDeadline } from "../utils/helpers";
+import { FIELDS } from "../utils/helpers";
+import { isMatchingClosed, matchingDeadlineDays, matchingSourceName } from "../utils/matchingApplication";
 import { computeMatchPercent } from "../services/analyticsService";
 import { fetchMatchingFeed, fetchUserMatchingPosts, mergeUserMatchingPosts } from "../services/matchingService";
 import TopBar from "../components/TopBar";
@@ -93,7 +93,7 @@ export default function MatchingScreen({ navigation }) {
   // AI 공고 중 마감 지난 항목은 기본 제외(사용자가 직접 올린 공고는 건드리지 않음).
   // 마감일 없는 공고("마감일 미정")는 계속 노출된다.
   const dataSource = sourceTab === "ai"
-    ? aiPostings.filter((item) => !isDeadlineExpired(item.deadline))
+    ? aiPostings.filter((item) => !isMatchingClosed(item))
     : userPosts;
 
   const filtered = useMemo(() => {
@@ -134,21 +134,16 @@ export default function MatchingScreen({ navigation }) {
   ];
 
   const getDaysLeft = (deadline) => {
-    const diff = daysUntilDeadline(deadline);
+    const diff = matchingDeadlineDays(deadline);
     if (diff === null) return null; // 마감일 없음·형식 깨짐 → 배지 생략("D-NaN" 방지)
-    if (diff <= 0) return t("matching.deadline_expired");
+    if (diff < 0) return t("matching.deadline_expired");
+    if (diff === 0) return t("matchingDetail.deadline_today");
     return `D-${diff}`;
   };
 
   const handleDetailPress = useCallback((item) => {
-    if (item.source === "ai" && item.externalUrl) {
-      Linking.openURL(item.externalUrl).catch(() => {
-        Alert.alert(t("matching.link_error"), t("matching.link_error_msg"));
-      });
-    } else {
-      navigation.navigate("MatchingPostDetail", { post: item });
-    }
-  }, [navigation, t]);
+    navigation.navigate("MatchingPostDetail", { post: item });
+  }, [navigation]);
 
   const handleReportPost = useCallback((item) => {
     Alert.alert(t("common.report_title"), t("common.report_confirm"), [
@@ -210,7 +205,7 @@ export default function MatchingScreen({ navigation }) {
 
   const renderCard = (item) => {
     const isAi = item.source === "ai";
-    const daysLeft = getDaysLeft(item.deadline);
+    const daysLeft = isMatchingClosed(item) ? t("matching.deadline_expired") : getDaysLeft(item.deadline);
 
     return (
       <TouchableOpacity
@@ -224,7 +219,7 @@ export default function MatchingScreen({ navigation }) {
         <View style={styles.sourceBadgeRow}>
           <View style={[styles.sourceBadge, isAi ? styles.sourceBadgeAi : styles.sourceBadgeUser]}>
             <Text style={[T.tiny, { color: isAi ? CLight.blue : CLight.purple, fontWeight: "600" }]}>
-              {isAi ? t("matching.badge_ai") : t("matching.badge_user")}
+              {isAi ? matchingSourceName(item) || t("matchingDetail.source_unknown") : t("matching.badge_user")}
             </Text>
           </View>
           <TouchableOpacity
@@ -279,7 +274,7 @@ export default function MatchingScreen({ navigation }) {
         {/* Footer */}
         <View style={styles.cardFooter}>
           <Text style={[T.micro, { color: CLight.gray400 }]}>
-            {daysLeft ? t("matching.deadline_prefix", { date: item.deadline }) : t("matching.deadline_none")}
+            {matchingDeadlineDays(item.deadline) !== null ? t("matching.deadline_prefix", { date: item.deadline }) : t("matching.deadline_none")}
           </Text>
           {daysLeft && (
             <View style={[styles.dDayBadge, daysLeft === t("matching.deadline_expired") ? { backgroundColor: CLight.red + "18" } : {}]}>
@@ -292,7 +287,7 @@ export default function MatchingScreen({ navigation }) {
 
         <TouchableOpacity style={styles.applyBtn} onPress={() => handleDetailPress(item)}>
           <Text style={[T.captionBold, { color: CLight.white }]}>
-            {isAi && item.externalUrl ? t("matching.view_original") : t("matching.view_detail")}
+            {t("matching.view_detail")}
           </Text>
         </TouchableOpacity>
       </TouchableOpacity>

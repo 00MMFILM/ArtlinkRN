@@ -7,12 +7,13 @@ import {
   Alert,
   StyleSheet,
   Linking,
+  Clipboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
-import { daysUntilDeadline } from "../utils/helpers";
+import { resolveMatchingApplication, matchingDeadlineDays, isMatchingClosed, matchingSourceName } from "../utils/matchingApplication";
 
 export default function MatchingPostDetailScreen({ route, navigation }) {
   const { t } = useTranslation();
@@ -24,13 +25,15 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
   const fieldLabel = t("fields." + post.field);
 
   const getDaysLeft = (deadline) => {
-    const diff = daysUntilDeadline(deadline);
+    const diff = matchingDeadlineDays(deadline);
     if (diff === null) return null; // 마감일 없음·형식 깨짐 → 마감 표시 생략("D-NaN" 방지)
-    if (diff <= 0) return t("matchingDetail.deadline_expired");
+    if (diff < 0) return t("matchingDetail.deadline_expired");
+    if (diff === 0) return t("matchingDetail.deadline_today");
     return `D-${diff}`;
   };
 
-  const daysLeft = getDaysLeft(post.deadline);
+  const closed = isMatchingClosed(post);
+  const daysLeft = closed ? t("matchingDetail.deadline_expired") : getDaysLeft(post.deadline);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -91,30 +94,34 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
     ]);
   }, [post, handleBlockUser, handleReportContent, navigation, t]);
 
-  const isCrawled = post.source === "ai";
+  const application = resolveMatchingApplication(post.contact, post.sourceUrl);
+  const sourceName = matchingSourceName(post) || t(post.source === "ai" ? "matchingDetail.source_unknown" : "matching.badge_user");
+  const directApplication = !closed && ["email", "phone", "form"].includes(application.kind);
+  const actionHref = directApplication ? application.href : application.sourceUrl;
+  const actionLabel = directApplication
+    ? { email: "send_email", phone: "call", form: "open_form" }[application.kind]
+    : application.sourceUrl ? "check_source" : "info_unavailable";
 
-  const handleBottomAction = useCallback(() => {
-    if (isCrawled && post.sourceUrl) {
-      Linking.openURL(post.sourceUrl).catch(() =>
-        Alert.alert(t("common.error"), t("matchingDetail.open_error"))
-      );
-    } else if (post.contact) {
-      const c = post.contact.trim();
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c);
-      const isPhone = /^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(c.replace(/\s/g, ""));
-
-      const buttons = [{ text: t("common.close"), style: "cancel" }];
-      if (isEmail) {
-        buttons.unshift({ text: t("matchingDetail.send_email"), onPress: () => Linking.openURL(`mailto:${c}`) });
-      } else if (isPhone) {
-        buttons.unshift({ text: t("matchingDetail.call"), onPress: () => Linking.openURL(`tel:${c.replace(/\s/g, "")}`) });
-      }
-
-      Alert.alert(t("matchingDetail.contact_title"), c, buttons);
-    } else {
-      Alert.alert(t("matchingDetail.no_contact"), t("matchingDetail.no_contact_msg"));
+  const copyValue = useCallback((value) => {
+    try {
+      Clipboard.setString(value);
+      Alert.alert(t("matchingDetail.copied"));
+    } catch {
+      Alert.alert(t("common.error"), t("matchingDetail.copy_error"));
     }
-  }, [isCrawled, post.sourceUrl, post.contact, t]);
+  }, [t]);
+
+  const openLink = useCallback(async (href, copyText) => {
+    if (!href) return;
+    try {
+      await Linking.openURL(href);
+    } catch {
+      Alert.alert(t("common.error"), t("matchingDetail.link_error"), [
+        { text: t("matchingDetail.copy_contact"), onPress: () => copyValue(copyText) },
+        { text: t("common.close"), style: "cancel" },
+      ]);
+    }
+  }, [copyValue, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -164,9 +171,9 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
           {/* Deadline — 형식이 깨진 값이면 통째로 생략한다 */}
           {daysLeft && (
             <View style={styles.deadlineRow}>
-              <Text style={[T.caption, { color: CLight.gray500 }]}>
+              {matchingDeadlineDays(post.deadline) !== null && <Text style={[T.caption, { color: CLight.gray500 }]}>
                 {t("matchingDetail.deadline_prefix", { date: post.deadline })}
-              </Text>
+              </Text>}
               {daysLeft && (
                 <View
                   style={[
@@ -186,6 +193,30 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
               )}
             </View>
           )}
+
+          {/* Source and application instructions stay visible without opening an alert. */}
+          <View style={styles.applicationSection}>
+            <Text style={[T.captionBold, { color: CLight.gray700 }]}>{t("matchingDetail.source_title")}</Text>
+            <Text selectable style={[T.body, { color: CLight.gray900, marginTop: 6 }]}>{sourceName}</Text>
+            {!!application.sourceUrl && (
+              <TouchableOpacity accessibilityRole="link" style={styles.secondaryBtn} onPress={() => openLink(application.sourceUrl, application.sourceUrl)}>
+                <Text style={[T.captionBold, { color: CLight.pink }]}>{t("matchingDetail.view_original")}</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={[T.captionBold, { color: CLight.gray700, marginTop: 12 }]}>{t("matchingDetail.application_method")}</Text>
+            {closed ? (
+              <Text style={[T.caption, { color: CLight.red, marginTop: 6 }]}>{t("matchingDetail.closed_notice")}</Text>
+            ) : application.value ? (
+              <>
+                <Text selectable style={[T.body, { color: CLight.gray900, marginTop: 6 }]}>{application.value}</Text>
+                <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => copyValue(application.value)}>
+                  <Text style={[T.captionBold, { color: CLight.pink }]}>{t("matchingDetail.copy_contact")}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={[T.caption, { color: CLight.gray500, marginTop: 6 }]}>{t(`matchingDetail.${application.sourceUrl ? "check_source" : "info_unavailable"}`)}</Text>
+            )}
+          </View>
 
           {/* Match percent */}
           {post.matchPercent != null && (
@@ -234,7 +265,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
           <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
             {t("matchingDetail.description")}
           </Text>
-          <Text style={[T.body, { color: CLight.gray900, lineHeight: 26 }]}>
+          <Text selectable style={[T.body, { color: CLight.gray900, lineHeight: 26 }]}>
             {post.description}
           </Text>
         </View>
@@ -282,16 +313,19 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
 
       {/* Bottom Action */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.applyBtn} onPress={handleBottomAction} activeOpacity={0.85}>
+        <TouchableOpacity
+          testID="matching-primary-action"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !actionHref }}
+          disabled={!actionHref}
+          style={[styles.applyBtn, !actionHref && { backgroundColor: CLight.gray400 }]}
+          onPress={() => openLink(actionHref, directApplication ? application.value : application.sourceUrl)}
+          activeOpacity={0.85}
+        >
           <Text style={[T.bodyBold, { color: CLight.white }]}>
-            {isCrawled ? t("matchingDetail.view_original") : t("matchingDetail.contact_action")}
+            {t(`matchingDetail.${actionLabel}`)}
           </Text>
         </TouchableOpacity>
-        {isCrawled && post.sourcePlatform && (
-          <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginTop: 6 }]}>
-            {t("matchingDetail.source_attribution", { platform: post.sourcePlatform })}
-          </Text>
-        )}
       </View>
     </SafeAreaView>
   );
@@ -380,6 +414,17 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: CLight.gray200,
+  },
+  applicationSection: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: CLight.gray200,
+  },
+  secondaryBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 12,
+    paddingRight: 16,
   },
   matchBarBg: {
     height: 8,

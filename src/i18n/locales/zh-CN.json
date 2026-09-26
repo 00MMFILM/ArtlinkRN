@@ -584,7 +584,19 @@
     "open_error": "无法打开原网站。",
     "source_attribution": "来自{{platform}}的公告",
     "call": "拨打电话",
-    "send_email": "发送邮件"
+    "send_email": "发送邮件",
+    "source_title": "来源",
+    "source_unknown": "来源未确认",
+    "application_method": "申请方式",
+    "open_form": "打开申请页面",
+    "check_source": "前往原文查看申请方式",
+    "info_unavailable": "申请信息未确认",
+    "copy_contact": "复制",
+    "copied": "已复制",
+    "copy_error": "复制失败。请长按上方文字进行复制。",
+    "link_error": "无法打开链接。请复制地址后手动查看。",
+    "closed_notice": "此招募已截止或结束。请前往原文确认当前状态。",
+    "deadline_today": "今日截止"
   },
   "goals": {
     "title": "目标管理",

@@ -584,7 +584,19 @@
     "open_error": "Tidak dapat membuka situs asli.",
     "source_attribution": "Lowongan ini diambil dari {{platform}}",
     "call": "Telepon",
-    "send_email": "Kirim Email"
+    "send_email": "Kirim Email",
+    "source_title": "Sumber",
+    "source_unknown": "Sumber belum dikonfirmasi",
+    "application_method": "Cara melamar",
+    "open_form": "Buka halaman lamaran",
+    "check_source": "Lihat cara melamar di halaman asli",
+    "info_unavailable": "Informasi lamaran belum tersedia",
+    "copy_contact": "Salin",
+    "copied": "Disalin",
+    "copy_error": "Tidak dapat menyalin. Tekan lama teks di atas untuk menyalinnya.",
+    "link_error": "Tidak dapat membuka tautan. Salin alamat untuk memeriksanya secara manual.",
+    "closed_notice": "Pengumuman ini telah ditutup atau kedaluwarsa. Periksa status terbarunya di halaman asli.",
+    "deadline_today": "Ditutup hari ini"
   },
   "goals": {
     "title": "Kelola Tujuan",

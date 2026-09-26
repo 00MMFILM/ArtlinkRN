@@ -584,7 +584,19 @@
     "open_error": "No se puede abrir el sitio original.",
     "source_attribution": "Convocatoria obtenida de {{platform}}",
     "call": "Llamar",
-    "send_email": "Enviar correo"
+    "send_email": "Enviar correo",
+    "source_title": "Fuente",
+    "source_unknown": "Fuente sin confirmar",
+    "application_method": "Cómo postularse",
+    "open_form": "Abrir página de solicitud",
+    "check_source": "Consultar cómo postularse en el original",
+    "info_unavailable": "Información de solicitud no disponible",
+    "copy_contact": "Copiar",
+    "copied": "Copiado",
+    "copy_error": "No se pudo copiar. Mantén pulsado el texto de arriba para copiarlo.",
+    "link_error": "No se pudo abrir el enlace. Copia la dirección para consultarla manualmente.",
+    "closed_notice": "Esta convocatoria ha cerrado o vencido. Consulta su estado actual en la página original.",
+    "deadline_today": "Cierra hoy"
   },
   "goals": {
     "title": "Gestión de objetivos",

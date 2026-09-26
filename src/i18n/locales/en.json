@@ -584,7 +584,19 @@
     "open_error": "Cannot open the original site.",
     "source_attribution": "This listing was sourced from {{platform}}",
     "call": "Call",
-    "send_email": "Send email"
+    "send_email": "Send email",
+    "source_title": "Source",
+    "source_unknown": "Source unconfirmed",
+    "application_method": "How to apply",
+    "open_form": "Open application page",
+    "check_source": "Check the original for application details",
+    "info_unavailable": "Application details unavailable",
+    "copy_contact": "Copy",
+    "copied": "Copied",
+    "copy_error": "Could not copy. Touch and hold the text above to copy it.",
+    "link_error": "Could not open the link. Copy the address to check it manually.",
+    "closed_notice": "This posting has closed or expired. Check its current status on the original page.",
+    "deadline_today": "Closes today"
   },
   "goals": {
     "title": "Goal management",
