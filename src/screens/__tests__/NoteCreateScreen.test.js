@@ -520,6 +520,20 @@ describe("NoteCreateScreen — 쿼터 소진 안내", () => {
 describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneId)", () => {
   beforeEach(resetAll);
 
+  it("ACT RAW sceneId를 노트와 시작·완료 이벤트의 같은 장면 키로 보존한다", async () => {
+    const ctx = buildCtx("u1");
+    ctx.handleSaveNote = jest.fn(() => 321);
+    useApp.mockReturnValue(ctx);
+    const sceneId = "actraw:daehanmingukeseo-geonmulju-doeneun-beop-jangdongcheol-ibanseok";
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: {
+      title: "ACT RAW 장면", content: "연습 기록", field: "acting", sceneId,
+    } } }} />);
+    await act(async () => fireEvent.press(utils.getByText("common.save")));
+    expect(startPractice).toHaveBeenCalledWith("text", sceneId, "acting");
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ sceneId }));
+    expect(completePractice).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ subjectKey: sceneId }));
+  });
+
   const parent = {
     id: 100,
     title: "햄릿 독백",

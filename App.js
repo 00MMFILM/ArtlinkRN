@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef, StackActions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text, View, StyleSheet, Modal, TextInput, TouchableOpacity, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Linking, AppState } from "react-native";
@@ -16,7 +16,7 @@ import { supabase } from "./src/services/supabaseClient";
 import { trackFunnelEvent } from "./src/services/mauService";
 import { loadDraft } from "./src/services/noteDraft";
 import { flushPracticeQueue } from "./src/services/practiceService";
-import { normalizeDeeplinkSource } from "./src/utils/deeplinkSource";
+import { normalizeDeeplinkSource, normalizePracticeSceneId } from "./src/utils/deeplinkSource";
 import Toast from "./src/components/Toast";
 
 // Screens
@@ -56,17 +56,19 @@ const Tab = createBottomTabNavigator();
 // artlink://practice?title=..&content=..&field=acting&source=bium
 const navigationRef = createNavigationContainerRef();
 
-function openNoteCreateWhenReady(prefill, attempt = 0, restoredDraft = false, isCurrent = () => true) {
+function openNoteCreateWhenReady(prefill, attempt = 0, restoredDraft = false, isCurrent = () => true, pushNewRoute = false) {
   if (!isCurrent()) return;
   if (attempt > 60) return; // 온보딩 등으로 30초 내 진입 못 하면 포기
   const hasRoute =
     navigationRef.isReady() &&
     navigationRef.getRootState()?.routeNames?.includes("NoteCreate");
   if (hasRoute) {
-    navigationRef.navigate("NoteCreate", { prefill, restoredDraft });
+    // 새 외부 장면은 별도 화면으로 연다. 작성 중인 글의 본문과 새 sceneId가 섞이지 않게 한다.
+    if (pushNewRoute) navigationRef.dispatch(StackActions.push("NoteCreate", { prefill, restoredDraft }));
+    else navigationRef.navigate("NoteCreate", { prefill, restoredDraft });
     return;
   }
-  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1, restoredDraft, isCurrent), 500);
+  setTimeout(() => openNoteCreateWhenReady(prefill, attempt + 1, restoredDraft, isCurrent, pushNewRoute), 500);
 }
 
 function TabIcon({ emoji, focused }) {
@@ -318,8 +320,10 @@ export function AppNavigator() {
             content: typeof qp.content === "string" ? qp.content.slice(0, 2000) : "",
             field: typeof qp.field === "string" ? qp.field : "acting",
           };
+          const sceneId = normalizePracticeSceneId(qp);
+          if (sceneId) prefill.sceneId = sceneId;
           trackFunnelEvent(`deeplink_${normalizeDeeplinkSource(qp.source)}`);
-          openNoteCreateWhenReady(prefill);
+          openNoteCreateWhenReady(prefill, 0, false, () => true, true);
           return;
         }
       } catch (e) {

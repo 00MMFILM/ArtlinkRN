@@ -2,9 +2,11 @@ import React from "react";
 import { Alert, Linking } from "react-native";
 import { act, render, fireEvent, waitFor } from "@testing-library/react-native";
 const mockNavigate = jest.fn();
+const mockDispatch = jest.fn();
 jest.mock("@react-navigation/native", () => ({
   NavigationContainer: ({ children }) => children,
-  createNavigationContainerRef: () => ({ isReady: () => true, getRootState: () => ({ routeNames: ["NoteCreate"] }), navigate: mockNavigate }),
+  createNavigationContainerRef: () => ({ isReady: () => true, getRootState: () => ({ routeNames: ["NoteCreate"] }), navigate: mockNavigate, dispatch: mockDispatch }),
+  StackActions: { push: (name, params) => ({ type: "PUSH", payload: { name, params } }) },
 }));
 jest.mock("@react-navigation/native-stack", () => ({ createNativeStackNavigator: () => ({ Navigator: ({ children }) => children, Screen: () => null }) }));
 jest.mock("@react-navigation/bottom-tabs", () => ({ createBottomTabNavigator: () => ({ Navigator: ({ children }) => children, Screen: () => null }) }));
@@ -33,6 +35,8 @@ const { useApp } = require("../context/AppContext");
 const { supabase } = require("../services/supabaseClient");
 const { loadDraft } = require("../services/noteDraft");
 const { initPurchases, logInPurchases } = require("../services/purchasesService");
+const ExpoLinking = require("expo-linking");
+const { trackFunnelEvent } = require("../services/mauService");
 let context;
 beforeEach(() => {
   jest.clearAllMocks();
@@ -118,4 +122,35 @@ test("A의 늦은 RevenueCat 연결 결과는 B 로그인 뒤 A 갱신을 실행
   await act(async () => finishA());
   expect(refreshA).not.toHaveBeenCalled();
   expect(refreshB).toHaveBeenCalledTimes(1);
+});
+
+test("초기 ACT RAW 링크의 sceneId를 별도 작성 화면에 전달하고 기존 source 이벤트를 유지한다", async () => {
+  ExpoLinking.getInitialURL.mockResolvedValueOnce("artlink://practice?source=actraw&sceneId=actraw%3Ahamlet-tobe");
+  ExpoLinking.parse.mockReturnValue({ hostname: "practice", queryParams: { title: "햄릿", content: "대사", field: "acting", source: "actraw", sceneId: "actraw:hamlet-tobe" } });
+  render(<AppNavigator />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledWith({ type: "PUSH", payload: {
+    name: "NoteCreate", params: { prefill: { title: "햄릿", content: "대사", field: "acting", sceneId: "actraw:hamlet-tobe" }, restoredDraft: false },
+  } }));
+  expect(trackFunnelEvent).toHaveBeenCalledWith("deeplink_actraw");
+  expect(mockNavigate).not.toHaveBeenCalled();
+});
+
+test("앱 실행 중 m 링크도 새 route로 열어 쓰던 글에 새 장면 ID를 덮어쓰지 않는다", async () => {
+  render(<AppNavigator />);
+  const onLink = Linking.addEventListener.mock.calls.find(([event]) => event === "url")[1];
+  ExpoLinking.parse.mockReturnValue({ hostname: "practice", queryParams: { title: "니나", source: "actraw", m: "seagull-nina" } });
+  await act(async () => onLink({ url: "artlink://practice?source=actraw&m=seagull-nina" }));
+  expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "PUSH", payload: expect.objectContaining({
+    params: { prefill: { title: "니나", content: "", field: "acting", sceneId: "actraw:seagull-nina" }, restoredDraft: false },
+  }) }));
+  expect(mockNavigate).not.toHaveBeenCalled();
+});
+
+test("장면 정보가 없던 bium 링크는 제목/본문과 기존 source를 그대로 전달한다", async () => {
+  ExpoLinking.getInitialURL.mockResolvedValueOnce("artlink://practice?source=bium");
+  ExpoLinking.parse.mockReturnValue({ hostname: "practice", queryParams: { title: "기존 제목", content: "기존 내용", field: "music", source: "bium" } });
+  render(<AppNavigator />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalled());
+  expect(mockDispatch.mock.calls[0][0].payload.params.prefill).toEqual({ title: "기존 제목", content: "기존 내용", field: "music" });
+  expect(trackFunnelEvent).toHaveBeenCalledWith("deeplink_bium");
 });
