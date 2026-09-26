@@ -75,6 +75,25 @@ test("서버 반영 실패는 다음 앱 실행에서 다시 보내고 성공하
   expect(JSON.parse(await disk.getItem("artlink-profile::account:A")).visibilityPending).toBe(false);
 });
 
+test("1.11.6 이하에서 OFF였던 프로필(스탬프 없음)은 첫 실행에 한 번 서버로 OFF를 보낸다", async () => {
+  await disk.setItem("artlink-profile", JSON.stringify({ name: "A", authUserId: "A", profilePublic: false }));
+  syncProfileVisibility.mockImplementation(async (_id, p) => ({ ok: true, profilePublic: false, visibilityUpdatedAt: p.visibilityUpdatedAt }));
+  await mount();
+  await act(settle);
+  expect(syncProfileVisibility).toHaveBeenCalledTimes(1);
+  expect(syncProfileVisibility).toHaveBeenCalledWith("community-id", expect.objectContaining({
+    profilePublic: false, visibilityUpdatedAt: expect.any(String),
+  }));
+  expect(current.userProfile.visibilityPending).toBe(false);
+  expect(current.userProfile.profilePublic).toBe(false);
+  // 스탬프가 찍혔으니 다음 실행에서는 다시 보내지 않는다
+  await unmount();
+  syncProfileVisibility.mockClear();
+  await mount();
+  await act(settle);
+  expect(syncProfileVisibility).not.toHaveBeenCalled();
+});
+
 test("토글할 때마다 visibilityUpdatedAt이 커지고 모든 프로필 업로드에 실린다", async () => {
   syncProfileVisibility.mockResolvedValue({ ok: true });
   await mount();

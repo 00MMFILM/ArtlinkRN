@@ -406,6 +406,22 @@ export function AppProvider({ children }) {
     return () => { cancelled = true; sub?.remove?.(); };
   }, [storageReady, deviceUserId, userProfile]);
 
+  // 1.11.6 이하는 공개를 꺼도 서버에 알리지 않았다(동기화만 멈춤). 한 번 ON했던 사람의 행이
+  // 그대로 남아 대시보드에 계속 떴고, 1.11.7 마이그레이션은 기존 행을 전부 공개로 표시했다.
+  // 1.11.7은 토글할 때만 OFF를 보내므로, 스탬프 없는 OFF 프로필은 한 번 pending으로 올려
+  // 서버에 묘비를 남긴다(스탬프가 찍히면 다시 돌지 않는다). 실운영 대시보드 제보(2026-09-26).
+  useEffect(() => {
+    if (!storageReady || !deviceUserId) return;
+    const p = userProfile;
+    if (p.profilePublic || p.visibilityUpdatedAt || p.visibilityPending) return;
+    const generation = accountGenerationRef.current;
+    const scope = getStorageScope();
+    const updated = { ...p, profilePublic: false, visibilityUpdatedAt: nextVisibilityStamp(null), visibilityPending: true };
+    safeStorageSet(STORAGE_KEYS.PROFILE, updated, scope).then((saved) => {
+      if (saved && generation === accountGenerationRef.current && profileRef.current === p) setUserProfile(updated);
+    });
+  }, [storageReady, deviceUserId, userProfile]);
+
   // Migrate cache recordings within their owner's namespace. A late migration
   // must not rewrite another account's notes or overwrite newer note edits.
   const recordingsMigratedRef = useRef(new Set());
