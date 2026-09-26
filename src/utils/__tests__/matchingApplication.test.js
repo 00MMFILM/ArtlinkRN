@@ -1,4 +1,4 @@
-import { safePostingUrl, resolveMatchingApplication, matchingDeadlineDays, isMatchingClosed } from "../matchingApplication";
+import { safePostingUrl, resolveMatchingApplication, matchingDeadlineDays, isMatchingClosed, matchingSourceName } from "../matchingApplication";
 
 it("preserves an HTTPS form with an email query", () => {
   const url = "https://example.org/apply?email=cast@example.org";
@@ -44,4 +44,54 @@ it.each(["2026-02-29", "2026-06-31", "2026-9-26", "", undefined])("does not infe
 it("treats explicitly inactive posts as closed even when their date is in the future", () => {
   expect(isMatchingClosed({ status: "closed", deadline: "2099-01-01" })).toBe(true);
   expect(isMatchingClosed({ deadline: "2099-01-01" })).toBe(false);
+});
+
+describe.each([
+  ["Node WHATWG", global.URL],
+  ["Expo 54", require("expo/src/winter/url").URL],
+])("application targets with %s installed as the global URL", (_, RuntimeURL) => {
+  const originalURL = global.URL;
+  beforeEach(() => { global.URL = RuntimeURL; });
+  afterEach(() => { global.URL = originalURL; });
+
+  it("opens a normal form without adding a slash to its path", () => {
+    expect(resolveMatchingApplication("https://example.org/apply").href).toBe("https://example.org/apply");
+  });
+
+  it("keeps an email query in the form and displays the actual source hostname", () => {
+    const url = "https://example.org/apply?email=cast@elsewhere.org";
+    expect(resolveMatchingApplication(url).href).toBe(url);
+    expect(matchingSourceName({ sourceUrl: url })).toBe("example.org");
+  });
+
+  it.each(["https://example.org:99999/", "https://user:password@example.org/", "https://example.org/%0d%0abcc=x", "https://%zz/"])(
+    "rejects an unsafe URL %s", (url) => expect(safePostingUrl(url)).toBe("")
+  );
+});
+
+it("Expo's actual installer replaces the simplified RN URL before handling application links", () => {
+  // Startup: index.js -> expo/src/Expo.ts -> Expo.fx -> winter/runtime.native.ts.
+  const originalURL = Object.getOwnPropertyDescriptor(global, "URL");
+  const originalBackup = Object.getOwnPropertyDescriptor(global, "originalURL");
+  const RNURL = require("react-native/Libraries/Blob/URL").URL;
+  const ExpoURL = require("expo/src/winter/url").URL;
+  try {
+    global.URL = RNURL;
+    require("expo/src/winter/installGlobal").installGlobal("URL", () => ExpoURL);
+    expect(global.URL).toBe(ExpoURL);
+    expect(safePostingUrl("https://example.org:99999/")).toBe("");
+    expect(safePostingUrl("https://%zz/")).toBe("");
+    expect(safePostingUrl("https://example.org/apply")).toBe("https://example.org/apply");
+    expect(safePostingUrl("https://example.org/apply?email=a@b.org")).toBe("https://example.org/apply?email=a@b.org");
+  } finally {
+    Object.defineProperty(global, "URL", originalURL);
+    if (originalBackup) Object.defineProperty(global, "originalURL", originalBackup);
+    else delete global.originalURL;
+  }
+});
+
+it("keeps an overlong email local part as text instead of launching mailto", () => {
+  const email = `${"a".repeat(65)}@example.org`;
+  expect(resolveMatchingApplication(email).kind).toBe("text");
+  expect(resolveMatchingApplication(`${"a".repeat(64)}@example.org`).kind).toBe("email");
 });

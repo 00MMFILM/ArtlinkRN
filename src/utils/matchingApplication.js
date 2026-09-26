@@ -1,5 +1,7 @@
 // The web casting page uses the same contract: one stored email, phone or HTTP(S)
 // URL. Free-form instructions remain text; never guess a recipient from prose.
+// index.js loads Expo first; Expo's winter runtime installs a WHATWG URL parser.
+// The native RN fallback differs: the regression test covers Expo's replacement.
 export function safePostingUrl(value) {
   if (typeof value !== "string") return "";
   const raw = value.trim();
@@ -22,7 +24,8 @@ export function resolveMatchingApplication(contactRaw, sourceUrlRaw) {
   const sourceUrl = safePostingUrl(sourceUrlRaw);
   const form = safePostingUrl(contact);
   if (form) return { kind: "form", value: contact, href: form, sourceUrl };
-  if (contact.length <= 254 && EMAIL_RE.test(contact) && !contact.split("@")[0].includes("..")) {
+  const localPart = contact.split("@")[0];
+  if (contact.length <= 254 && localPart.length <= 64 && EMAIL_RE.test(contact) && !localPart.includes("..")) {
     return { kind: "email", value: contact, href: `mailto:${encodeURIComponent(contact).replace("%40", "@")}`, sourceUrl };
   }
   const compact = contact.replace(/ /g, "");
