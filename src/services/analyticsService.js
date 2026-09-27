@@ -87,11 +87,14 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
 
   const topFields = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1]);
   const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
-  const aiAnalyzedCount = savedNotes.filter((n) => n.aiComment).length;
+  const textAnalyzedCount = savedNotes.filter((n) => n.aiComment).length;
+  const aiAnalyzedCount = savedNotes.filter((n) => n.aiComment || n.videoAnalysis).length;
   const primaryField = topFields[0]?.[0] || userProfile.fields?.[0] || "acting";
 
   const noteScore = Math.min(100, savedNotes.length * 5);
   const aiScore = Math.min(100, aiAnalyzedCount * 10);
+  // AI 활용 표시는 영상을 포함한다. 서버와 공유하는 종합점수·마일리지 정책은 글 분석 수를 유지한다.
+  const scoreFormulaAi = Math.min(100, textAnalyzedCount * 10);
   const diversityScore = Math.min(100, Object.keys(fieldCounts).length * 20);
   // 전문성 — 한 분야만 파는 사용자가 구조적으로 불리하던 문제 수정(2026-08-27 실사용자 제보).
   // 예전 종합점수는 '다양성(분야수×20)'을 썼는데, 연기만 하는 성실한 학생일수록 3~4주 만에
@@ -116,7 +119,7 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
     const dates = savedNotes.map((n) => new Date(n.createdAt).toDateString());
     return Math.min(100, [...new Set(dates)].length * 8);
   })();
-  const overallScore = Math.round((noteScore + aiScore + specializationScore + depthScore + consistencyScore) / 5);
+  const overallScore = Math.round((noteScore + scoreFormulaAi + specializationScore + depthScore + consistencyScore) / 5);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -158,7 +161,7 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
   const recordedDaysCount = recordedLocalDates.size;
   const mileage =
     savedNotes.length * 10 +
-    aiAnalyzedCount * 15 +
+    textAnalyzedCount * 15 +
     recordedDaysCount * 20 +
     mediaRecordCount * 15 +
     Math.floor(totalContentLength / 100);

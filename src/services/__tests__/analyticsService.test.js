@@ -159,3 +159,48 @@ describe("computeArtistProfile — 마일리지·레벨", () => {
     });
   });
 });
+
+describe("영상 AI 활용 표시 — 점수·마일리지 정책과 분리", () => {
+  it("영상 분석만 완료한 두 노트도 AI 분석 2건·활용 20으로 표시한다", () => {
+    const notes = makeNotes(2, { ai: false, media: { videoAnalysis: "영상 피드백" } });
+    const profile = computeArtistProfile(notes);
+    expect(profile.aiAnalyzedCount).toBe(2);
+    expect(profile.aiScore).toBe(20);
+    expect(profile.radarValues[1]).toBe(20);
+    expect(notes.every((note) => note.aiScores === undefined)).toBe(true);
+  });
+
+  it("글과 영상 분석이 모두 있는 노트는 한 건이며 첨부만 있는 노트는 제외한다", () => {
+    const notes = makeNotes(4, { ai: false });
+    notes[0].aiComment = "글 피드백";
+    notes[1].videoAnalysis = "영상 피드백";
+    notes[2].aiComment = "글 피드백";
+    notes[2].videoAnalysis = "영상 피드백";
+    notes[3].images = [{ type: "video", uri: "file:///unanalysed.mp4" }];
+    notes[3].aiComment = "";
+    notes[3].videoAnalysis = "";
+    const profile = computeArtistProfile(notes);
+    expect(profile.aiAnalyzedCount).toBe(3);
+    expect(profile.aiScore).toBe(30);
+  });
+
+  it("활용 표시를 고쳐도 기존 종합점수·마일리지·레벨 계산 결과는 바꾸지 않는다", () => {
+    const notes = makeNotes(2, {
+      ai: false, content: "",
+      media: { videoAnalysis: "영상 피드백", images: [{ type: "video", uri: "file:///take.mp4" }] },
+    });
+    const profile = computeArtistProfile(notes);
+    // 기존 공식: 노트 2, 글 분석 0, 기록 2일, 미디어 4건 → 마일리지 120 / 레벨 1.
+    expect(profile.mileage).toBe(120);
+    expect(profile.level).toBe(1);
+    // (기록량 10 + 글 AI 0 + 전문성 20 + 깊이 20 + 꾸준함 16) / 5 → 13
+    expect(profile.overallScore).toBe(13);
+    expect(profile.aiAnalyzedCount).toBe(2);
+  });
+
+  it("활용 표시의 기존 100 상한을 유지한다", () => {
+    const profile = computeArtistProfile(makeNotes(11, { ai: false, media: { videoAnalysis: "영상 피드백" } }));
+    expect(profile.aiAnalyzedCount).toBe(11);
+    expect(profile.aiScore).toBe(100);
+  });
+});
