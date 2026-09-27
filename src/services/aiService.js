@@ -925,7 +925,7 @@ export function stripMarkerLines(text) {
 }
 
 // 피드백에서 🎯(개선 포인트) 섹션만 뽑아 요약으로 쓴다. 섹션이 없으면 앞부분을 쓴다.
-const SECTION_RE = /[\u{1F4CC}\u{1F4AA}\u{1F3AF}\u{1F3AD}\u{1F3A8}\u{1F4A1}\u{1F4C8}\u{1F51C}]/u;
+const SECTION_RE = /[\u{1F4CC}\u{1F4AA}\u{1F3AF}\u{1F3AD}\u{1F3A8}\u{1F4A1}\u{1F4C8}\u{1F51C}\u{1F501}]/u;
 export function focusSummary(text, max = 400) {
   if (!text) return "";
   const idx = text.indexOf("\u{1F3AF}");
@@ -933,6 +933,17 @@ export function focusSummary(text, max = 400) {
   const next = body.search(SECTION_RE);
   const section = next >= 0 ? body.slice(0, next) : body;
   return section.trim().slice(0, max);
+}
+
+// 재촬영의 🔁(지난 연습과 비교)만 표시한다. 구서버/첫 연습에 이 섹션이 없으면 빈 값.
+// 전체 피드백을 "이번 변화"로 대신 보여주면 비교 근거가 있는 것처럼 보이므로 폴백하지 않는다.
+export function changeSummary(text, max = 400) {
+  if (typeof text !== "string") return "";
+  const idx = text.indexOf("🔁");
+  if (idx < 0) return "";
+  const body = text.slice(idx + "🔁".length);
+  const next = body.search(SECTION_RE);
+  return (next >= 0 ? body.slice(0, next) : body).trim().slice(0, max);
 }
 
 // 직전 연습 노트 → 서버로 보낼 previous 블록 (없으면 null)

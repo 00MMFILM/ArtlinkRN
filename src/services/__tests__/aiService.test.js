@@ -21,7 +21,7 @@ jest.mock("../mauService", () => ({ getOrCreateDeviceId: jest.fn(async () => "de
 jest.mock("i18next", () => ({ language: "ko", t: (k) => k }));
 jest.mock("../../utils/videoFrames", () => ({ extractVideoFrames: jest.fn() }));
 
-const { parseFocus, focusSummary, buildPreviousContext, analyzeNote } = require("../aiService");
+const { parseFocus, focusSummary, changeSummary, buildPreviousContext, analyzeNote } = require("../aiService");
 
 describe("failed recordings never spend an analysis request", () => {
   it("stops before AI when the recording upload fails", async () => {
@@ -131,6 +131,44 @@ describe("focusSummary / buildPreviousContext — 지난 연습 요약", () => {
   it("직전 노트가 없거나 비었으면 null", () => {
     expect(buildPreviousContext(null)).toBeNull();
     expect(buildPreviousContext({ title: "빈 노트" })).toBeNull();
+  });
+});
+
+describe("재촬영 비교 — 개선점과 이번 변화를 구분한다", () => {
+  const secondTake = "📌 전체 인상\n두 번째 연습.\n🎯 개선 포인트\n끝말을 더 또렷하게.\n🔁 지난 연습과 비교\n첫 문장의 속도가 안정됐다.\n🔜 다음 스텝\n호흡을 유지한다.";
+
+  it("세 번째 분석의 previous 요약에 두 번째 분석의 🔁 변화 문장이 섞이지 않는다", () => {
+    expect(focusSummary(secondTake)).toBe("개선 포인트\n끝말을 더 또렷하게.");
+    const previous = buildPreviousContext({
+      videoAnalysis: secondTake,
+      chosenFocus: "끝말을 더 또렷하게",
+    });
+    expect(previous).toEqual({
+      focus: "끝말을 더 또렷하게",
+      summary: "개선 포인트\n끝말을 더 또렷하게.",
+      scores: null,
+    });
+    expect(previous.summary).not.toContain("속도가 안정");
+  });
+
+  it("🔁 섹션만 보여주고 다음 스텝은 포함하지 않는다", () => {
+    expect(changeSummary(secondTake)).toBe("지난 연습과 비교\n첫 문장의 속도가 안정됐다.");
+  });
+
+  it.each([null, undefined, "", "🎯 개선 포인트\n끝말을 더 또렷하게."])(
+    "🔁 섹션이 없으면 전체 피드백으로 대신하지 않는다: %s",
+    (text) => expect(changeSummary(text)).toBe("")
+  );
+
+  it.each(["📌", "💪", "🎯", "🎭", "🎨", "💡", "📈", "🔜", "🔁"])(
+    "다음 알려진 섹션 %s 앞에서 끝난다",
+    (next) => expect(changeSummary(`🔁 이번 변화\n호흡이 안정됐다.\n${next} 다른 섹션`)).toBe("이번 변화\n호흡이 안정됐다.")
+  );
+
+  it("마지막 섹션도 추출하고 기본 400자 및 요청한 길이를 지킨다", () => {
+    expect(changeSummary("서문\n🔁   변화 한 줄   ")).toBe("변화 한 줄");
+    expect(changeSummary("🔁 " + "가".repeat(500))).toHaveLength(400);
+    expect(changeSummary("🔁 " + "나".repeat(500), 12)).toBe("나".repeat(12));
   });
 });
 
