@@ -26,6 +26,7 @@ export default function RetakeCompareCard({ previousNote, note, visible = true, 
   const [activeSide, setActiveSide] = useState(null);
   const [playing, setPlaying] = useState(false);
   const player = useRef(null);
+  const loadedPlayer = useRef(null);
   const intent = useRef({ token: 0, side: null, position: null, playing: false });
   const mounted = useRef(true);
   const viewed = useRef(null);
@@ -57,6 +58,7 @@ export default function RetakeCompareCard({ previousNote, note, visible = true, 
       intent.current = { token: intent.current.token + 1, side: null, playing: false };
       ignorePlaybackError(() => player.current?.pauseAsync());
       ignorePlaybackError(() => player.current?.unloadAsync());
+      loadedPlayer.current = null;
       setActiveSide(null);
       setPlaying(false);
     }
@@ -86,15 +88,19 @@ export default function RetakeCompareCard({ previousNote, note, visible = true, 
     try {
       const existing = player.current;
       // This await also ensures that fast alternating taps cannot play both takes.
-      if (existing) { try { await existing.pauseAsync(); } catch (_) {} }
+      if (existing && loadedPlayer.current === existing) { try { await existing.pauseAsync(); } catch (_) {} }
       if (!mounted.current || intent.current.token !== token) return;
       if (activeSide === side && existing) {
+        // Before onLoad, keep only the latest intent; native seek/play rejects
+        // with E_VIDEO_NOT_LOADED while the file is still opening.
+        if (loadedPlayer.current !== existing) { setPlaying(nextPlaying); return; }
         if (position != null) await existing.setPositionAsync(position);
         if (!mounted.current || intent.current.token !== token) return;
         if (nextPlaying) await existing.playAsync();
         if (mounted.current && intent.current.token === token) setPlaying(nextPlaying);
       } else {
         player.current = null;
+        loadedPlayer.current = null;
         setPlaying(nextPlaying);
         setActiveSide(side);
       }
@@ -105,6 +111,7 @@ export default function RetakeCompareCard({ previousNote, note, visible = true, 
     const request = { ...intent.current };
     const loaded = player.current;
     if (!loaded || request.side !== side || !visible) return;
+    loadedPlayer.current = loaded;
     if (status.durationMillis) setDurations((value) => ({ ...value, [side]: status.durationMillis }));
     try {
       if (request.position != null) {

@@ -135,3 +135,18 @@ test("missing files and playback errors show a readable fallback", async () => {
   expect(utils.getByText("retake.playback_failed")).toBeTruthy();
   expect(utils.queryByTestId("retake-play-current")).toBeNull();
 });
+
+
+test("a seek tapped before the file loads is applied onLoad without a false playback failure", async () => {
+  const utils = mount();
+  await waitFor(() => expect(utils.getByTestId("retake-seek-current-3000")).toBeTruthy());
+  await act(async () => fireEvent.press(utils.getByTestId("retake-play-current")));
+  mockPlayers.current.setPositionAsync.mockRejectedValueOnce(new Error("E_VIDEO_NOT_LOADED"));
+  await act(async () => fireEvent.press(utils.getByTestId("retake-seek-current-3000")));
+  expect(mockPlayers.current.setPositionAsync).not.toHaveBeenCalled();
+  expect(utils.queryByText("retake.playback_failed")).toBeNull();
+  mockPlayers.current.setPositionAsync.mockReset().mockResolvedValue(undefined);
+  await loadVideo(utils, "current");
+  expect(mockPlayers.current.setPositionAsync).toHaveBeenCalledWith(3000);
+  expect(mockPlayers.current.playAsync).toHaveBeenCalledTimes(1);
+});

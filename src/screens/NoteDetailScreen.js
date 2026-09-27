@@ -30,6 +30,7 @@ import { trackFunnelEvent } from "../services/mauService";
 import FocusPicker from "../components/FocusPicker";
 import RetakeCompareCard from "../components/RetakeCompareCard";
 import { buildRepracticePrefill } from "../utils/repractice";
+import { getStorageScope } from "../utils/accountStorage";
 import { formatDate, timeAgo } from "../utils/helpers";
 import FeedbackShareCard from "../components/FeedbackShareCard";
 import { buildCardProps, shareCardImage } from "../utils/shareCard";
@@ -100,6 +101,18 @@ export default function NoteDetailScreen({ route, navigation }) {
     [savedNotes, noteId]
   );
 
+  const mountedRef = useRef(true);
+  const ownerRef = useRef(null);
+  ownerRef.current = { account: userProfile?.authUserId || null, noteId };
+  const captureOwner = () => ({ ...ownerRef.current, scope: getStorageScope() });
+  const ownerIsCurrent = (owner) => !!owner && mountedRef.current &&
+    owner.account === ownerRef.current.account && owner.noteId === ownerRef.current.noteId &&
+    owner.scope === getStorageScope();
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   // AI 응답이 도착했을 때 저장 대상은 항상 "최신" note여야 한다.
   // runRequestAI/startVideoAI는 호출 시점의 note를 클로저로 캡처하는데,
   // 분석이 진행되는 수십 초 동안 사용자가 제목/본문을 편집·저장하면
@@ -150,7 +163,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   // its AI fields onto the latest note; it never calls the model again.
   const savePendingAi = useCallback(async () => {
     const pending = pendingAiRef.current;
-    if (!pending || pendingSaveBusyRef.current) return false;
+    if (!pending || pendingSaveBusyRef.current || (pending.owner && !ownerIsCurrent(pending.owner))) return false;
     pendingSaveBusyRef.current = true;
     setPendingSaving(true);
     let latest;
@@ -163,12 +176,14 @@ export default function NoteDetailScreen({ route, navigation }) {
           ? latest.chosenFocus : undefined;
       }
       await handleUpdateNote({ ...latest, ...patch });
+      if (pending.owner && !ownerIsCurrent(pending.owner)) return false;
     } catch (_) {
+      if (pending.owner && !ownerIsCurrent(pending.owner)) return false;
       showToast(t("common.save_failed_msg"), "error");
       return false;
     } finally {
       pendingSaveBusyRef.current = false;
-      setPendingSaving(false);
+      if (mountedRef.current) setPendingSaving(false);
     }
     pendingAiRef.current = null;
     setPendingAi(null);
@@ -486,8 +501,8 @@ export default function NoteDetailScreen({ route, navigation }) {
   // 재시도 버튼에서 자신을 다시 부르기 위한 참조 (useCallback 자기참조 회피)
   const startVideoAIRef = useRef(null);
 
-  const startVideoAI = useCallback(async () => {
-    if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
+  const startVideoAI = useCallback(async (owner = captureOwner()) => {
+    if (!note || pendingAiRef.current || aiRequestBusyRef.current || !ownerIsCurrent(owner)) return;
     aiRequestBusyRef.current = true;
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteDetail.video_preparing") });
@@ -498,13 +513,15 @@ export default function NoteDetailScreen({ route, navigation }) {
         note.title,
         noteVideos,
         userProfile,
-        (progress) => setVideoAiProgress(progress),
-        { focus: note.focus, previous: buildPreviousContext(previousNote) }
+        (progress) => { if (ownerIsCurrent(owner)) setVideoAiProgress(progress); },
+        { focus: note.focus, previous: buildPreviousContext(previousNote?.videoAnalysis
+          ? { ...previousNote, aiComment: undefined, aiScores: undefined } : previousNote) }
       );
+      if (!ownerIsCurrent(owner)) return;
       // 새 후보가 왔으면 옛 선택은 그 안에 있을 때만 유지한다 (없으면 비운다)
       const replacedOptions = lastAiMeta.focusOptions?.length ? lastAiMeta.focusOptions : null;
       const pending = {
-        kind: "video", noteId: note.id, sessionId: newUuid(),
+        kind: "video", noteId: note.id, sessionId: newUuid(), owner,
         patch: {
           videoAnalysis: result, aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion,
           ...(replacedOptions ? { focusOptions: replacedOptions } : {}),
@@ -515,6 +532,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       setPendingAi(pending);
       await savePendingAi();
     } catch (e) {
+      if (!ownerIsCurrent(owner)) return;
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
       const quota = e?.videoAiReason === "QUOTA";
       if (quota) {
@@ -525,20 +543,22 @@ export default function NoteDetailScreen({ route, navigation }) {
           t("common.video_ai_retry_msg"),
           [
             { text: t("common.cancel"), style: "cancel" },
-            { text: t("common.retry"), onPress: () => startVideoAIRef.current?.() },
+            { text: t("common.retry"), onPress: () => { if (ownerIsCurrent(owner)) startVideoAIRef.current?.(); } },
           ]
         );
       }
     } finally {
       aiRequestBusyRef.current = false;
-      setVideoAiLoading(false);
-      setVideoAiProgress({ phase: "", percent: 0, message: "" });
-      refreshPremium?.();
+      if (ownerIsCurrent(owner)) {
+        setVideoAiLoading(false);
+        setVideoAiProgress({ phase: "", percent: 0, message: "" });
+        refreshPremium?.();
+      }
     }
   }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote, refreshPremium]);
 
-  const runVideoAIFlow = useCallback(async () => {
-    if (pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current) return;
+  const runVideoAIFlow = useCallback(async (owner = captureOwner()) => {
+    if (pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || !ownerIsCurrent(owner)) return;
     videoPreflightBusyRef.current = true;
     try {
       const video = noteVideos[0];
@@ -550,6 +570,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       }
       try {
         const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
+        if (!ownerIsCurrent(owner)) return;
         if (fileInfo.exists === false) {
           Alert.alert(t("common.error"), t("retake.video_unavailable"));
           return;
@@ -560,33 +581,38 @@ export default function NoteDetailScreen({ route, navigation }) {
           return;
         }
       } catch {
+        if (!ownerIsCurrent(owner)) return;
         Alert.alert(t("common.error"), t("retake.video_unavailable"));
         return;
       }
       if (!isKoreanLocale && !premium?.active) {
         const rewarded = await showRewardedAd();
+        if (!ownerIsCurrent(owner)) return;
         if (!rewarded) {
           Alert.alert(t("common.error"), t("ads.rewarded_required"));
           return;
         }
       }
-      await startVideoAI();
+      if (ownerIsCurrent(owner)) await startVideoAI(owner);
     } finally { videoPreflightBusyRef.current = false; }
   }, [noteVideos, startVideoAI, isKoreanLocale, premium?.active, t]);
 
   const handleRequestVideoAI = useCallback(() => {
     if (!note || noteVideos.length === 0 || pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || videoPromptOpenRef.current) return;
+    const owner = captureOwner();
     const releasePrompt = () => { videoPromptOpenRef.current = false; };
     const requestWithDisclosure = () => {
+      if (!ownerIsCurrent(owner)) return;
       if (!aiDisclosureAccepted) {
         videoPromptOpenRef.current = true;
         Alert.alert(t("aiDisclosure.title"), t("aiDisclosure.message"), [
           { text: t("aiDisclosure.cancel"), style: "cancel", onPress: releasePrompt },
           { text: t("aiDisclosure.accept"), onPress: () => {
-            releasePrompt(); handleAcceptAIDisclosure(); runVideoAIFlow();
+            releasePrompt();
+            if (ownerIsCurrent(owner)) { handleAcceptAIDisclosure(); runVideoAIFlow(owner); }
           } },
         ], { onDismiss: releasePrompt });
-      } else { runVideoAIFlow(); }
+      } else { runVideoAIFlow(owner); }
     };
     if (note.videoAnalysis) {
       videoPromptOpenRef.current = true;

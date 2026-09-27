@@ -32,6 +32,7 @@ jest.mock("../../services/adService", () => ({
 }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://server.test", getApiHeaders: () => ({}) }));
 jest.mock("../../services/practiceService", () => ({ aiFeedbackDone: jest.fn(), newUuid: jest.fn(() => "uuid-1") }));
+jest.mock("../../utils/accountStorage", () => ({ getStorageScope: () => "test-scope" }));
 jest.mock("../../utils/shareCard", () => ({ buildCardProps: jest.fn(() => ({})), shareCardImage: jest.fn() }));
 jest.mock("../../components/FeedbackShareCard", () => () => null);
 jest.mock("expo-av", () => ({ Audio: { Sound: { createAsync: jest.fn() } }, Video: () => null, ResizeMode: { CONTAIN: "contain" } }));
@@ -596,5 +597,48 @@ describe("영상 횟수 캡션", () => {
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200, initialTab: "ai" } }} navigation={navigation} />);
     expect(utils.getByText(caption)).toBeTruthy();
     expect(utils.queryByText("quota.remaining_premium")).toBeNull();
+  });
+});
+
+
+describe("영상 재분석 소유자와 이전 영상", () => {
+  beforeEach(resetDetail);
+  const videoNote = { ...baseNote, videoAnalysis: "지난 분석", images: [{ uri: "file:///new.mp4", type: "video" }] };
+  const confirmLatest = () => Alert.alert.mock.calls.at(-1)[2].find((button) => button.text === "retake.reanalyze_confirm").onPress();
+
+  it("does not start a paid request when the confirmation belongs to a closed screen", async () => {
+    useApp.mockReturnValue(buildCtx([videoNote]));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200, initialTab: "ai" } }} navigation={navigation} />);
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    utils.unmount();
+    await act(async () => confirmLatest());
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+  });
+
+  it("stops preflight after the account changes", async () => {
+    const { getInfoAsync } = require("expo-file-system/legacy");
+    let finishFileCheck;
+    getInfoAsync.mockImplementationOnce(() => new Promise((resolve) => { finishFileCheck = resolve; }));
+    useApp.mockReturnValue(buildCtx([videoNote]));
+    const props = { route: { params: { noteId: 200, initialTab: "ai" } }, navigation };
+    const utils = render(<NoteDetailScreen {...props} />);
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    act(() => { confirmLatest(); });
+    useApp.mockReturnValue(buildCtx([videoNote], { userProfile: { authUserId: "other-user" } }));
+    utils.rerender(<NoteDetailScreen {...props} />);
+    await act(async () => finishFileCheck({ exists: true }));
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+  });
+
+  it("uses the previous video feedback instead of text scores or text feedback", async () => {
+    const { buildPreviousContext } = require("../../services/aiService");
+    const previous = { ...baseNote, id: 100, aiComment: "글의 분석", aiScores: { growth: 4 }, videoAnalysis: "영상의 분석" };
+    const current = { ...videoNote, parentNoteId: 100 };
+    useApp.mockReturnValue(buildCtx([current, previous]));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200, initialTab: "ai" } }} navigation={navigation} />);
+    await act(async () => {});
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    await act(async () => confirmLatest());
+    expect(buildPreviousContext).toHaveBeenCalledWith(expect.objectContaining({ videoAnalysis: "영상의 분석", aiComment: undefined, aiScores: undefined }));
   });
 });
