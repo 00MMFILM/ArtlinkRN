@@ -1193,9 +1193,9 @@ describe("1.11.9 retake creation", () => {
     expect(utils.getByText("영상 분석 결과")).toBeTruthy();
   });
   it("uses the video feedback when the parent also has text feedback", async () => {
-    const mixed = { ...parent, aiComment: "TEXT FEEDBACK", videoAnalysis: "VIDEO FEEDBACK" };
+    const mixed = { ...parent, aiComment: "TEXT FEEDBACK", videoAnalysis: "VIDEO FEEDBACK", aiScores: { total: 80 } };
     const { utils } = setup("u1", { savedNotes: [mixed] });
-    expect(buildPreviousContext).toHaveBeenCalledWith(expect.objectContaining({ aiComment: "VIDEO FEEDBACK" }));
+    expect(buildPreviousContext).toHaveBeenCalledWith(expect.objectContaining({ aiComment: "VIDEO FEEDBACK", aiScores: undefined }));
     await addRetake(utils);
     await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
     expect(analyzeVideoFrames.mock.calls[0][6].previous.summary).toBe("지난 요약");

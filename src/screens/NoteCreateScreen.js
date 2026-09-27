@@ -162,7 +162,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     () => (parentNoteId ? savedNotes.find((n) => String(n.id) === String(parentNoteId)) || null : null),
     [savedNotes, parentNoteId]
   );
-  const videoPreviousContext = useMemo(() => buildPreviousContext(parentNote ? { ...parentNote, aiComment: parentNote.videoAnalysis || parentNote.aiComment } : null), [parentNote]);
+  const videoPreviousContext = useMemo(() => buildPreviousContext(parentNote ? { ...parentNote, aiComment: parentNote.videoAnalysis || parentNote.aiComment, aiScores: parentNote.videoAnalysis ? undefined : parentNote.aiScores } : null), [parentNote]);
   const isVideoRetake = !!parentNoteId && (!!parentNote?.videoAnalysis || parentNote?.images?.some((item) => item.type === "video"));
   // AI가 준 "다음에 고칠 점" 후보와 이번에 고른 값
   const [focusOptions, setFocusOptions] = useState(Array.isArray(prefill?.focusOptions) ? prefill.focusOptions : []);
