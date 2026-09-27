@@ -1,5 +1,5 @@
 {
-  "NSPhotoLibraryUsageDescription": "Photo access is needed to attach images to notes and profile.",
-  "NSCameraUsageDescription": "Camera access is needed to take profile photos.",
-  "NSMicrophoneUsageDescription": "Microphone access is needed to record voice memos."
+  "NSPhotoLibraryUsageDescription": "Photo library access is needed to set a profile photo and attach photos and practice videos to notes.",
+  "NSCameraUsageDescription": "Camera access is needed to take profile photos and record practice videos.",
+  "NSMicrophoneUsageDescription": "Microphone access is needed to record voice memos and audio in practice videos."
 }

@@ -1,5 +1,5 @@
 {
-  "NSPhotoLibraryUsageDescription": "Cần quyền truy cập ảnh để đính kèm hình ảnh vào ghi chú và hồ sơ.",
-  "NSCameraUsageDescription": "Cần quyền truy cập camera để chụp ảnh hồ sơ.",
-  "NSMicrophoneUsageDescription": "Cần quyền truy cập micro để ghi âm ghi chú thoại."
+  "NSPhotoLibraryUsageDescription": "Cần quyền truy cập thư viện ảnh để đặt ảnh hồ sơ và đính kèm ảnh, video luyện tập vào ghi chú.",
+  "NSCameraUsageDescription": "Cần quyền truy cập máy ảnh để chụp ảnh hồ sơ và quay video luyện tập.",
+  "NSMicrophoneUsageDescription": "Cần quyền truy cập micrô để ghi âm bản ghi nhớ và âm thanh trong video luyện tập."
 }

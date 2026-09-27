@@ -1,5 +1,5 @@
 {
-  "NSPhotoLibraryUsageDescription": "需要访问照片以将图片附加到笔记和个人资料中。",
-  "NSCameraUsageDescription": "需要访问相机以拍摄个人资料照片。",
-  "NSMicrophoneUsageDescription": "需要访问麦克风以录制语音备忘录。"
+  "NSPhotoLibraryUsageDescription": "需要访问照片图库，以设置头像并在笔记中添加照片和练习视频。",
+  "NSCameraUsageDescription": "需要使用相机，以拍摄头像和练习视频。",
+  "NSMicrophoneUsageDescription": "需要使用麦克风，以录制语音备忘录和练习视频中的声音。"
 }

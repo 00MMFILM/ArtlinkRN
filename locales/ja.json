@@ -1,5 +1,5 @@
 {
-  "NSPhotoLibraryUsageDescription": "プロフィール写真やノートに画像を添付するために、写真へのアクセスが必要です。",
-  "NSCameraUsageDescription": "プロフィール写真を撮影するために、カメラへのアクセスが必要です。",
-  "NSMicrophoneUsageDescription": "ボイスメモを録音するために、マイクへのアクセスが必要です。"
+  "NSPhotoLibraryUsageDescription": "プロフィール写真の設定と、ノートへの写真や練習動画の添付のため、写真ライブラリへのアクセスが必要です。",
+  "NSCameraUsageDescription": "プロフィール写真と練習動画の撮影のため、カメラへのアクセスが必要です。",
+  "NSMicrophoneUsageDescription": "音声メモと練習動画の音声の録音のため、マイクへのアクセスが必要です。"
 }
