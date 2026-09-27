@@ -164,6 +164,75 @@ describe("confirmed note persistence", () => {
   });
 });
 
+describe("studio context in note creation", () => {
+  beforeEach(resetAll);
+  const meta = {
+    feedbackLanguage: "ko", scriptLanguage: "en",
+    rehearsalContext: { sceneTitle: "Scene", role: "Lear", feedbackLanguage: "ko", scriptLanguage: "en" },
+    applicationContext: { postId: "casting-1", title: "Application", country: "UK", submissions: ["Self-tape"] },
+  };
+  const routeWith = (extra = {}) => ({ params: { prefill: { title: "Scene", content: "English script", field: "acting", ...meta, ...extra } } });
+
+  it("shows accepted context and carries it into text analysis and permanent saving", async () => {
+    const ctx = buildCtx("u1"); ctx.handleSaveNote.mockResolvedValue(22);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={routeWith()} />);
+    expect(utils.getByTestId("studio-context-card")).toBeTruthy();
+    expect(utils.getByText("Lear")).toBeTruthy();
+    expect(utils.getByText("UK")).toBeTruthy();
+    await act(async () => fireEvent.press(utils.getByText("noteCreate.ai_analyze")));
+    expect(analyzeNote.mock.calls[0][3]).toEqual(expect.objectContaining(meta));
+    expect(analyzeNote.mock.calls[0][6]).toEqual(expect.objectContaining(meta));
+    await act(async () => fireEvent.press(utils.getByText("common.save")));
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining(meta));
+  });
+
+  it("carries the same selected language and role into video analysis", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={routeWith({ images: [{ uri: "file:///take.mov", type: "video", duration: 5000 }] })} />);
+    await act(async () => fireEvent.press(utils.getByText("noteCreate.video_ai_analyze")));
+    expect(analyzeVideoFrames.mock.calls[0][6]).toEqual(expect.objectContaining(meta));
+  });
+
+  it("keeps the current metadata when a replacement prefill is not accepted", async () => {
+    const ctx = buildCtx("u1"); ctx.handleSaveNote.mockResolvedValue(22);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={routeWith()} />);
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={routeWith({ feedbackLanguage: "en", rehearsalContext: { role: "Other", feedbackLanguage: "en" } })} />);
+    expect(Alert.alert).toHaveBeenCalledWith("noteCreate.replace_with_new_title", "noteCreate.replace_with_new_message", expect.any(Array));
+    expect(utils.getByText("Lear")).toBeTruthy();
+    await act(async () => fireEvent.press(utils.getByText("common.save")));
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining(meta));
+  });
+
+  it("updates analysis callbacks after accepting a new language and clears absent old context", async () => {
+    const ctx = buildCtx("u1"); ctx.handleSaveNote.mockResolvedValue(22);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={routeWith()} />);
+    const replacement = { params: { prefill: { title: "Next", content: "다음 대본", feedbackLanguage: "en", scriptLanguage: "ko" } } };
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={replacement} />);
+    const confirm = Alert.alert.mock.calls.find((call) => call[0] === "noteCreate.replace_with_new_title")[2].find((button) => button.text === "common.confirm");
+    await act(async () => confirm.onPress());
+    expect(utils.queryByTestId("studio-context-card")).toBeNull();
+    await act(async () => fireEvent.press(utils.getByText("noteCreate.ai_analyze")));
+    expect(analyzeNote.mock.calls[0][6]).toEqual(expect.objectContaining({ feedbackLanguage: "en", scriptLanguage: "ko" }));
+    expect(analyzeNote.mock.calls[0][6].rehearsalContext).toBeUndefined();
+    expect(analyzeNote.mock.calls[0][6].applicationContext).toBeUndefined();
+    await act(async () => fireEvent.press(utils.getByText("common.save")));
+    expect(ctx.handleSaveNote.mock.calls[0][0].applicationContext).toBeUndefined();
+  });
+
+  it("includes studio metadata in the actual signup draft rather than only the final note", async () => {
+    useApp.mockReturnValue(buildCtx(null));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={routeWith()} />);
+    await act(async () => fireEvent.press(utils.getByText("noteCreate.ai_analyze")));
+    await waitFor(() => expect(Alert.alert.mock.calls.some((call) => call[0] === "signupNudge.title")).toBe(true));
+    const signup = Alert.alert.mock.calls.find((call) => call[0] === "signupNudge.title")[2].find((button) => button.text === "signupNudge.cta");
+    await act(async () => signup.onPress());
+    expect(JSON.parse(AsyncStorage.__store[DRAFT_KEY])).toEqual(expect.objectContaining(meta));
+  });
+});
+
 describe("NoteCreateScreen — 첫 AI 피드백 직후 안내", () => {
   beforeEach(resetAll);
 

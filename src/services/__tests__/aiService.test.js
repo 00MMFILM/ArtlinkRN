@@ -433,3 +433,52 @@ describe("첫 체크인 메모가 모델 프롬프트에 전달된다", () => {
     } finally { global.XMLHttpRequest = originalXHR; }
   });
 });
+
+describe("studio feedback language and evidence context", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    require("i18next").language = "ko";
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ analysis: "A practical next attempt." }) }));
+  });
+
+  it("uses English feedback for a Korean script without changing app language", async () => {
+    await analyzeNote("acting", "다시 돌아올 거라고 믿었어.", [], {
+      feedbackLanguage: "en", scriptLanguage: "ko",
+      rehearsalContext: { role: "JIN", sceneTitle: "The Letter", scriptLanguage: "ko", feedbackLanguage: "en" },
+    });
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body.feedbackLanguage).toBe("en");
+    expect(body.prompt).toContain('"role":"JIN"');
+    expect(body.prompt).toContain("not acoustic evidence");
+    expect(require("i18next").language).toBe("ko");
+  });
+
+  it("keeps explicit Korean feedback when app and script are English", async () => {
+    require("i18next").language = "en";
+    await analyzeNote("acting", "I thought you would come back.", [], {}, {}, null, { feedbackLanguage: "ko" });
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body.feedbackLanguage).toBe("ko");
+    expect(body.prompt).toContain("연기");
+    expect(require("i18next").language).toBe("en");
+  });
+
+  it("ignores unsupported overrides and keeps the legacy request contract", async () => {
+    await analyzeNote("acting", "오늘 연습", [], {}, {}, null, { feedbackLanguage: "anything", privateScript: "NEVER COPY" });
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body).not.toHaveProperty("feedbackLanguage");
+    expect(body.prompt).not.toContain("NEVER COPY");
+  });
+
+  it("passes the same explicit language and selected role for video analysis", async () => {
+    extractVideoFrames.mockResolvedValue({ frames: ["b64"], times: [0] });
+    FileSystem.uploadAsync.mockResolvedValue({ status: 500, body: "" });
+    await analyzeVideoFrames("acting", "영어 장면 연습", "Rehearsal", [{ uri: "file:///test.mov", duration: 5000 }], {}, null, {
+      feedbackLanguage: "en", rehearsalContext: { role: "ALEX", scriptLanguage: "en", feedbackLanguage: "en" },
+    });
+    const call = global.fetch.mock.calls.find(([url]) => url.includes("/api/analyze-video"));
+    const body = JSON.parse(call[1].body);
+    expect(body.feedbackLanguage).toBe("en");
+    expect(body.prompt).toContain('"role":"ALEX"');
+    expect(body.prompt).toContain("do not infer pronunciation");
+  });
+});

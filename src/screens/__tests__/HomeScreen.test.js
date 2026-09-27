@@ -300,7 +300,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     expect(queryByText("home.hero_title_ko_acting")).toBeTruthy();
     expect(queryByText("home.hero_cta_ko_acting")).toBeTruthy();
     expect(queryByText("home.hero_title")).toBeNull();
-    expect(queryByText("home.duet_title")).toBeTruthy();
+    expect(queryByText("studio.title")).toBeTruthy();
   });
 
   it("한국어 + 노트 0개 + 연기 분야면 입시·오디션 문구와 2인 대사 카드가 보인다", async () => {
@@ -311,7 +311,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
     expect(queryByText("home.hero_title_ko_acting")).toBeTruthy();
-    expect(queryByText("home.duet_title")).toBeTruthy();
+    expect(queryByText("studio.title")).toBeTruthy();
   });
 
   // 버그: 음악·미술 등 연기가 아닌 분야로 가입해도 "입시·오디션" 연기 문구가 떴다(2026-09-19)
@@ -324,7 +324,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
     expect(queryByText("home.hero_title_ko_acting")).toBeNull();
     expect(queryByText("home.hero_title")).toBeTruthy();
-    expect(queryByText("home.duet_title")).toBeNull();
+    expect(queryByText("studio.title")).toBeNull();
   });
 
   it("한국어라도 노트가 있으면 기존 화면 그대로 (2인 대사 카드는 연기 유저에게만)", async () => {
@@ -334,7 +334,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
     expect(queryByText("home.hero_title_ko_acting")).toBeNull();
-    expect(queryByText("home.duet_title")).toBeNull();
+    expect(queryByText("studio.title")).toBeNull();
   });
 
   it("다른 언어는 기존 문구 그대로", async () => {
@@ -342,7 +342,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
     expect(queryByText("home.hero_title")).toBeTruthy();
     expect(queryByText("home.hero_title_ko_acting")).toBeNull();
-    expect(queryByText("home.duet_title")).toBeNull();
+    expect(queryByText("studio.title")).toBeNull();
   });
 
   // 버그: 히어로 카드 아래 duetCard가 뜨는데, 퀵노트 카드 맨 아래 줄에도 같은 진입이 중복으로 떴다(2026-09-19)
@@ -353,8 +353,8 @@ describe("HomeScreen — 한국어 첫 화면", () => {
       userProfile: { name: "배우", fields: ["acting"] },
     });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.duet_title")).toBeTruthy(); // 상단 카드
-    expect(queryByText("home.duet_row")).toBeNull(); // 하단 중복 줄은 없다
+    expect(queryByText("studio.title")).toBeTruthy(); // 상단 카드
+    expect(queryByText("studio.action")).toBeTruthy(); // 상단 카드에 단일 연습실 진입 버튼
   });
 
   it("duetCard가 안 뜨는 비연기·기존 사용자에게는 하단 줄이 그대로 남는다", async () => {
@@ -364,8 +364,8 @@ describe("HomeScreen — 한국어 첫 화면", () => {
       userProfile: { name: "홍길동", fields: ["music"] },
     });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.duet_title")).toBeNull();
-    expect(queryByText("home.duet_row")).toBeTruthy();
+    expect(queryByText("studio.title")).toBeNull();
+    expect(queryByText("studio.action")).toBeTruthy();
   });
 });
 
@@ -376,13 +376,13 @@ describe("HomeScreen — 퀵액션 매칭 노출", () => {
   it("한국어면 매칭 퀵액션이 보인다", async () => {
     useApp.mockReturnValue({ ...buildCtx([]), isKoreanLocale: true });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.matching")).toBeTruthy();
+    expect(queryByText("studio.opportunities")).toBeTruthy();
   });
 
-  it("비한국어면 매칭 퀵액션이 숨는다", async () => {
+  it("비한국어도 공고·기회 진입이 보인다", async () => {
     useApp.mockReturnValue(buildCtx([])); // isKoreanLocale: false
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.matching")).toBeNull();
+    expect(queryByText("studio.opportunities")).toBeTruthy();
     // 나머지 퀵액션은 그대로
     expect(queryByText("home.new_note")).toBeTruthy();
     expect(queryByText("home.growth_report")).toBeTruthy();
@@ -415,5 +415,19 @@ describe("1.11.9 — 최근 장면 이어하기", () => {
     await act(async () => {});
     expect(utils.queryByTestId("retake-resume-card")).toBeNull();
     expect(trackFunnelEvent).not.toHaveBeenCalledWith("resume_card_tapped");
+  });
+});
+
+describe("global studio entry", () => {
+  beforeEach(() => jest.clearAllMocks());
+  it("opens studio and opportunities for an English-language acting user", async () => {
+    useApp.mockReturnValue({ ...buildCtx([]), userProfile: { fields: ["acting"] }, isKoreanLocale: false });
+    const screen = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    fireEvent.press(screen.getByTestId("studio-home-card"));
+    expect(navigation.navigate).toHaveBeenCalledWith("DuetPractice");
+    fireEvent.press(screen.getByText("studio.opportunities"));
+    expect(navigation.navigate).toHaveBeenCalledWith("Matching");
+    expect(screen.getByText("studio.creator")).toBeTruthy();
   });
 });

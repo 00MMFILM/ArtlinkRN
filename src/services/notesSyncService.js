@@ -1,9 +1,10 @@
 import { supabase } from "./supabaseClient";
 import { mutateNoteState, readNoteState } from "./noteStore";
+import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 
 const PRACTICE_FIELDS = ["sceneId", "parentNoteId", "rootNoteId", "focus", "chosenFocus", "focusOptions", "practiceSessionId", "type"];
 function practiceMeta(note) {
-  const meta = {};
+  const meta = { ...sanitizeStudioMetadata(note) };
   for (const key of PRACTICE_FIELDS) {
     const value = note?.[key];
     if (key === "focusOptions") {

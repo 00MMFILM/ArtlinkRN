@@ -2,7 +2,8 @@ jest.mock("@react-native-async-storage/async-storage", () => require("@react-nat
 // supabase 클라이언트는 이 테스트에서 쓰지 않으므로 mock (env/네트워크 의존 제거)
 jest.mock("../supabaseClient", () => ({ supabase: {} }));
 
-import { mergeNotes } from "../notesSyncService";
+import { mergeNotes, syncNotesToServer } from "../notesSyncService";
+import { supabase } from "../supabaseClient";
 
 const serverRow = (localId, { title = "server", updatedAt, createdAt } = {}) => ({
   local_id: localId,
@@ -16,6 +17,32 @@ const serverRow = (localId, { title = "server", updatedAt, createdAt } = {}) => 
 });
 
 describe("mergeNotes", () => {
+  it("round-trips only whitelisted studio metadata through practice_meta on another device", async () => {
+    const meta = {
+      feedbackLanguage: "ko", scriptLanguage: "en",
+      rehearsalContext: { sceneTitle: "Original scene", role: "Lear", scriptLanguage: "en", feedbackLanguage: "ko" },
+      applicationContext: { postId: 12, country: "UK", submissions: ["Self-tape"] },
+    };
+    let uploaded;
+    supabase.from = jest.fn(() => ({ upsert: jest.fn((rows) => {
+      uploaded = rows;
+      return { select: async () => ({ data: rows, error: null }) };
+    }) }));
+    await syncNotesToServer("account-a", [{ id: 1, title: "Scene", content: "A rehearsal", createdAt: "2026-01-01T00:00:00.000Z", ...meta,
+      rehearsalContext: { ...meta.rehearsalContext, images: ["file:///old"] }, images: [{ uri: "file:///local" }] }]);
+    expect(uploaded[0].practice_meta).toEqual(meta);
+    expect(uploaded[0].images).toBeUndefined();
+    expect(mergeNotes([], uploaded)[0]).toEqual(expect.objectContaining(meta));
+    const newer = { ...uploaded[0], updated_at: "2026-02-01T00:00:00.000Z", practice_meta: { ...meta, feedbackLanguage: "en" } };
+    expect(mergeNotes([{ id: 1, createdAt: "2026-01-01T00:00:00.000Z", ...meta }], [newer])[0].feedbackLanguage).toBe("en");
+  });
+
+  it("keeps portable studio context when an older server omits practice_meta", () => {
+    const meta = { feedbackLanguage: "en", applicationContext: { postId: "p1", country: "UK", submissions: ["CV"] } };
+    const [merged] = mergeNotes([{ id: 1, createdAt: "2026-01-01T00:00:00.000Z", ...meta }], [serverRow(1, { updatedAt: "2026-02-01T00:00:00.000Z" })]);
+    expect(merged).toEqual(expect.objectContaining(meta));
+  });
+
   it("서버 fetch 대기 중 새로 저장된 로컬 노트를 보존한다 (데이터 유실 재현 방지)", () => {
     // 로그인 직후 서버에서 노트를 받아오는 사이 사용자가 만든 신규 노트
     const localNew = {

@@ -14,11 +14,15 @@ import id from "./locales/id.json";
 import ar from "./locales/ar.json";
 import es from "./locales/es.json";
 
+import studioStrings from "./studioStrings";
+import duetStudioStrings from "./duetStudioStrings";
+import opportunityStrings from "./opportunityStrings";
+
 const LANGUAGE_KEY = "artlink-language";
 
 const resources = {
-  ko: { translation: ko },
-  en: { translation: en },
+  ko: { translation: { ...ko, ...studioStrings.ko, ...duetStudioStrings.ko, ...opportunityStrings.ko } },
+  en: { translation: { ...en, ...studioStrings.en, ...duetStudioStrings.en, ...opportunityStrings.en } },
   ja: { translation: ja },
   "zh-CN": { translation: zhCN },
   "zh-TW": { translation: zhTW },

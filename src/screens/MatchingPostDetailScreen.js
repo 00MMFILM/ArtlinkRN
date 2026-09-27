@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
-import { CLight, T, FIELD_COLORS, FIELD_EMOJIS } from "../constants/theme";
+import { CLight, T } from "../constants/theme";
+import { STUDIO as S } from "../constants/studioTheme";
+import { opportunityFacts, buildApplicationPrefill } from "../utils/opportunities";
 import { resolveMatchingApplication, matchingDeadlineDays, isMatchingClosed, matchingSourceName } from "../utils/matchingApplication";
 
 export default function MatchingPostDetailScreen({ route, navigation }) {
@@ -20,8 +22,9 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
   const { post } = route.params;
   const { handleBlockUser, handleReportContent } = useApp();
 
-  const fieldColor = FIELD_COLORS[post.field] || CLight.pink;
-  const fieldEmoji = FIELD_EMOJIS[post.field] || "";
+  const fieldColor = S.accent;
+  const facts = opportunityFacts(post);
+  const unspecified = t("opportunities.unspecified");
   const fieldLabel = t("fields." + post.field);
 
   const getDaysLeft = (deadline) => {
@@ -134,7 +137,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         >
           <Text style={styles.topBarBtnText}>{"←"}</Text>
         </TouchableOpacity>
-        <Text style={[T.title, { color: CLight.gray900 }]}>{t("matchingDetail.title")}</Text>
+        <Text style={[T.title, { color: S.ink }]}>{t("opportunities.title")}</Text>
         <TouchableOpacity
           onPress={handleReport}
           style={styles.topBarBtn}
@@ -155,23 +158,23 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
           <View style={styles.badgeRow}>
             <View style={[styles.fieldBadge, { backgroundColor: `${fieldColor}18` }]}>
               <Text style={[T.small, { color: fieldColor, fontWeight: "600" }]}>
-                {fieldEmoji} {fieldLabel}
+                {fieldLabel}
               </Text>
             </View>
             <View style={[styles.tabBadge]}>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>{post.tab}</Text>
+              <Text style={[T.micro, { color: S.muted }]}>{t({ "프로젝트": "matching.tab_project", "오디션": "matching.tab_audition", "콜라보": "matching.tab_collab" }[post.tab] || "opportunities.title")}</Text>
             </View>
           </View>
 
           {/* Title */}
-          <Text style={[T.h3, { color: CLight.gray900, marginTop: 14 }]}>
+          <Text style={[T.h3, { color: S.ink, marginTop: 14 }]}>
             {post.title}
           </Text>
 
           {/* Missing or invalid dates are unknown, not an unlimited application window. */}
           {daysLeft && (
             <View style={styles.deadlineRow}>
-              {matchingDeadlineDays(post.deadline) !== null && <Text style={[T.caption, { color: CLight.gray500 }]}>
+              {matchingDeadlineDays(post.deadline) !== null && <Text style={[T.caption, { color: S.muted }]}>
                 {t("matchingDetail.deadline_prefix", { date: post.deadline })}
               </Text>}
               {daysLeft && (
@@ -184,7 +187,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
                   <Text
                     style={[
                       T.microBold,
-                      { color: daysLeft === t("matchingDetail.deadline_expired") ? CLight.red : CLight.pink },
+                      { color: daysLeft === t("matchingDetail.deadline_expired") ? CLight.red : S.accent },
                     ]}
                   >
                     {daysLeft}
@@ -194,78 +197,53 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
             </View>
           )}
 
+          <View style={styles.factsSection}>
+            <Text style={styles.sectionTitle}>{t("opportunities.known_conditions")}</Text>
+            <InfoRow label={t("opportunities.location")} value={[facts.country, facts.location].filter(Boolean).join(" · ") || unspecified} />
+            <InfoRow label={t("opportunities.pay")} value={facts.pay || unspecified} />
+            <InfoRow label={t("opportunities.language")} value={facts.languages.join(", ") || unspecified} />
+            <InfoRow label={t("opportunities.remote")} value={facts.remote === null ? unspecified : t(facts.remote ? "opportunities.remote_yes" : "opportunities.remote_no")} />
+            <Text style={styles.note}>{t("opportunities.facts_notice")}</Text>
+          </View>
+
           {/* Source and application instructions stay visible without opening an alert. */}
           <View style={styles.applicationSection}>
-            <Text style={[T.captionBold, { color: CLight.gray700 }]}>{t("matchingDetail.source_title")}</Text>
-            <Text selectable style={[T.body, { color: CLight.gray900, marginTop: 6 }]}>{sourceName}</Text>
+            <Text style={[T.captionBold, { color: S.ink }]}>{t("matchingDetail.source_title")}</Text>
+            <Text selectable style={[T.body, { color: S.ink, marginTop: 6 }]}>{sourceName}</Text>
             {!!application.sourceUrl && (
               <TouchableOpacity accessibilityRole="link" style={styles.secondaryBtn} onPress={() => openLink(application.sourceUrl, application.sourceUrl)}>
-                <Text style={[T.captionBold, { color: CLight.pink }]}>{t("matchingDetail.view_original")}</Text>
+                <Text style={[T.captionBold, { color: S.accent }]}>{t("matchingDetail.view_original")}</Text>
               </TouchableOpacity>
             )}
-            <Text style={[T.captionBold, { color: CLight.gray700, marginTop: 12 }]}>{t("matchingDetail.application_method")}</Text>
+            <Text style={[T.captionBold, { color: S.ink, marginTop: 12 }]}>{t("matchingDetail.application_method")}</Text>
             {closed ? (
               <Text style={[T.caption, { color: CLight.red, marginTop: 6 }]}>{t("matchingDetail.closed_notice")}</Text>
             ) : application.value ? (
               <>
-                <Text selectable style={[T.body, { color: CLight.gray900, marginTop: 6 }]}>{application.value}</Text>
+                <Text selectable style={[T.body, { color: S.ink, marginTop: 6 }]}>{application.value}</Text>
                 <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => copyValue(application.value)}>
-                  <Text style={[T.captionBold, { color: CLight.pink }]}>{t("matchingDetail.copy_contact")}</Text>
+                  <Text style={[T.captionBold, { color: S.accent }]}>{t("matchingDetail.copy_contact")}</Text>
                 </TouchableOpacity>
               </>
             ) : (
-              <Text style={[T.caption, { color: CLight.gray500, marginTop: 6 }]}>{t(`matchingDetail.${application.sourceUrl ? "check_source" : "info_unavailable"}`)}</Text>
+              <Text style={[T.caption, { color: S.muted, marginTop: 6 }]}>{t(`matchingDetail.${application.sourceUrl ? "check_source" : "info_unavailable"}`)}</Text>
             )}
           </View>
 
-          {/* Match percent */}
-          {post.matchPercent != null && (
-            <View style={styles.matchSection}>
-              <Text style={[T.captionBold, { color: CLight.gray700 }]}>
-                {t("matchingDetail.match_rate")}
-              </Text>
-              <View style={styles.matchBarBg}>
-                <View
-                  style={[
-                    styles.matchBarFill,
-                    {
-                      width: `${post.matchPercent}%`,
-                      backgroundColor:
-                        post.matchPercent >= 70
-                          ? CLight.green
-                          : post.matchPercent >= 40
-                          ? CLight.orange
-                          : CLight.gray400,
-                    },
-                  ]}
-                />
-              </View>
-              <Text
-                style={[
-                  T.microBold,
-                  {
-                    color:
-                      post.matchPercent >= 70
-                        ? CLight.green
-                        : post.matchPercent >= 40
-                        ? CLight.orange
-                        : CLight.gray400,
-                    marginTop: 4,
-                  },
-                ]}
-              >
-                {t("matchingDetail.match_percent", { percent: post.matchPercent })}
-              </Text>
-            </View>
-          )}
+
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t("opportunities.materials")}</Text>
+          <Text selectable style={styles.materials}>{facts.submissions.length ? facts.submissions.join("\n") : t("opportunities.materials_unknown")}</Text>
         </View>
 
         {/* Description Card */}
         {!!post.description?.trim() && <View style={styles.card}>
-          <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
+          <Text style={[T.captionBold, { color: S.ink, marginBottom: 10 }]}>
             {t("matchingDetail.description")}
           </Text>
-          <Text selectable style={[T.body, { color: CLight.gray900, lineHeight: 26 }]}>
+          <Text selectable style={[T.body, { color: S.ink, lineHeight: 26 }]}>
             {post.description}
           </Text>
         </View>}
@@ -273,7 +251,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         {/* Casting Requirements */}
         {post.requirements && Object.keys(post.requirements).length > 0 && (
           <View style={styles.card}>
-            <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
+            <Text style={[T.captionBold, { color: S.ink, marginBottom: 10 }]}>
               {t("matchingDetail.casting_requirements")}
             </Text>
             {post.requirements.gender && (
@@ -297,13 +275,13 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         {/* Tags */}
         {post.tags?.length > 0 && (
           <View style={styles.card}>
-            <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
+            <Text style={[T.captionBold, { color: S.ink, marginBottom: 10 }]}>
               {t("matchingDetail.tags")}
             </Text>
             <View style={styles.tagsRow}>
               {post.tags.map((tag) => (
                 <View key={tag} style={styles.tagChip}>
-                  <Text style={[T.small, { color: CLight.pink }]}>#{tag}</Text>
+                  <Text style={[T.small, { color: S.accent }]}>#{tag}</Text>
                 </View>
               ))}
             </View>
@@ -313,19 +291,30 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
 
       {/* Bottom Action */}
       <View style={styles.bottomBar}>
+        <Text style={styles.prepareNotice}>{t("opportunities.prepare_notice")}</Text>
+        <View style={styles.bottomActions}>
+        <TouchableOpacity testID="matching-prepare-action" accessibilityRole="button" disabled={closed}
+          accessibilityState={{ disabled: closed }} style={[styles.prepareBtn, closed && { opacity: 0.45 }]}
+          onPress={() => { if (!isMatchingClosed(post)) navigation.navigate("NoteCreate", { prefill: buildApplicationPrefill(post, t) }); }}>
+          <Text style={styles.prepareText}>{t("opportunities.prepare")}</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           testID="matching-primary-action"
           accessibilityRole="button"
           accessibilityState={{ disabled: !actionHref }}
           disabled={!actionHref}
           style={[styles.applyBtn, !actionHref && { backgroundColor: CLight.gray400 }]}
-          onPress={() => openLink(actionHref, directApplication ? application.value : application.sourceUrl)}
+          onPress={() => {
+            const expired = isMatchingClosed(post);
+            openLink(expired ? application.sourceUrl : actionHref, expired || !directApplication ? application.sourceUrl : application.value);
+          }}
           activeOpacity={0.85}
         >
-          <Text style={[T.bodyBold, { color: CLight.white }]}>
+          <Text style={styles.applicationText}>
             {t(`matchingDetail.${actionLabel}`)}
           </Text>
         </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -334,143 +323,31 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
 function InfoRow({ label, value }) {
   return (
     <View style={styles.infoRow}>
-      <Text style={[T.caption, { color: CLight.gray500, width: 60 }]}>{label}</Text>
-      <Text style={[T.caption, { color: CLight.gray900, flex: 1 }]}>{value}</Text>
+      <Text style={[T.caption, { color: S.muted, width: 88, fontSize: 12 }]}>{label}</Text>
+      <Text style={[T.caption, { color: S.ink, flex: 1 }]}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: CLight.bg,
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-    backgroundColor: CLight.topBarBg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: CLight.gray200,
-  },
-  topBarBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: CLight.gray100,
-  },
-  topBarBtnText: { fontSize: 20 },
-  scrollView: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 20 },
-
-  card: {
-    backgroundColor: CLight.cardBg,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: CLight.cardBorder,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  fieldBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  tabBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: CLight.gray100,
-  },
-  deadlineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 12,
-  },
-  dDayBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: CLight.pinkSoft,
-  },
-  matchSection: {
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: CLight.gray200,
-  },
-  applicationSection: {
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: CLight.gray200,
-  },
-  secondaryBtn: {
-    alignSelf: "flex-start",
-    paddingVertical: 12,
-    paddingRight: 16,
-  },
-  matchBarBg: {
-    height: 8,
-    backgroundColor: CLight.gray100,
-    borderRadius: 4,
-    overflow: "hidden",
-    marginTop: 8,
-  },
-  matchBarFill: {
-    height: 8,
-    borderRadius: 4,
-  },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tagChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: CLight.pinkSoft,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: CLight.gray100,
-  },
-  bottomBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: CLight.white,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: CLight.gray200,
-  },
-  applyBtn: {
-    backgroundColor: CLight.pink,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-    shadowColor: CLight.pink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
+  safe: { flex: 1, backgroundColor: S.background },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, minHeight: 58 },
+  topBarBtn: { width: 42, height: 44, justifyContent: "center", alignItems: "center" }, topBarBtnText: { fontSize: 24, color: S.ink },
+  scrollView: { flex: 1 }, scrollContent: { padding: 20, paddingBottom: 8 },
+  card: { backgroundColor: S.paper, borderRadius: 20, padding: 20, marginBottom: 14, borderWidth: 1, borderColor: S.line },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  fieldBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  tabBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: S.background },
+  deadlineRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, justifyContent: "space-between", marginTop: 14 },
+  dDayBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: S.accentSoft },
+  applicationSection: { marginTop: 20, paddingTop: 18, borderTopWidth: 1, borderTopColor: S.line },
+  secondaryBtn: { alignSelf: "flex-start", paddingVertical: 12, paddingRight: 16 },
+  factsSection: { marginTop: 24 }, sectionTitle: { fontSize: 14, fontWeight: "700", color: S.ink, marginBottom: 10 },
+  note: { fontSize: 11, lineHeight: 18, color: S.muted, marginTop: 10 }, materials: { fontSize: 14, lineHeight: 23, color: S.muted },
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, tagChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: S.accentSoft },
+  infoRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 8, gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: S.line },
+  bottomBar: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, backgroundColor: S.paper, borderTopWidth: 1, borderTopColor: S.line },
+  prepareNotice: { fontSize: 10, lineHeight: 15, color: S.muted, marginBottom: 10 }, bottomActions: { flexDirection: "row", gap: 10 },
+  prepareBtn: { flex: 1, backgroundColor: S.ink, borderRadius: 13, paddingVertical: 16, paddingHorizontal: 8, justifyContent: "center", alignItems: "center" }, prepareText: { color: S.paper, fontSize: 13, fontWeight: "700", textAlign: "center" },
+  applyBtn: { flex: 1, backgroundColor: S.accent, borderRadius: 13, paddingVertical: 16, paddingHorizontal: 8, justifyContent: "center", alignItems: "center" }, applicationText: { color: S.paper, fontSize: 13, fontWeight: "700", textAlign: "center" },
 });

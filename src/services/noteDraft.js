@@ -1,6 +1,7 @@
 // 작성 중인 노트 초안 보관 — 가입 왕복(게스트 → 인증 화면 → 앱)에서 NoteCreate가
 // 언마운트되며 초안이 사라지는 걸 막는다. 저장은 반드시 되읽어 확인한 뒤 true를 준다.
 import { rawStorageForScope } from "../utils/accountStorage";
+import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 
 export const DRAFT_KEY = "artlink-note-draft";
 // 초안 유효기간 — 몇 주 뒤 앱을 열었는데 잊은 초안이 되살아나지 않게 7일로 끊는다.
@@ -31,7 +32,7 @@ export function hasDraftContent(state = {}) {
 }
 
 export function buildDraft(state = {}) {
-  const draft = {};
+  const draft = { ...sanitizeStudioMetadata(state) };
   TEXT_FIELDS.forEach((k) => {
     draft[k] = typeof state[k] === "string" ? state[k] : "";
   });
@@ -52,7 +53,7 @@ export function buildDraft(state = {}) {
 // 저장된 값을 화면 초기화에 쓸 수 있는 모양으로 정규화. 쓸 내용이 없으면 null.
 export function validateDraft(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const draft = {};
+  const draft = { ...sanitizeStudioMetadata(raw) };
   TEXT_FIELDS.forEach((k) => {
     draft[k] = typeof raw[k] === "string" ? raw[k] : "";
   });

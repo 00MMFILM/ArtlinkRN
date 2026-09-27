@@ -9,6 +9,7 @@ export const PERSONAL_KEYS = [
   "artlink-device-user-id", "artlink-profile-token", "artlink-data-consent", "artlink-data-consent-asked",
   "artlink-ai-disclosure-accepted", "artlink-eula-accepted", "artlink-note-draft",
   "artlink-practice-log", "artlink-practice-queue", "artlink-first-checkin-done",
+  "artlink-opportunity-saved-v1",
 ];
 // 가입 직후 첫 체크인 화면을 이 계정에서 이미 봤는가 (1.11.8)
 export const FIRST_CHECKIN_DONE_KEY = "artlink-first-checkin-done";
@@ -138,6 +139,25 @@ async function copyScopeData(sourceScope, targetScope) {
       await strictSetItem(scopedKey("artlink-note-state-v1", targetScope), JSON.stringify({
         notes: [...notes.values()].filter((n) => !tombstones[n.id]), tombstones,
       }));
+    }));
+  // Saved listings are snapshots ({ post, savedAt }), not records with a top-level
+  // id. Keep both listing sources when their ids happen to match. A destination
+  // account's existing snapshot wins on collision, as with the other personal data.
+  const savedOpportunitiesKey = "artlink-opportunity-saved-v1";
+  await withStorageLock(savedOpportunitiesKey, sourceScope, () =>
+    withStorageLock(savedOpportunitiesKey, targetScope, async () => {
+      const sourceRaw = await AsyncStorage.getItem(scopedKey(savedOpportunitiesKey, sourceScope));
+      if (sourceRaw === null) return;
+      const targetRaw = await AsyncStorage.getItem(scopedKey(savedOpportunitiesKey, targetScope));
+      const source = JSON.parse(sourceRaw), target = targetRaw === null ? [] : JSON.parse(targetRaw);
+      if (!Array.isArray(source) || !Array.isArray(target)) return;
+      const keyFor = ({ post }) => `${post.source === "ai" ? "ai" : "user"}:${String(post.id)}`;
+      const valid = (row) => row?.post?.id != null;
+      const merged = new Map(source.filter(valid).map((row) => [keyFor(row), row]));
+      target.filter(valid).forEach((row) => merged.set(keyFor(row), row));
+      const savedTime = (row) => Number.isFinite(Date.parse(row.savedAt)) ? Date.parse(row.savedAt) : 0;
+      const rows = [...merged.values()].sort((a, b) => savedTime(b) - savedTime(a));
+      await strictSetItem(scopedKey(savedOpportunitiesKey, targetScope), JSON.stringify(rows));
     }));
   const transferable = ["artlink-goals", "artlink-feedbacks",
     "artlink-portfolio-items", "artlink-portfolio-summary", "artlink-matching-posts", "artlink-matching-deleted",

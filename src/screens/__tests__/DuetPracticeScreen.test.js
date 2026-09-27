@@ -22,7 +22,14 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
 jest.mock("i18next", () => ({ language: "ko" }));
 jest.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (k, o) => (o ? `${k}${JSON.stringify(o)}` : k) }),
+  useTranslation: () => ({ t: (key, options = {}) => {
+    const { lng = "ko", ...rest } = options;
+    if (key.startsWith("duetStudio.")) {
+      const strings = require("../../i18n/duetStudioStrings").default;
+      return String(strings[lng].duetStudio[key.slice(11)] || key).replace(/{{(\w+)}}/g, (_, name) => rest[name] ?? "");
+    }
+    return Object.keys(rest).length ? `${key}${JSON.stringify(rest)}` : key;
+  } }),
 }));
 jest.mock("../../services/apiConfig", () => ({ SERVER_URL: "https://srv.test" }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
@@ -119,6 +126,9 @@ describe("DuetPracticeScreen — 연습 기록 남기기", () => {
         seriesName: firstScene.play,
         sceneId: firstScene.id,
         sessionId: "sess-duet",
+        scriptLanguage: "ko",
+        feedbackLanguage: "ko",
+        rehearsalContext: { sceneTitle: firstScene.play, role: firstScene.roles[0].name, scriptLanguage: "ko", feedbackLanguage: "ko" },
       },
     });
     expect(trackFunnelEvent).toHaveBeenCalledWith("duet_to_note", "ko");
@@ -671,6 +681,9 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
         seriesName: firstScene.play,
         sceneId: firstScene.id,
         sessionId: "sess-duet",
+        scriptLanguage: "ko",
+        feedbackLanguage: "ko",
+        rehearsalContext: { sceneTitle: firstScene.play, role: firstScene.roles[0].name, scriptLanguage: "ko", feedbackLanguage: "ko" },
       },
     });
     const { prefill } = navigation.navigate.mock.calls[0][1];
@@ -862,5 +875,165 @@ describe("DuetPracticeScreen — leaving preserves recordings", () => {
     await waitFor(() => expect(navigation.goBack).toHaveBeenCalledTimes(1));
     expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
     expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("DuetPracticeScreen — global studio", () => {
+  const english = require("../../data/duet-scenes-en.json").scenes[0];
+  const Speech = require("expo-speech");
+  const { Audio } = require("expo-av");
+  beforeEach(() => {
+    jest.clearAllMocks();
+    __resetVoiceManifest();
+    global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+    useApp.mockReturnValue({ showToast: jest.fn(), userProfile: { authUserId: "account-a" } });
+    Audio.requestPermissionsAsync.mockResolvedValue({ granted: true });
+  });
+  it("selects English dialogue independently and uses en-GB TTS without Korean voice files", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getByTestId("duet-scriptLanguage-en"));
+    expect(utils.queryByText(firstScene.play)).toBeNull();
+    fireEvent.press(utils.getByText(english.play));
+    fireEvent.press(utils.getByTestId("duet-role-1"));
+    fireEvent.press(utils.getByTestId("duet-voice-en-GB"));
+    fireEvent.press(utils.getByTestId("duet-start-cue"));
+    fireEvent.press(utils.getByText("🔊 상대 대사 음성"));
+    expect(Speech.speak.mock.calls.at(-1)[1].language).toBe("en-GB");
+    expect(Speech.speak.mock.calls.at(-1)[0]).toBe(english.lines[0].t);
+    expect(Audio.Sound.createAsync).not.toHaveBeenCalled();
+    expect(require("i18next").language).toBe("ko");
+  });
+  it("passes English feedback and script metadata to notes without auto-analysis", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getByTestId("duet-scriptLanguage-en"));
+    fireEvent.press(utils.getByTestId("duet-feedbackLanguage-en"));
+    fireEvent.press(utils.getByText(english.play));
+    fireEvent.press(utils.getByTestId("duet-start-script"));
+    fireEvent.press(utils.getByText("Save practice notes"));
+    expect(navigation.navigate.mock.calls.at(-1)[1].prefill).toMatchObject({
+      feedbackLanguage: "en", scriptLanguage: "en", sceneId: english.id,
+      rehearsalContext: { sceneTitle: english.play, role: english.roles[0].name, feedbackLanguage: "en", scriptLanguage: "en" },
+    });
+    expect(navigation.navigate.mock.calls.at(-1)[1].prefill).not.toHaveProperty("content");
+    expect(require("i18next").language).toBe("ko");
+  });
+  it("keeps bundled English scenes after an ACT RAW refresh", async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ version: 2, scenes: [{ id: "new-ko", play: "새 장면", roles: [{ name: "A" }, { name: "B" }], lines: [{ r: 0, t: "안녕" }, { r: 1, t: "반가워" }] }] }) }));
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    await waitFor(() => expect(utils.getByText("새 장면")).toBeTruthy());
+    fireEvent.press(utils.getByTestId("duet-scriptLanguage-en"));
+    expect(utils.getByText(english.play)).toBeTruthy();
+    expect(utils.getByText("10개의 장면")).toBeTruthy();
+  });
+  it("requires a local role preview before starting private text, never sending the text to fetch or events", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getByTestId("duet-scriptLanguage-en"));
+    fireEvent.press(utils.getByTestId("duet-paste-open"));
+    fireEvent.changeText(utils.getByTestId("duet-paste-input"), "SecretRole: Unpublished private first line.\nOtherRole: Unpublished private reply.");
+    fireEvent.press(utils.getByTestId("duet-paste-check"));
+    expect(utils.getByTestId("duet-paste-preview")).toBeTruthy();
+    expect(startPractice).not.toHaveBeenCalled();
+    fireEvent.press(utils.getByTestId("duet-paste-confirm"));
+    fireEvent.press(utils.getByTestId("duet-start-script"));
+    expect(startPractice.mock.calls.at(-1)).toEqual(["duet", expect.stringMatching(/^private-/), "acting"]);
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    expect(JSON.stringify(global.fetch.mock.calls)).not.toContain("Unpublished");
+    expect(JSON.stringify(trackFunnelEvent.mock.calls)).not.toContain("Unpublished");
+    expect(JSON.stringify(navigation.navigate.mock.calls)).not.toContain("Unpublished");
+  });
+  it("rejects an unlabelled line and leaves the draft editable", () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getByTestId("duet-paste-open"));
+    fireEvent.changeText(utils.getByTestId("duet-paste-input"), "A: hello\nmissing speaker");
+    fireEvent.press(utils.getByTestId("duet-paste-check"));
+    expect(utils.queryByTestId("duet-paste-preview")).toBeNull();
+    expect(utils.getByText(/2번째 줄을/)).toBeTruthy();
+    expect(utils.getByTestId("duet-paste-input").props.value).toContain("missing speaker");
+    expect(startPractice).not.toHaveBeenCalled();
+  });
+  it("does not create a recorder after permissions return to an unmounted screen", async () => {
+    let resolve;
+    Audio.requestPermissionsAsync.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openCueMode(utils);
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    utils.unmount();
+    await act(async () => resolve({ granted: true }));
+    expect(Audio.Recording.createAsync).not.toHaveBeenCalled();
+  });
+  it("clears private input and refuses late recorder permission after account change", async () => {
+    let resolve;
+    Audio.requestPermissionsAsync.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openCueMode(utils);
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    useApp.mockReturnValue({ showToast: jest.fn(), userProfile: { authUserId: "account-b" } });
+    utils.rerender(<DuetPracticeScreen navigation={navigation} />);
+    await act(async () => resolve({ granted: true }));
+    expect(Audio.Recording.createAsync).not.toHaveBeenCalled();
+    expect(utils.getByTestId("duet-paste-open")).toBeTruthy();
+    expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("DuetPracticeScreen — cancelling a pending recorder", () => {
+  const { Audio } = require("expo-av");
+  let rec;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    __resetVoiceManifest();
+    global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+    useApp.mockReturnValue({ showToast: jest.fn(), userProfile: { authUserId: "account-a" } });
+    rec = { stopAndUnloadAsync: jest.fn(async () => ({ durationMillis: 1000 })), getURI: jest.fn(() => "file:///cancelled.m4a") };
+    preserveMediaFile.mockImplementation(async (uri) => uri);
+    Audio.requestPermissionsAsync.mockResolvedValue({ granted: true });
+    Audio.setAudioModeAsync.mockResolvedValue();
+    Audio.Recording.createAsync.mockResolvedValue({ recording: rec });
+  });
+
+  it.each(["permissions", "audio mode", "recorder"].flatMap((stage) => ["back", "blur", "unmount"].map((leave) => [stage, leave])))
+  ("does not start hidden recording when %s resolves after %s", async (stage, leave) => {
+    let resolvePending;
+    const pending = new Promise((resolve) => { resolvePending = resolve; });
+    const stageMock = stage === "permissions" ? Audio.requestPermissionsAsync : stage === "audio mode" ? Audio.setAudioModeAsync : Audio.Recording.createAsync;
+    stageMock.mockImplementationOnce(() => pending);
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    openCueMode(utils);
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    await waitFor(() => expect(stageMock).toHaveBeenCalled());
+
+    if (leave === "back") fireEvent.press(utils.getByText("‹ 뒤로"));
+    else if (leave === "unmount") utils.unmount();
+    else act(() => navigation.addListener.mock.calls.find(([event]) => event === "blur")[1]());
+
+    await act(async () => resolvePending(stage === "permissions" ? { granted: true } : stage === "recorder" ? { recording: rec } : undefined));
+    expect(Audio.Recording.createAsync).toHaveBeenCalledTimes(stage === "recorder" ? 1 : 0);
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(stage === "recorder" ? 1 : 0);
+    expect(Audio.setAudioModeAsync).toHaveBeenLastCalledWith({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+    expect(preserveMediaFile).not.toHaveBeenCalled();
+    expect(navigation.navigate).not.toHaveBeenCalled();
+    expect(useApp().showToast).not.toHaveBeenCalled();
+
+    if (leave !== "unmount") {
+      if (leave === "back") fireEvent.press(utils.getByTestId("duet-start-cue"));
+      expect(utils.queryByText(/duet\.record_stop/)).toBeNull();
+      // Cancelling a stale start must still allow a fresh, deliberate recording.
+      fireEvent.press(utils.getByText("🎙 duet.record_start"));
+      await waitFor(() => expect(utils.getByText(/duet\.record_stop/)).toBeTruthy());
+    }
+  });
+
+  it("preserves an already active recording on blur so it can still be saved", async () => {
+    const utils = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(utils.getAllByText(firstScene.play)[0]);
+    fireEvent.press(utils.getByTestId("duet-start-script"));
+    fireEvent.press(utils.getByText("🎙 duet.record_start"));
+    await waitFor(() => expect(utils.getByText(/duet\.record_stop/)).toBeTruthy());
+    await act(async () => navigation.addListener.mock.calls.find(([event]) => event === "blur")[1]());
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
+    expect(utils.getByText("녹음 1개 보관 중")).toBeTruthy();
+    fireEvent.press(utils.getByText("연습 기록 남기기"));
+    await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
+    expect(navigation.navigate.mock.calls[0][1].prefill.voiceRecordings).toEqual([{ uri: "file:///cancelled.m4a", duration: 1 }]);
   });
 });

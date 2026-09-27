@@ -1,7 +1,10 @@
+import { sanitizeStudioMetadata } from "./studioMetadata";
+
 // Keep each new take independent: carry the scene and intent, never media or results.
 export function buildRepracticePrefill(note) {
   if (!note || note.id === undefined || note.id === null) return null;
   return {
+    ...sanitizeStudioMetadata(note),
     title: note.title || "",
     field: note.field,
     seriesName: note.seriesName || note.title || "",

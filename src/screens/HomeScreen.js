@@ -16,6 +16,7 @@ import { ensureCheckinSession, saveCheckinNote } from "../services/checkinNote";
 import { buildPracticeActivities } from "../utils/practiceStats";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
+import { STUDIO } from "../constants/studioTheme";
 import PremiumBadge from "../components/PremiumBadge";
 import { buildRepracticePrefill, findResumeTarget } from "../utils/repractice";
 import { trackFunnelEvent } from "../services/mauService";
@@ -36,29 +37,29 @@ export default function HomeScreen({ navigation }) {
     showToast,
   } = useApp();
 
-  // 2인 대사 연습 — 한국어 콘텐츠라 KR 로케일만 노출.
-  // 연기·영화 유저: 상단 전폭 카드 / 그 외: 오늘의 연습 퀵 노트 안 한 줄 링크 (2026-09-02 대표 지시)
   const isActingUser = (userProfile?.fields || []).some((f) => /acting|film/i.test(String(f)));
-  const duetCard = isKoreanLocale ? (
+  const duetCard = (
     <TouchableOpacity
-      style={{
-        backgroundColor: CLight.surface, borderRadius: 16, padding: 16, marginBottom: 16,
-        flexDirection: "row", alignItems: "center",
-        borderWidth: 1, borderColor: isActingUser ? CLight.pinkGlow : CLight.cardBorder,
-      }}
+      testID="studio-home-card"
+      style={styles.studioCard}
       onPress={() => navigation.navigate("DuetPractice")}
-      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={t("studio.action")}
+      activeOpacity={0.9}
     >
-      <Text style={{ fontSize: 28, marginRight: 12 }}>🎭</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={[T.titleBold, { color: CLight.gray900 }]}>{t("home.duet_title")}</Text>
-        <Text style={[T.small, { color: CLight.gray500, marginTop: 2 }]}>
-          {t("home.duet_desc")}
-        </Text>
+      <View style={styles.studioTopline}>
+        <Text style={styles.studioEyebrow}>{t("studio.eyebrow")}</Text>
+        <Text style={styles.studioLanguages}>{t("studio.languages")}</Text>
       </View>
-      <Text style={[T.title, { color: CLight.gray400 }]}>›</Text>
+      <Text style={styles.studioTitle}>{t("studio.title")}</Text>
+      <Text style={styles.studioDescription}>{t("studio.description")}</Text>
+      <View style={styles.studioAction}>
+        <Text style={styles.studioActionText}>{t("studio.action")}</Text>
+        <Text style={styles.studioArrow}>↗</Text>
+      </View>
+      <Text style={styles.studioCreator}>{t("studio.creator")}</Text>
     </TouchableOpacity>
-  ) : null;
+  );
 
   // 한국어 + 노트 0개 = 첫 경험. 입시·오디션 맥락 문구로 바꾸고 2인 대사 진입을 히어로 바로 아래 둔다.
   // 단, 분야가 이미 설정돼 있고 그 안에 연기가 없으면(음악·미술 등) 연기 전용 문구는 어색하다 — 일반 히어로로.
@@ -234,15 +235,15 @@ export default function HomeScreen({ navigation }) {
     {
       key: "matching",
       emoji: "\uD83E\uDD1D",
-      label: t("home.matching"),
+      label: t("studio.opportunities"),
       color: CLight.teal,
       route: "Matching",
     },
-  ].filter((a) => a.key !== "matching" || isKoreanLocale); // \uB9E4\uCE6D\uC740 \uD55C\uAD6D\uC5B4 \uCF58\uD150\uCE20 \u2014 ProfileScreen\uACFC \uB3D9\uC77C\uD558\uAC8C koOnly
+  ];
 
   // ===== RENDER =====
   return (
-    <View style={[styles.container, { backgroundColor: CLight.bg }]}>
+    <View style={[styles.container, { backgroundColor: STUDIO.background }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16 }]}
@@ -284,6 +285,8 @@ export default function HomeScreen({ navigation }) {
             <Text style={[T.small, { color: CLight.gray700, marginTop: 6 }]}>{resumeTarget.chosenFocus}</Text>
           </TouchableOpacity>
         ) : null}
+
+        {(!hasFields || isActingUser) ? duetCard : null}
 
         {/* ---- Weekly summary (연습 활동이 0이면 첫 기록 히어로 카드) ---- */}
         {!hasPracticeActivity ? (
@@ -346,8 +349,6 @@ export default function HomeScreen({ navigation }) {
         </View>
         )}
 
-        {koFirstRun ? duetCard : null}
-        {!koFirstRun && isActingUser && duetCard}
         {/* ---- Quick actions ---- */}
         <View style={styles.quickActionsContainer}>
           {quickActions.map((action) => (
@@ -431,7 +432,7 @@ export default function HomeScreen({ navigation }) {
             </View>
           )}
           {/* 위 duetCard(히어로 아래 전폭 카드)가 이미 떠 있으면 중복이라 숨긴다 */}
-          {isKoreanLocale && !isActingUser && !koFirstRun && (
+          {hasFields && !isActingUser && (
             <TouchableOpacity
               style={{
                 flexDirection: "row", alignItems: "center", marginTop: 12,
@@ -441,7 +442,7 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <Text style={{ fontSize: 15, marginRight: 8 }}>🎭</Text>
-              <Text style={[T.small, { color: CLight.gray500, flex: 1 }]}>{t("home.duet_row")}</Text>
+              <Text style={[T.small, { color: CLight.gray500, flex: 1 }]}>{t("studio.action")}</Text>
               <Text style={[T.small, { color: CLight.gray400 }]}>›</Text>
             </TouchableOpacity>
           )}
@@ -523,6 +524,16 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  studioCard: { backgroundColor: STUDIO.paper, borderColor: STUDIO.line, borderWidth: 1, borderRadius: 24, padding: 22, marginBottom: 18 },
+  studioTopline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 },
+  studioEyebrow: { color: STUDIO.accent, fontSize: 11, fontWeight: "800", letterSpacing: 1.8 },
+  studioLanguages: { color: STUDIO.muted, fontSize: 11, fontWeight: "600", backgroundColor: STUDIO.background, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  studioTitle: { color: STUDIO.ink, fontSize: 27, lineHeight: 36, fontWeight: "700", letterSpacing: -0.8, marginTop: 20 },
+  studioDescription: { color: STUDIO.muted, fontSize: 13, lineHeight: 21, marginTop: 10 },
+  studioAction: { backgroundColor: STUDIO.ink, borderRadius: 14, paddingHorizontal: 17, paddingVertical: 15, marginTop: 23, flexDirection: "row", alignItems: "center", gap: 12 },
+  studioActionText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700", flex: 1 },
+  studioArrow: { color: "#FFFFFF", fontSize: 22 },
+  studioCreator: { color: STUDIO.muted, fontSize: 11, lineHeight: 17, marginTop: 13 },
   container: {
     flex: 1,
   },

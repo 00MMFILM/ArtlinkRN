@@ -109,3 +109,53 @@ test("계정별 삭제는 다른 계정의 사본을 건드리지 않는다", as
   expect(JSON.parse(await rawStorageForScope(accountScope("B")).getItem("artlink-notes"))).toHaveLength(1);
   expect(await disk.getItem("artlink-device-id")).toBe(JSON.stringify("device_1"));
 });
+
+test("guest 저장 공고는 source:id로 합치고 계정의 기존 사본과 게스트 백업을 보존한다", async () => {
+  const key = "artlink-opportunity-saved-v1";
+  const guest = [
+    { post: { id: 1, source: "ai", title: "guest older copy" }, savedAt: "2026-09-20T00:00:00Z" },
+    { post: { id: 1, source: "user", title: "different source" }, savedAt: "2026-09-21T00:00:00Z" },
+    { post: { id: 2, source: "ai", title: "guest only" }, savedAt: "2026-09-22T00:00:00Z" },
+  ];
+  const account = [{ post: { id: "1", source: "ai", title: "account copy" }, savedAt: "2026-09-23T00:00:00Z" }];
+  await rawStorageForScope("guest").setItem(key, JSON.stringify(guest));
+  await rawStorageForScope(accountScope("A")).setItem(key, JSON.stringify(account));
+  expect(await transferGuestData("guest", accountScope("A"))).toBe(true);
+  const merged = JSON.parse(await rawStorageForScope(accountScope("A")).getItem(key));
+  expect(merged.map((row) => row.post.title)).toEqual(["account copy", "guest only", "different source"]);
+  expect(JSON.parse(await rawStorageForScope("guest").getItem(key))).toEqual(guest);
+  await transferGuestData("guest", accountScope("A"));
+  expect(JSON.parse(await rawStorageForScope(accountScope("A")).getItem(key))).toHaveLength(3);
+});
+
+test("동시에 로그인한 두 계정 중 게스트 공고를 먼저 claim한 계정만 가져간다", async () => {
+  const key = "artlink-opportunity-saved-v1";
+  await rawStorageForScope("guest").setItem(key, JSON.stringify([{ post: { id: 1, source: "ai" }, savedAt: "2026-09-27T00:00:00Z" }]));
+  expect(await Promise.all([transferGuestData("guest", accountScope("A")), transferGuestData("guest", accountScope("B"))])).toEqual([true, false]);
+  expect(JSON.parse(await rawStorageForScope(accountScope("A")).getItem(key))).toHaveLength(1);
+  expect(await rawStorageForScope(accountScope("B")).getItem(key)).toBeNull();
+  expect(await transferGuestData(accountScope("A"), accountScope("B"))).toBe(false);
+  expect(await rawStorageForScope(accountScope("B")).getItem(key)).toBeNull();
+  const nextGuest = await guestStorageScope();
+  expect(nextGuest).not.toBe("guest");
+  await transferGuestData(nextGuest, accountScope("B"));
+  expect(await rawStorageForScope(accountScope("B")).getItem(key)).toBeNull();
+});
+
+test("가입 직전 진행 중이던 공고 저장이 끝날 때까지 기다려 이관한다", async () => {
+  const { withStorageLock } = require("../accountStorage");
+  const key = "artlink-opportunity-saved-v1";
+  let release;
+  const ready = new Promise((resolve) => { release = resolve; });
+  const saving = withStorageLock(key, "guest", async () => {
+    await ready;
+    await rawStorageForScope("guest").setItem(key, JSON.stringify([{ post: { id: "pending", source: "ai" } }]));
+  });
+  let transferred = false;
+  const transferring = transferGuestData("guest", accountScope("A")).then(() => { transferred = true; });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(transferred).toBe(false);
+  release();
+  await Promise.all([saving, transferring]);
+  expect(JSON.parse(await rawStorageForScope(accountScope("A")).getItem(key))[0].post.id).toBe("pending");
+});

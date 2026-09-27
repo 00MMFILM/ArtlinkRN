@@ -135,3 +135,28 @@ it("does not execute mailto queries, custom schemes, or URL credentials", () => 
   expect(view.getByTestId("matching-primary-action")).toBeDisabled();
   expect(Linking.openURL).not.toHaveBeenCalled();
 });
+
+
+it("creates an application preparation record without opening an external app", () => {
+  const navigation = { navigate: jest.fn(), goBack: jest.fn() };
+  const view = render(<MatchingPostDetailScreen route={{ params: { post: { ...post, contact: "cast@example.org", matchPercent: 90 } } }} navigation={navigation} />);
+  expect(view.queryByText("matchingDetail.match_rate")).toBeNull();
+  fireEvent.press(view.getByTestId("matching-prepare-action"));
+  expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: expect.objectContaining({ applicationContext: expect.objectContaining({ postId: post.id, sourceUrl: post.sourceUrl, contact: "cast@example.org" }) }) });
+  expect(Linking.openURL).not.toHaveBeenCalled();
+});
+
+it("disables preparation for closed listings", () => {
+  const view = screen({ status: "closed" });
+  expect(view.getByTestId("matching-prepare-action")).toBeDisabled();
+});
+
+
+it("rechecks the deadline when an already-open screen crosses midnight", () => {
+  const now = jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-27T14:59:00Z"));
+  const view = screen({ deadline: "2026-09-27", contact: "cast@example.org" });
+  now.mockReturnValue(Date.parse("2026-09-27T15:01:00Z"));
+  fireEvent.press(view.getByTestId("matching-primary-action"));
+  expect(Linking.openURL).toHaveBeenCalledWith(post.sourceUrl);
+  expect(Linking.openURL).not.toHaveBeenCalledWith("mailto:cast@example.org");
+});

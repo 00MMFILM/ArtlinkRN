@@ -4,6 +4,13 @@ const now = Date.parse("2026-09-27T12:00:00Z");
 const makeNote = (id, days, extra = {}) => ({ id, createdAt: new Date(now - days * 86400000).toISOString(), chosenFocus: "호흡", focusOptions: ["호흡"], ...extra });
 
 describe("retake prefill", () => {
+  it("keeps selected language, role, and application context without copying old analysis/media", () => {
+    const meta = { feedbackLanguage: "ko", scriptLanguage: "en", rehearsalContext: { role: "Lear", sceneTitle: "Scene", feedbackLanguage: "ko", scriptLanguage: "en" }, applicationContext: { postId: "p1", country: "UK", submissions: ["Self-tape"] } };
+    const prefill = buildRepracticePrefill({ id: 1, ...meta, chosenFocus: "Wait", videoAnalysis: "old", images: [{ uri: "old" }], rehearsalContext: { ...meta.rehearsalContext, oldVideo: "file:///old" } });
+    expect(prefill).toEqual(expect.objectContaining(meta));
+    expect(prefill.videoAnalysis).toBeUndefined();
+    expect(prefill.images).toBeUndefined();
+  });
   it("keeps the root, scene and chosen focus without copying media, analysis, or the completed session", () => {
     const original = { id: 21, title: "독백", field: "acting", sceneId: "scene-a", rootNoteId: 1, chosenFocus: "호흡", images: [{ uri: "old" }], videoAnalysis: "old", content: "old", practiceSessionId: "session-a", tags: ["private"] };
     expect(buildRepracticePrefill(original)).toEqual({ title: "독백", field: "acting", seriesName: "독백", rootNoteId: 1, parentNoteId: 21, sceneId: "scene-a", focus: "호흡" });

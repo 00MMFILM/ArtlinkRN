@@ -1,7 +1,7 @@
 // 2인 대사 연습 — 상대역 대사를 쳐주는 연습 상대 (ACT RAW 씬 제공)
 // 모드: 큐 연습(무음 기본·음성 토글) / 대본 보기(내 대사 가림). 음성은 expo-speech —
 // 네이티브 모듈이라 스토어 빌드에 실려야 켜지고, 구버전 바이너리에선 토글 자체가 숨는다.
-// 씬 데이터: 번들 JSON + actraw.kr/duet-scenes.json 원격 갱신 (전부 저작권 만료 고전).
+// Korean ACT RAW scenes + bundled original English scenes; rights are shown per scene.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -10,13 +10,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePreventRemove } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
 import { useApp } from "../context/AppContext";
-import bundledData from "../data/duet-scenes.json";
+import { STUDIO } from "../constants/studioTheme";
+import { mergeDuetScenes, isValidRemoteData, sceneLanguage, voiceLanguage, rehearsalLanguage, parsePrivateScript, sceneDescription, sceneRightsKey, SCRIPT_LIMITS } from "../utils/duetStudio";
 import { startPractice, completePractice, abandonPractice } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
@@ -59,22 +61,23 @@ const mmss = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String
 
 const REMOTE_URL = "https://actraw.kr/duet-scenes.json";
 
-// 원격 씬 데이터 방어 — roles·lines가 있고 모든 line.r이 roles 범위 안이어야 신뢰한다.
-// 하나라도 어긋나면 번들 데이터를 그대로 쓴다 (예: 배역 인덱스가 깨진 대사로 앱이 죽는 사고 방지).
-function isValidRemoteData(j) {
-  if (!j || !Array.isArray(j.scenes) || j.scenes.length === 0) return false;
-  return j.scenes.every((s) => {
-    if (!s || !Array.isArray(s.roles) || s.roles.length === 0) return false;
-    if (!Array.isArray(s.lines) || s.lines.length === 0) return false;
-    return s.lines.every((l) => l && Number.isInteger(l.r) && l.r >= 0 && l.r < s.roles.length);
-  });
-}
-
 export default function DuetPracticeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
-  const { showToast } = useApp();
-  const [data, setData] = useState(bundledData);
+  const { t: translate } = useTranslation();
+  const { showToast, userProfile } = useApp();
+  const [feedbackLanguage, setFeedbackLanguage] = useState(() => rehearsalLanguage(i18n.language));
+  const [scriptLanguage, setScriptLanguage] = useState(() => rehearsalLanguage(i18n.language));
+  const [englishVoice, setEnglishVoice] = useState("en-US");
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pastedScript, setPastedScript] = useState("");
+  const [pasteError, setPasteError] = useState(null);
+  const [pastePreview, setPastePreview] = useState(null);
+  const [scenes, setScenes] = useState(() => mergeDuetScenes());
+  const t = (key, options) => translate(key, { ...options, lng: feedbackLanguage });
+  const ds = (key, options) => t(`duetStudio.${key}`, options);
+  const accountRef = useRef(userProfile?.authUserId || null);
+  accountRef.current = userProfile?.authUserId || null;
+  const visibleScenes = useMemo(() => scenes.filter((item) => sceneLanguage(item) === scriptLanguage), [scenes, scriptLanguage]);
   const [scene, setScene] = useState(null);
   const [myRole, setMyRole] = useState(0);
   const [mode, setMode] = useState(null); // null=설정, 'cue', 'script'
@@ -108,7 +111,7 @@ export default function DuetPracticeScreen({ navigation }) {
     try {
       Speech.stop();
       Speech.speak(text.replace(/\([^)]*\)/g, ""), {
-        language: "ko-KR", rate: rateRef.current,
+        language: voiceLanguage(scene, englishVoice), rate: rateRef.current,
         onDone: () => onDone && onDone(),
         onError: failed,
       });
@@ -153,7 +156,7 @@ export default function DuetPracticeScreen({ navigation }) {
   // 상대 대사면 읽는다 — "다음"으로 넘어갈 때뿐 아니라 첫 줄·음성을 켠 순간에도
   const speakIfPartner = (n, role, force = false) => {
     const L = lines[n];
-    if (L && L.r !== role) speakLine(L.t, null, force, voiceUrlFor(scene?.id, n, L.t));
+    if (L && L.r !== role) speakLine(L.t, null, force, (sceneLanguage(scene) === "ko" && !scene?.isPrivate ? voiceUrlFor(scene?.id, n, L.t) : null));
   };
   const toggleVoice = () => {
     if (voiceOn) { stopSpeak(); setVoiceOn(false); return; }
@@ -182,7 +185,9 @@ export default function DuetPracticeScreen({ navigation }) {
   const recTimerRef = useRef(null);
   const recBusyRef = useRef(false);
   const recordingStartRef = useRef(null);
+  const recordingStartTokenRef = useRef(0);
   const [recording, setRecording] = useState(false);
+  const [recordedCount, setRecordedCount] = useState(0);
   const [recordingPreparing, setRecordingPreparing] = useState(false);
   const [recElapsed, setRecElapsed] = useState(0);
 
@@ -191,19 +196,24 @@ export default function DuetPracticeScreen({ navigation }) {
     if (recording && voiceOn) voiceUsedRef.current = true;
   }, [recording, voiceOn]);
 
+  const cancelRecordingStart = () => { recordingStartTokenRef.current += 1; };
   const startRecording = () => {
     if (!canRecord || recBusyRef.current || recordingRef.current || stoppingRef.current || noteTransferRef.current) return;
     recBusyRef.current = true;
+    const owner = accountRef.current;
+    const token = ++recordingStartTokenRef.current;
+    const isCurrent = () => mountedRef.current && owner === accountRef.current && token === recordingStartTokenRef.current;
     setRecordingPreparing(true);
     recordingStartRef.current = (async () => {
       try {
         const perm = await AudioMode.requestPermissionsAsync();
+        if (!isCurrent()) return;
         if (!perm || !perm.granted) { showToast(t("duet.record_permission"), "error"); return; }
         await AudioMode.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        if (!isCurrent()) return;
         const { recording: rec } = await AudioMode.Recording.createAsync(AudioMode.RecordingOptionsPresets.HIGH_QUALITY);
-        if (!mountedRef.current) { // 준비 중 화면을 나갔다 — 바로 버린다
-          rec.stopAndUnloadAsync().catch(noop);
-          AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(noop);
+        if (!isCurrent()) { // 준비 중 모드/화면을 나갔다 — 늦게 만들어진 녹음도 정리한다.
+          await rec.stopAndUnloadAsync().catch(noop);
           return;
         }
         recordingRef.current = rec;
@@ -215,9 +225,13 @@ export default function DuetPracticeScreen({ navigation }) {
           setRecElapsed(Math.floor((Date.now() - recStartRef.current) / 1000));
         }, 1000);
       } catch (e) {
-        showToast(t("duet.record_failed"), "error");
+        if (isCurrent()) showToast(t("duet.record_failed"), "error");
         try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e2) {}
       } finally {
+        if (!isCurrent()) {
+          try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e) {}
+        }
+        // Keep the start lock until a cancelled recorder and its audio mode are fully released.
         recBusyRef.current = false;
         if (mountedRef.current) setRecordingPreparing(false);
       }
@@ -249,7 +263,7 @@ export default function DuetPracticeScreen({ navigation }) {
         stoppingRef.current = null;
         clearInterval(recTimerRef.current);
         recTimerRef.current = null;
-        if (mountedRef.current) setRecording(false);
+        if (mountedRef.current) { setRecording(false); setRecordedCount(recordingsRef.current.length); }
         try { await AudioMode.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }); } catch (e) {}
       }
       return succeeded;
@@ -257,7 +271,9 @@ export default function DuetPracticeScreen({ navigation }) {
     return stoppingRef.current;
   };
   const discardRecordings = () => {
+    cancelRecordingStart();
     recordingsRef.current = [];
+    if (mountedRef.current) setRecordedCount(0);
     voiceUsedRef.current = false;
     stopRecording(false).then(() => { recordingsRef.current = []; });
   };
@@ -265,10 +281,12 @@ export default function DuetPracticeScreen({ navigation }) {
   const recordChip = () => (canRecord ? (
     <TouchableOpacity
       style={[styles.chip, recording && styles.chipOn]}
+      disabled={recordingPreparing || noteTransferRef.current}
+      accessibilityRole="button"
       onPress={() => (recording ? stopRecording(true) : startRecording())}
     >
       <Text style={[T.smallBold, { color: recording ? CLight.white : CLight.gray700 }]}>
-        {recording ? `⏹ ${t("duet.record_stop")} ${mmss(recElapsed)}` : `🎙 ${t("duet.record_start")}`}
+        {recordingPreparing ? ds("recordPreparing") : recording ? `⏹ ${t("duet.record_stop")} ${mmss(recElapsed)}` : `🎙 ${t("duet.record_start")}`}
       </Text>
     </TouchableOpacity>
   ) : null);
@@ -279,7 +297,7 @@ export default function DuetPracticeScreen({ navigation }) {
     fetch(REMOTE_URL)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (alive && j && j.version >= bundledData.version && isValidRemoteData(j)) setData(j);
+        if (alive && isValidRemoteData(j)) setScenes(mergeDuetScenes(j));
       })
       .catch(() => {});
     // 성우 음성 목록 — 실패해도 TTS로 동작, 다음 화면 진입 때 다시 받는다
@@ -287,10 +305,8 @@ export default function DuetPracticeScreen({ navigation }) {
     return () => { alive = false; };
   }, []);
 
-  const scenes = data.scenes || [];
   const lines = scene?.lines || [];
   const line = lines[idx];
-  const partnerName = scene ? scene.roles[1 - myRole]?.name : "";
 
   // 연습 세션 — 모드를 고르면 시작, 마지막 줄에 닿으면 딱 1회 완료 (대사 내용은 보내지 않는다)
   const practiceRef = useRef(null);
@@ -324,16 +340,20 @@ export default function DuetPracticeScreen({ navigation }) {
     if (recBusyRef.current) { showToast(t("duet.record_save_failed"), "error"); return; }
     noteTransferRef.current = true;
     const s = scene;
+    const owner = accountRef.current;
     const roleName = s.roles[myRole]?.name;
     const prefill = {
-      title: `${s.play} 2인 대사`,
+      title: ds("noteTitle", { play: s.play }),
       field: "acting",
       seriesName: s.play,
       sceneId: s.id,
       sessionId: practiceRef.current?.sessionId,
+      scriptLanguage: sceneLanguage(s),
+      feedbackLanguage,
+      rehearsalContext: { sceneTitle: s.play, role: roleName, scriptLanguage: sceneLanguage(s), feedbackLanguage },
     };
     const go = (recs) => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || owner !== accountRef.current) { noteTransferRef.current = false; return; }
       if (recs.length > 0) {
         prefill.voiceRecordings = recs;
         // AI가 상대역(앱 음성)을 사용자 연기로 착각하지 않게 — 실제로 음성이 켜져 있던 적 있을 때만 그 문장을 붙인다
@@ -341,11 +361,14 @@ export default function DuetPracticeScreen({ navigation }) {
         if (voiceUsedRef.current) hint += ` ${t("duet.record_note_hint_voice")}`;
         prefill.content = hint;
       }
+      stopSpeak();
+      discardPreload();
       finishPractice();
       trackFunnelEvent("duet_to_note", i18n?.language);
       navigation.navigate("NoteCreate", { prefill });
       // 노트 화면으로 넘긴 뒤에만 소유권을 넘긴다. 복사 실패 시 이 화면에서 재시도할 수 있다.
       recordingsRef.current = [];
+      setRecordedCount(0);
       voiceUsedRef.current = false;
       setNoteSent(true);
       noteTransferRef.current = false;
@@ -382,6 +405,7 @@ export default function DuetPracticeScreen({ navigation }) {
       { text: t("duet.record_discard"), style: "destructive", onPress: async () => {
         leavePromptRef.current = false;
         noteTransferRef.current = true;
+        cancelRecordingStart();
         await recordingStartRef.current;
         await stopRecording(false);
         recordingsRef.current = [];
@@ -406,9 +430,9 @@ export default function DuetPracticeScreen({ navigation }) {
     });
   };
 
-  const openScene = (s) => { stopSpeak(); discardRecordings(); setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
+  const openScene = (s) => { stopSpeak(); discardPreload(); discardRecordings(); setScene(s); setMyRole(0); setMode(null); setIdx(0); setRevealed(false); setPeeked({}); };
   // 모드에서 나가기(설정으로) — 소리는 멈추고, 녹음은 멈춰서 보관한다(같은 씬)
-  const leaveMode = () => { stopSpeak(); stopRecording(true); setMode(null); };
+  const leaveMode = () => { cancelRecordingStart(); stopSpeak(); stopRecording(true); setMode(null); };
   // 씬 목록으로 — 다른 씬의 녹음이 섞이지 않게 버린다
   const leaveScene = () => requestLeave(() => { stopSpeak(); discardRecordings(); setScene(null); });
   const advance = (d) => {
@@ -425,7 +449,7 @@ export default function DuetPracticeScreen({ navigation }) {
     let m = idx + 1;
     while (m < lines.length && lines[m].r === myRole) m++;
     const L = lines[m];
-    const url = L ? voiceUrlFor(scene.id, m, L.t) : null;
+    const url = L && sceneLanguage(scene) === "ko" && !scene.isPrivate ? voiceUrlFor(scene.id, m, L.t) : null;
     if (preloadRef.current && preloadRef.current.url === url) return;
     discardPreload();
     if (url) preloadRef.current = { url, promise: loadSound(url) };
@@ -442,273 +466,215 @@ export default function DuetPracticeScreen({ navigation }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- 헤더 ----
+  // Navigation can keep this screen mounted behind notes; silence playback there too.
+  useEffect(() => navigation.addListener?.("blur", () => {
+    cancelRecordingStart();
+    stopSpeak();
+    discardPreload();
+    if (!noteTransferRef.current) stopRecording(true);
+  }), [navigation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const previousAccountRef = useRef(accountRef.current);
+  useEffect(() => {
+    if (previousAccountRef.current === accountRef.current) return;
+    previousAccountRef.current = accountRef.current;
+    cancelRecordingStart();
+    stopSpeak();
+    discardPreload();
+    abandonPractice(practiceRef.current);
+    practiceRef.current = null;
+    setScene(null);
+    setMode(null);
+    setPastedScript("");
+    setPasteOpen(false);
+    setPastePreview(null);
+    setPasteError(null);
+    recordingsRef.current = [];
+    voiceUsedRef.current = false;
+    setRecordedCount(0);
+    stopRecording(false).then(() => {
+      recordingsRef.current = [];
+      if (mountedRef.current) setRecordedCount(0);
+    });
+  }, [userProfile?.authUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const Header = ({ title, onBack }) => (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Text style={[T.title, { color: CLight.gray700 }]}>‹ 뒤로</Text>
+      <TouchableOpacity accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+        <Text style={styles.backText}>{ds("back")}</Text>
       </TouchableOpacity>
-      <Text style={[T.titleBold, { color: CLight.gray900 }]} numberOfLines={1}>{title}</Text>
-      <View style={{ width: 44 }} />
+      <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+      <View style={{ width: 52 }} />
     </View>
   );
-
-  // ================= 씬 목록 =================
-  if (!scene) {
-    return (
-      <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-        <Header title="2인 대사 연습" onBack={() => navigation.goBack()} />
-        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-          <Text style={[T.caption, { color: CLight.gray500, marginBottom: 14 }]}>
-            씬을 고르고 내 배역을 정하면, 상대 배역이 대사를 쳐줍니다.{"\n"}전부 저작권 만료 고전 — 연습·시험에 자유롭게 쓸 수 있어요.
-          </Text>
-          {scenes.map((s) => (
-            <TouchableOpacity key={s.id} style={styles.sceneCard} onPress={() => openScene(s)} activeOpacity={0.7}>
-              <Text style={[T.titleBold, { color: CLight.gray900 }]}>{s.play}</Text>
-              <Text style={[T.small, { color: CLight.pink, marginTop: 2 }]}>
-                {s.roles.map((r) => r.name).join(" · ")}
-              </Text>
-              <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]} numberOfLines={2}>{s.label}</Text>
-              <Text style={[T.micro, { color: CLight.gray400, marginTop: 6 }]}>
-                {s.author} · {s.genre} · {s.lines.length}줄
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 18 }]}>
-            연습 씬 제공 — ACT RAW (actraw.kr)
-          </Text>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // ================= 설정 (배역·모드 선택) =================
-  if (!mode) {
-    return (
-      <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-        <Header title={scene.play} onBack={leaveScene} />
-        <ScrollView contentContainerStyle={styles.listContent}>
-          <View style={styles.setupCard}>
-            <Text style={[T.smallBold, { color: CLight.gray500, marginBottom: 8 }]}>내 배역</Text>
-            <View style={styles.chipRow}>
-              {scene.roles.map((r, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.chip, myRole === i && styles.chipOn]}
-                  onPress={() => setMyRole(i)}
-                >
-                  <Text style={[T.bodyBold, { color: myRole === i ? CLight.white : CLight.gray700 }]}>
-                    {r.name} <Text style={T.micro}>{r.gender}</Text>
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {scene.point ? (
-              <Text style={[T.small, { color: CLight.gray500, marginTop: 12 }]}>연기 포인트 — {scene.point}</Text>
-            ) : null}
-          </View>
-
-          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("cue"); setIdx(0); beginPractice(scene); speakIfPartner(0, myRole); }} activeOpacity={0.8}>
-            <Text style={[T.titleBold, { color: CLight.gray900 }]}>🎬 큐 연습</Text>
-            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
-              상대 대사가 한 줄씩 나오고, 내 차례에 멈춰요. 내 대사는 가려져서 암기 확인이 됩니다.
-            </Text>
+  const LanguageRow = ({ kind, value, onChange }) => (
+    <View style={styles.languageRow}>
+      <Text style={styles.languageLabel}>{ds(kind)}</Text>
+      <View style={styles.segment}>
+        {["ko", "en"].map((language) => (
+          <TouchableOpacity key={language} testID={`duet-${kind}-${language}`} accessibilityRole="button" accessibilityState={{ selected: value === language }} style={[styles.segmentItem, value === language && styles.segmentSelected]} onPress={() => onChange(language)}>
+            <Text style={[styles.segmentText, value === language && styles.segmentTextSelected]}>{ds(language === "ko" ? "korean" : "english")}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.modeCard} onPress={() => { setMode("script"); beginPractice(scene); }} activeOpacity={0.8}>
-            <Text style={[T.titleBold, { color: CLight.gray900 }]}>📜 대본 보기</Text>
-            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>
-              전체 대사를 순서대로 읽어요. 내 대사만 가리고 훑는 것도 가능해요.
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
+        ))}
       </View>
-    );
-  }
+    </View>
+  );
+  const Rights = ({ item }) => <Text style={styles.rights}>{ds(sceneRightsKey(item))}</Text>;
+  const VoiceControls = () => (
+    <View style={styles.tools}>
+      {canSpeak && <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: voiceOn }} style={[styles.chip, voiceOn && styles.chipOn]} onPress={toggleVoice}>
+        <Text style={[styles.chipText, voiceOn && styles.chipTextOn]}>{ds("partnerVoice")}</Text>
+      </TouchableOpacity>}
+      {recordChip()}
+      {canSpeak && voiceOn && [0.8, 1.0, 1.2].map((speed) => <TouchableOpacity key={speed} accessibilityRole="button" accessibilityLabel={`${speed}x`} accessibilityState={{ selected: rate === speed }} style={[styles.chip, rate === speed && styles.chipOn]} onPress={() => { setRate(speed); soundRef.current?.setRateAsync?.(speed, true)?.catch?.(noop); }}>
+        <Text style={[styles.chipText, rate === speed && styles.chipTextOn]}>{speed}x</Text>
+      </TouchableOpacity>)}
+    </View>
+  );
+  const RecordStatus = () => recordedCount > 0 && <Text style={styles.recordStatus}>{ds("recorded", { count: recordedCount })}</Text>;
+  const NoteButton = () => <View>
+    <TouchableOpacity accessibilityRole="button" style={[styles.noteBtn, noteSent && { opacity: 0.5 }]} onPress={goToNote} activeOpacity={0.85} disabled={noteSent || recordingPreparing}>
+      <Text style={styles.primaryText}>{noteSent ? t("duet.note_done") : ds("note")}</Text>
+    </TouchableOpacity>
+    <Text style={styles.noteHint}>{ds("readyNote")}</Text>
+  </View>;
+  const closePaste = () => { setPasteOpen(false); setPastedScript(""); setPastePreview(null); setPasteError(null); };
+  const checkPaste = () => {
+    const result = parsePrivateScript(pastedScript, scriptLanguage);
+    if (result.error) { setPasteError(result); setPastePreview(null); return; }
+    setPasteError(null);
+    setPastePreview(result.scene);
+  };
 
-  // ================= 큐 연습 모드 =================
-  if (mode === "cue") {
-    const mine = line && line.r === myRole;
-    const prev = idx > 0 ? lines[idx - 1] : null;
-    return (
-      <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-        <Header title={`${scene.play} · ${scene.roles[myRole].name} 역`} onBack={leaveMode} />
-        <View testID="duet-cue-stage" style={[styles.stageWrap, { paddingBottom: 20 + insets.bottom }]}>
-          <Text style={[T.micro, { color: CLight.gray400, letterSpacing: 1 }]}>
-            {idx + 1} / {lines.length}
-          </Text>
-          <ScrollView style={{ flex: 1, marginTop: 10 }} showsVerticalScrollIndicator={false}>
-            {prev ? (
-              <Text style={[T.small, { color: CLight.gray400, marginBottom: 14 }]}>
-                {scene.roles[prev.r].name} — {prev.t}
-              </Text>
-            ) : null}
-            <Text style={[T.smallBold, { color: mine ? CLight.pink : CLight.gray500, letterSpacing: 1 }]}>
-              {scene.roles[line.r].name}{mine ? " (나)" : ""}
-            </Text>
-            {mine && !revealed ? (
-              <TouchableOpacity onPress={() => setRevealed(true)} activeOpacity={0.8}>
-                <View style={styles.hiddenBox}>
-                  <Text style={[T.body, { color: CLight.gray400, textAlign: "center" }]}>
-                    내 차례예요. 기억나는 대로 말해보고,{"\n"}탭하면 대사를 확인할 수 있어요.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <Text style={[T.h3, { color: CLight.gray900, marginTop: 8, lineHeight: 32 }]}>{line.t}</Text>
-            )}
-            {line.d ? (
-              <Text style={[T.small, { color: CLight.gray500, marginTop: 10, fontStyle: "italic" }]}>({line.d})</Text>
-            ) : null}
-          </ScrollView>
-          {canSpeak || canRecord ? (
-            <View style={[styles.chipRow, { paddingTop: 8 }]}>
-              {canSpeak ? (
-                <TouchableOpacity style={[styles.chip, voiceOn && styles.chipOn]} onPress={toggleVoice}>
-                  <Text style={[T.smallBold, { color: voiceOn ? CLight.white : CLight.gray700 }]}>🔊 상대 대사 음성</Text>
-                </TouchableOpacity>
-              ) : null}
-              {recordChip()}
-              {canSpeak && voiceOn ? [0.8, 1.0, 1.2].map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.chip, rate === r && styles.chipOn]}
-                  onPress={() => { setRate(r); soundRef.current?.setRateAsync?.(r, true)?.catch?.(noop); }}
-                >
-                  <Text style={[T.smallBold, { color: rate === r ? CLight.white : CLight.gray700 }]}>{r}x</Text>
-                </TouchableOpacity>
-              )) : null}
-            </View>
-          ) : null}
-          <View style={styles.controls}>
-            <TouchableOpacity style={styles.ctlBtn} onPress={() => advance(-1)} disabled={idx === 0}>
-              <Text style={[T.bodyBold, { color: idx === 0 ? CLight.gray300 : CLight.gray700 }]}>이전</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctlBtn, styles.ctlMain]} onPress={() => advance(1)} disabled={idx >= lines.length - 1}>
-              <Text style={[T.bodyBold, { color: CLight.white }]}>
-                {idx >= lines.length - 1 ? "끝" : mine && !revealed ? "건너뛰고 다음" : "다음"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.ctlBtn} onPress={() => { stopSpeak(); setIdx(0); setRevealed(false); beginPractice(scene); speakIfPartner(0, myRole); }}>
-              <Text style={[T.bodyBold, { color: CLight.gray700 }]}>처음부터</Text>
-            </TouchableOpacity>
-          </View>
-          {idx >= lines.length - 1 ? (
-            <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85} disabled={noteSent}>
-              <Text style={[T.bodyBold, { color: CLight.white }]}>
-                {noteSent ? t("duet.note_done") : "연습 기록 남기기"}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+  if (!scene) return (
+    <View style={styles.container}>
+      <Header title={ds("title")} onBack={() => navigation.goBack()} />
+      <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <Text style={[styles.eyebrow, { color: "#FFA8C3" }]}>{ds("eyebrow")}</Text>
+          <Text style={styles.heroTitle}>{ds("intro")}</Text>
+          <Text style={styles.heroBody}>{ds("introBody")}</Text>
+
         </View>
-      </View>
-    );
-  }
-
-  // ================= 대본 보기 모드 =================
-  return (
-    <View style={[styles.container, { backgroundColor: CLight.bg }]}>
-      <Header title={`${scene.play} · 대본`} onBack={leaveMode} />
-      <View style={styles.scriptTools}>
-        <TouchableOpacity
-          style={[styles.chip, hideMine && styles.chipOn]}
-          onPress={() => { setHideMine(!hideMine); setPeeked({}); }}
-        >
-          <Text style={[T.smallBold, { color: hideMine ? CLight.white : CLight.gray700 }]}>
-            내 대사 가리기 ({scene.roles[myRole].name})
-          </Text>
-        </TouchableOpacity>
-        {recordChip()}
-      </View>
-      <ScrollView
-        contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {lines.map((L, i) => {
-          const mine = L.r === myRole;
-          const masked = mine && hideMine && !peeked[i];
-          return (
-            <TouchableOpacity
-              key={i}
-              activeOpacity={masked ? 0.7 : 1}
-              onPress={() => masked && setPeeked({ ...peeked, [i]: true })}
-            >
-              <View style={[styles.lineRow, mine && styles.lineMine]}>
-                <Text style={[T.smallBold, { color: mine ? CLight.pink : CLight.gray500 }]}>
-                  {scene.roles[L.r].name}{mine ? " (나)" : ""}
-                </Text>
-                <Text style={[T.body, { color: masked ? CLight.gray300 : CLight.gray900, marginTop: 2 }]}>
-                  {masked ? "● ● ●  (탭해서 확인)" : L.t}
-                </Text>
-                {L.d && !masked ? (
-                  <Text style={[T.micro, { color: CLight.gray400, marginTop: 3, fontStyle: "italic" }]}>({L.d})</Text>
-                ) : null}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-        <TouchableOpacity style={styles.noteBtn} onPress={goToNote} activeOpacity={0.85} disabled={noteSent}>
-          <Text style={[T.bodyBold, { color: CLight.white }]}>
-            {noteSent ? t("duet.note_done") : "연습 기록 남기기"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.finishBtn} onPress={finishScript} activeOpacity={0.85}>
-          <Text style={[T.bodyBold, { color: CLight.gray700 }]}>연습 끝</Text>
-        </TouchableOpacity>
-        <Text style={[T.micro, { color: CLight.gray400, textAlign: "center", marginVertical: 18 }]}>
-          연습 씬 제공 — ACT RAW (actraw.kr)
-        </Text>
+        <View style={styles.preferences}>
+          <LanguageRow kind="scriptLanguage" value={scriptLanguage} onChange={(language) => { setScriptLanguage(language); setPastePreview(null); }} />
+          <LanguageRow kind="feedbackLanguage" value={feedbackLanguage} onChange={setFeedbackLanguage} />
+          <Text style={styles.noteHint}>{ds("languageHint")}</Text>
+        </View>
+        <View style={styles.pasteCard}>
+          {pasteOpen && <><Text style={styles.cardTitle}>{ds("pasteTitle")}</Text><Text style={styles.body}>{ds("pasteBody")}</Text></>}
+          {!pasteOpen ? <TouchableOpacity testID="duet-paste-open" accessibilityRole="button" style={styles.pasteEntry} onPress={() => setPasteOpen(true)}><Text style={styles.outlineText}>{ds("pasteOpen")}  +</Text></TouchableOpacity> : <>
+            <Text style={styles.noteHint}>{ds("pasteFormat")}</Text>
+            <TextInput testID="duet-paste-input" accessibilityLabel={ds("pasteTitle")} value={pastedScript} onChangeText={(value) => { setPastedScript(value); setPastePreview(null); setPasteError(null); }} multiline autoCorrect={false} maxLength={SCRIPT_LIMITS.characters + 1} textAlignVertical="top" placeholder={ds("pastePlaceholder")} placeholderTextColor={STUDIO.muted} style={styles.pasteInput} />
+            <Text style={styles.counter}>{pastedScript.length.toLocaleString()} / 12,000</Text>
+            {pasteError && <Text accessibilityRole="alert" style={styles.error}>{ds(pasteError.error, { line: pasteError.line })}</Text>}
+            {pastePreview ? <View testID="duet-paste-preview" style={styles.preview}>
+              <Text style={styles.cardTitle}>{ds("confirmTitle")}</Text>
+              <Text style={styles.body}>{ds("confirmBody", { roles: pastePreview.roles.map((role) => role.name).join(" · "), count: pastePreview.lines.length })}</Text>
+              {pastePreview.lines.slice(0, 4).map((item, index) => <Text key={index} style={styles.previewLine} numberOfLines={2}>{pastePreview.roles[item.r].name}: {item.t}</Text>)}
+              <TouchableOpacity accessibilityRole="button" testID="duet-paste-confirm" style={styles.noteBtn} onPress={() => { const item = pastePreview; closePaste(); openScene(item); }}><Text style={styles.primaryText}>{ds("confirmUse")}</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={styles.textButton} onPress={() => setPastePreview(null)}><Text style={styles.outlineText}>{ds("edit")}</Text></TouchableOpacity>
+            </View> : <TouchableOpacity accessibilityRole="button" testID="duet-paste-check" style={styles.noteBtn} onPress={checkPaste}><Text style={styles.primaryText}>{ds("pasteVerify")}</Text></TouchableOpacity>}
+            <Text style={styles.noteHint}>{ds("pastePrivacy")}</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.textButton} onPress={closePaste}><Text style={styles.body}>{ds("pasteCancel")}</Text></TouchableOpacity>
+          </>}
+        </View>
+        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>{ds("scenes")}</Text><Text style={styles.caption}>{ds("sceneCount", { count: visibleScenes.length })}</Text></View>
+        {visibleScenes.map((item, index) => <TouchableOpacity accessibilityRole="button" key={item.id} testID={`duet-scene-${item.id}`} style={styles.sceneCard} onPress={() => openScene(item)} activeOpacity={0.75}>
+          <View style={styles.cardTop}><Text style={styles.sceneNumber}>{String(index + 1).padStart(2, "0")}</Text><Text style={styles.cardBadge}>{item.rights?.type === "artlink-original" ? ds("original") : "ACT RAW"}</Text><Text style={styles.caption}>{ds("lines", { count: item.lines.length })}</Text></View>
+          <Text style={styles.sceneTitle}>{item.play}</Text>
+          <Text style={styles.roleNames}>{item.roles.map((role) => role.name).join("  /  ")}</Text>
+          <Text style={styles.body} numberOfLines={2}>{sceneDescription(item, feedbackLanguage, "label")}</Text>
+          <View style={styles.cardBottom}><Text style={styles.caption}>{item.author}</Text><Text style={styles.arrow}>↗</Text></View>
+        </TouchableOpacity>)}
+        {!visibleScenes.length && <Text style={styles.body}>{ds("noScenes")}</Text>}
       </ScrollView>
     </View>
   );
+
+  if (!mode) return (
+    <View style={styles.container}>
+      <Header title={scene.play} onBack={leaveScene} />
+      <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom: 24 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+        <View style={styles.setupCard}>
+          <Text style={styles.eyebrow}>{scene.isPrivate ? ds("privateLabel") : sceneLanguage(scene) === "en" ? ds("original") : "ACT RAW"}</Text>
+          <Text style={styles.setupTitle}>{scene.play}</Text>
+          {sceneDescription(scene, feedbackLanguage, "label") ? <><Text style={styles.label}>{ds("situation")}</Text><Text style={styles.body}>{sceneDescription(scene, feedbackLanguage, "label")}</Text></> : null}
+          <Text style={[styles.label, { marginTop: 22 }]}>{ds("myRole")}</Text>
+          <View style={styles.roleRow}>{scene.roles.map((role, index) => <TouchableOpacity key={index} accessibilityRole="button" accessibilityState={{ selected: myRole === index }} testID={`duet-role-${index}`} style={[styles.roleCard, myRole === index && styles.roleSelected]} onPress={() => { if (index !== myRole) requestLeave(() => { discardRecordings(); setMyRole(index); }); }}><Text style={[styles.roleName, myRole === index && { color: STUDIO.accent }]}>{role.name}</Text><Text style={styles.roleLetter}>{String.fromCharCode(65 + index)}{myRole === index ? "  ✓" : ""}</Text></TouchableOpacity>)}</View>
+          {sceneDescription(scene, feedbackLanguage, "point") ? <View style={styles.objective}><Text style={[styles.label, { color: STUDIO.positive }]}>{ds("objective")}</Text><Text style={styles.body}>{sceneDescription(scene, feedbackLanguage, "point")}</Text></View> : null}
+          {feedbackLanguage === "en" && sceneLanguage(scene) === "ko" && !scene.isPrivate && <Text style={styles.noteHint}>{ds("englishDescriptionNotice")}</Text>}
+        </View>
+        <View style={styles.preferences}>
+          <LanguageRow kind="feedbackLanguage" value={feedbackLanguage} onChange={setFeedbackLanguage} />
+          {sceneLanguage(scene) === "en" && <View style={styles.voicePreference}><Text style={styles.label}>{ds("voiceLabel")}</Text><View style={styles.tools}>{["en-US", "en-GB"].map((voice) => <TouchableOpacity key={voice} accessibilityRole="button" accessibilityState={{ selected: englishVoice === voice }} testID={`duet-voice-${voice}`} style={[styles.chip, englishVoice === voice && styles.chipOn]} onPress={() => { stopSpeak(); setEnglishVoice(voice); }}><Text style={[styles.chipText, englishVoice === voice && styles.chipTextOn]}>{ds(voice === "en-US" ? "voiceUS" : "voiceUK")}</Text></TouchableOpacity>)}</View></View>}
+          <Text style={styles.noteHint}>{ds("voiceHint")}</Text>
+          <RecordStatus />
+        </View>
+        <TouchableOpacity accessibilityRole="button" testID="duet-start-cue" style={[styles.modeCard, styles.cueCard]} onPress={() => { setMode("cue"); setIdx(0); beginPractice(scene); speakIfPartner(0, myRole); }} activeOpacity={0.8}><Text style={styles.modeTitle}>{ds("cue")}</Text><Text style={styles.modeBody}>{ds("cueBody")}</Text><Text style={styles.modeArrow}>→</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" testID="duet-start-script" style={styles.modeCard} onPress={() => { setMode("script"); beginPractice(scene); }} activeOpacity={0.8}><Text style={styles.cardTitle}>{ds("script")}</Text><Text style={styles.body}>{ds("scriptBody")}</Text></TouchableOpacity>
+        <Text style={styles.source}>{ds("source")} · {scene.isPrivate ? ds("privateLabel") : scene.source}</Text>
+        <Rights item={scene} />
+      </ScrollView>
+    </View>
+  );
+
+  if (mode === "cue") {
+    const mine = line && line.r === myRole;
+    const prev = idx > 0 ? lines[idx - 1] : null;
+    return <View style={styles.container}>
+      <Header title={ds("cueHeader", { play: scene.play, role: scene.roles[myRole].name })} onBack={leaveMode} />
+      <View testID="duet-cue-stage" style={[styles.stageWrap, { paddingBottom: 20 + insets.bottom }]}>
+        <View style={styles.progressRow}><Text style={styles.eyebrow}>{ds("cue")}</Text><Text style={styles.caption}>{ds("progress", { current: idx + 1, total: lines.length })}</Text></View>
+        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${((idx + 1) / lines.length) * 100}%` }]} /></View>
+        <ScrollView style={styles.stageScroll} showsVerticalScrollIndicator={false}>
+          {prev && <Text style={styles.previousLine}>{scene.roles[prev.r].name} — {prev.t}</Text>}
+          <View style={[styles.currentLine, mine && styles.myCurrentLine]}>
+            <Text style={[styles.currentRole, mine && { color: STUDIO.accent }]}>{scene.roles[line.r].name}{mine ? ds("mine") : ""}</Text>
+            {mine && !revealed ? <TouchableOpacity accessibilityRole="button" testID="duet-reveal" style={styles.hiddenBox} onPress={() => setRevealed(true)}><Text style={styles.hiddenText}>{ds("hidden")}</Text></TouchableOpacity> : <Text style={styles.dialogue}>{line.t}</Text>}
+            {line.d && <Text style={styles.direction}>({line.d})</Text>}
+          </View>
+        </ScrollView>
+        <VoiceControls /><RecordStatus />
+        <View style={styles.controls}>
+          <TouchableOpacity accessibilityRole="button" style={styles.ctlBtn} onPress={() => advance(-1)} disabled={idx === 0}><Text style={[styles.controlText, idx === 0 && { opacity: 0.35 }]}>{ds("previous")}</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" testID="duet-next" style={[styles.ctlBtn, styles.ctlMain]} onPress={() => advance(1)} disabled={idx >= lines.length - 1}><Text style={styles.primaryText}>{idx >= lines.length - 1 ? ds("end") : mine && !revealed ? ds("skipNext") : ds("next")}</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.ctlBtn} onPress={() => { stopSpeak(); setIdx(0); setRevealed(false); beginPractice(scene); speakIfPartner(0, myRole); }}><Text style={styles.controlText}>{ds("restart")}</Text></TouchableOpacity>
+        </View>
+        {idx >= lines.length - 1 && <NoteButton />}
+      </View>
+    </View>;
+  }
+
+  return <View style={styles.container}>
+    <Header title={ds("scriptHeader", { play: scene.play })} onBack={leaveMode} />
+    <View style={styles.scriptTools}><TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: hideMine }} style={[styles.chip, hideMine && styles.chipOn]} onPress={() => { setHideMine(!hideMine); setPeeked({}); }}><Text style={[styles.chipText, hideMine && styles.chipTextOn]}>{ds("hideLines", { role: scene.roles[myRole].name })}</Text></TouchableOpacity>{recordChip()}<RecordStatus /></View>
+    <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom: 24 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      {lines.map((item, index) => {
+        const mine = item.r === myRole;
+        const masked = mine && hideMine && !peeked[index];
+        return <TouchableOpacity key={index} accessibilityRole={masked ? "button" : undefined} activeOpacity={masked ? 0.7 : 1} onPress={() => masked && setPeeked({ ...peeked, [index]: true })} style={[styles.lineRow, mine && styles.lineMine]}>
+          <Text style={[styles.currentRole, mine && { color: STUDIO.accent }]}>{scene.roles[item.r].name}{mine ? ds("mine") : ""}</Text>
+          <Text style={[styles.scriptLine, masked && { color: STUDIO.muted }]}>{masked ? ds("masked") : item.t}</Text>
+          {item.d && !masked && <Text style={styles.direction}>({item.d})</Text>}
+        </TouchableOpacity>;
+      })}
+      <NoteButton />
+      <TouchableOpacity accessibilityRole="button" style={styles.finishBtn} onPress={finishScript}><Text style={styles.controlText}>{ds("finish")}</Text></TouchableOpacity>
+      <Rights item={scene} />
+    </ScrollView>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingBottom: 12, backgroundColor: CLight.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: CLight.gray200,
-  },
-  listContent: { padding: 16 },
-  sceneCard: {
-    backgroundColor: CLight.surface, borderRadius: 14, padding: 16, marginBottom: 10,
-    borderWidth: 1, borderColor: CLight.cardBorder,
-  },
-  setupCard: {
-    backgroundColor: CLight.surface, borderRadius: 14, padding: 16, marginBottom: 12,
-  },
-  chipRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  chip: {
-    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
-    backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200,
-  },
-  chipOn: { backgroundColor: CLight.pink, borderColor: CLight.pink },
-  modeCard: {
-    backgroundColor: CLight.surface, borderRadius: 14, padding: 18, marginBottom: 10,
-    borderWidth: 1, borderColor: CLight.cardBorder,
-  },
-  stageWrap: { flex: 1, padding: 20 },
-  hiddenBox: {
-    marginTop: 12, paddingVertical: 34, paddingHorizontal: 16, borderRadius: 14,
-    backgroundColor: CLight.gray100, borderWidth: 1, borderColor: CLight.gray200, borderStyle: "dashed",
-  },
-  controls: { flexDirection: "row", gap: 8, paddingTop: 10 },
-  ctlBtn: {
-    flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center",
-    backgroundColor: CLight.gray100,
-  },
-  ctlMain: { flex: 1.6, backgroundColor: CLight.pink },
-  scriptTools: { paddingHorizontal: 16, paddingTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  lineRow: {
-    backgroundColor: CLight.surface, borderRadius: 12, padding: 13, marginBottom: 8,
-  },
-  lineMine: { borderLeftWidth: 3, borderLeftColor: CLight.pink },
-  noteBtn: {
-    marginTop: 12, paddingVertical: 14, borderRadius: 12, alignItems: "center",
-    backgroundColor: CLight.pink,
-  },
-  finishBtn: {
-    marginTop: 8, paddingVertical: 13, borderRadius: 12, alignItems: "center",
-    backgroundColor: CLight.gray100,
-  },
+  container: { flex: 1, backgroundColor: STUDIO.background },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingBottom: 12, backgroundColor: STUDIO.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: STUDIO.line },
+  backButton: { minWidth: 52, minHeight: 44, justifyContent: "center" }, backText: { fontSize: 16, color: STUDIO.ink }, headerTitle: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "700", color: STUDIO.ink },
+  listContent: { padding: 20 }, hero: { backgroundColor: STUDIO.ink, borderRadius: 22, padding: 20, marginBottom: 14 }, eyebrow: { color: STUDIO.accent, fontSize: 10, fontWeight: "800", letterSpacing: 1.8 }, heroTitle: { color: "#FFFFFF", fontSize: 25, lineHeight: 33, fontWeight: "700", marginTop: 10, letterSpacing: -0.6 }, heroBody: { color: "#DBDFEA", fontSize: 13, lineHeight: 20, marginTop: 9 }, heroRule: { height: 1, backgroundColor: "#47495A", marginVertical: 22 }, heroFooter: { color: "#D8CCCB", fontSize: 9, letterSpacing: 0.7, lineHeight: 15 },
+  preferences: { backgroundColor: STUDIO.paper, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: STUDIO.line, marginBottom: 18 }, languageRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }, languageLabel: { width: 104, color: STUDIO.ink, fontSize: 12, lineHeight: 18, fontWeight: "700" }, label: { color: STUDIO.ink, fontSize: 12, fontWeight: "700", marginBottom: 9 }, segment: { flex: 1, minWidth: 154, flexDirection: "row", backgroundColor: STUDIO.quiet, padding: 4, borderRadius: 12 }, segmentItem: { flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 9 }, segmentSelected: { backgroundColor: STUDIO.paper }, segmentText: { color: STUDIO.muted, fontSize: 13, fontWeight: "600" }, segmentTextSelected: { color: STUDIO.ink, fontWeight: "800" }, noteHint: { fontSize: 11, lineHeight: 17, color: STUDIO.muted, marginTop: 7 },
+  pasteEntry: { minHeight: 46, justifyContent: "center" }, pasteCard: { backgroundColor: STUDIO.accentSoft, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 8, marginBottom: 20, borderWidth: 1, borderColor: "#F1D7E0" }, cardTitle: { color: STUDIO.ink, fontSize: 17, lineHeight: 23, fontWeight: "700" }, body: { fontSize: 13, lineHeight: 21, color: STUDIO.muted, marginTop: 5 }, outlineButton: { alignSelf: "flex-start", paddingVertical: 12, marginTop: 6, minHeight: 44 }, outlineText: { color: STUDIO.accent, fontSize: 13, fontWeight: "700" }, pasteInput: { minHeight: 180, maxHeight: 300, backgroundColor: STUDIO.paper, padding: 14, color: STUDIO.ink, fontSize: 14, lineHeight: 21, borderRadius: 12, borderWidth: 1, borderColor: STUDIO.line, marginTop: 14 }, counter: { fontSize: 10, textAlign: "right", color: STUDIO.muted, marginTop: 5 }, error: { fontSize: 12, lineHeight: 19, color: "#9E1732", marginTop: 9 }, preview: { marginTop: 14, backgroundColor: STUDIO.paper, padding: 14, borderRadius: 12 }, previewLine: { color: STUDIO.ink, fontSize: 12, lineHeight: 19, marginTop: 8 }, textButton: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 6 },
+  sectionHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }, sectionTitle: { color: STUDIO.ink, fontSize: 20, fontWeight: "700", letterSpacing: -0.4 }, caption: { color: STUDIO.muted, fontSize: 10, lineHeight: 16 }, sceneCard: { backgroundColor: STUDIO.paper, borderRadius: 20, borderWidth: 1, borderColor: STUDIO.line, padding: 20, marginBottom: 12 }, cardTop: { flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 14 }, sceneNumber: { color: STUDIO.accent, fontSize: 12, fontWeight: "800" }, cardBadge: { flex: 1, color: STUDIO.muted, fontSize: 9, letterSpacing: 1, fontWeight: "700" }, sceneTitle: { fontSize: 22, lineHeight: 29, color: STUDIO.ink, fontWeight: "700", letterSpacing: -0.3 }, roleNames: { fontSize: 11, fontWeight: "600", color: STUDIO.accent, marginTop: 8, marginBottom: 9 }, cardBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: STUDIO.line, paddingTop: 12, marginTop: 15 }, arrow: { color: STUDIO.ink, fontSize: 23 },
+  setupCard: { backgroundColor: STUDIO.paper, borderWidth: 1, borderColor: STUDIO.line, padding: 22, borderRadius: 22, marginBottom: 18 }, setupTitle: { fontSize: 29, lineHeight: 37, fontWeight: "700", color: STUDIO.ink, marginVertical: 18 }, roleRow: { flexDirection: "row", gap: 10 }, roleCard: { flex: 1, minHeight: 84, borderRadius: 14, padding: 14, backgroundColor: STUDIO.background, borderWidth: 1, borderColor: STUDIO.line, justifyContent: "space-between" }, roleSelected: { borderColor: STUDIO.accent, backgroundColor: STUDIO.accentSoft }, roleName: { fontSize: 17, fontWeight: "700", color: STUDIO.ink }, roleLetter: { fontSize: 10, fontWeight: "700", color: STUDIO.muted, marginTop: 8 }, objective: { backgroundColor: STUDIO.positiveSoft, padding: 15, borderRadius: 14, marginTop: 20 }, voicePreference: { marginTop: 6 }, modeCard: { backgroundColor: STUDIO.paper, borderWidth: 1, borderColor: STUDIO.line, padding: 22, borderRadius: 18, marginBottom: 12 }, cueCard: { backgroundColor: STUDIO.ink, borderColor: STUDIO.ink }, modeTitle: { fontSize: 19, fontWeight: "700", color: "#FFFFFF" }, modeBody: { fontSize: 13, lineHeight: 21, color: "#D5D9E2", marginTop: 10, paddingRight: 20 }, modeArrow: { fontSize: 26, color: "#FFFFFF", marginTop: 12 }, source: { fontSize: 10, lineHeight: 16, color: STUDIO.muted, marginTop: 10 }, rights: { fontSize: 10, lineHeight: 17, color: STUDIO.muted, marginTop: 12, marginBottom: 8 },
+  tools: { flexDirection: "row", gap: 8, flexWrap: "wrap", paddingTop: 6 }, chipRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" }, chip: { paddingVertical: 12, paddingHorizontal: 13, minHeight: 44, borderRadius: 12, backgroundColor: STUDIO.paper, borderWidth: 1, borderColor: STUDIO.line, justifyContent: "center" }, chipOn: { backgroundColor: STUDIO.accent, borderColor: STUDIO.accent }, chipText: { fontSize: 12, fontWeight: "700", color: STUDIO.ink }, chipTextOn: { color: "#FFFFFF" }, recordStatus: { fontSize: 11, lineHeight: 17, color: STUDIO.positive, marginTop: 8 },
+  stageWrap: { flex: 1, padding: 20 }, progressRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, progressTrack: { height: 3, backgroundColor: STUDIO.line, marginTop: 12, borderRadius: 2 }, progressFill: { height: 3, backgroundColor: STUDIO.accent, borderRadius: 2 }, stageScroll: { flex: 1, marginTop: 20 }, previousLine: { fontSize: 13, lineHeight: 21, color: STUDIO.muted, marginBottom: 20 }, currentLine: { padding: 20, borderRadius: 18, backgroundColor: STUDIO.paper, borderWidth: 1, borderColor: STUDIO.line }, myCurrentLine: { borderColor: "#EED1DC" }, currentRole: { fontSize: 11, fontWeight: "800", color: STUDIO.muted, letterSpacing: 0.8 }, dialogue: { fontSize: 25, lineHeight: 36, color: STUDIO.ink, fontWeight: "500", marginTop: 20 }, hiddenBox: { marginTop: 18, paddingVertical: 28, paddingHorizontal: 12, borderRadius: 12, backgroundColor: STUDIO.accentSoft, borderWidth: 1, borderColor: "#ECC5D3", borderStyle: "dashed" }, hiddenText: { fontSize: 14, lineHeight: 23, color: STUDIO.muted, textAlign: "center" }, direction: { fontSize: 12, lineHeight: 19, color: STUDIO.muted, fontStyle: "italic", marginTop: 12 }, controls: { flexDirection: "row", gap: 7, paddingTop: 12 }, ctlBtn: { flex: 1, minHeight: 48, paddingVertical: 13, paddingHorizontal: 6, borderRadius: 12, justifyContent: "center", alignItems: "center", backgroundColor: STUDIO.quiet }, ctlMain: { flex: 1.6, backgroundColor: STUDIO.ink }, controlText: { fontSize: 12, fontWeight: "700", color: STUDIO.ink }, primaryText: { fontSize: 13, lineHeight: 19, fontWeight: "700", color: "#FFFFFF", textAlign: "center" }, noteBtn: { marginTop: 12, minHeight: 50, paddingVertical: 15, paddingHorizontal: 12, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: STUDIO.accent }, finishBtn: { marginTop: 8, minHeight: 48, paddingVertical: 13, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: STUDIO.quiet }, scriptTools: { paddingHorizontal: 20, paddingTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 8 }, lineRow: { backgroundColor: STUDIO.paper, borderRadius: 14, padding: 18, marginBottom: 10, borderWidth: 1, borderColor: STUDIO.line }, lineMine: { borderLeftWidth: 3, borderLeftColor: STUDIO.accent }, scriptLine: { fontSize: 17, lineHeight: 27, color: STUDIO.ink, marginTop: 9 },
 });

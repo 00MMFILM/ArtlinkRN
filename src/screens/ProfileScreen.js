@@ -39,7 +39,7 @@ const MENU_ITEMS = [
   { icon: "\u270F\uFE0F", labelKey: "profile.edit_profile", route: "ProfileEdit" },
   { icon: "\uD83C\uDFAF", labelKey: "profile.goals", route: "Goals" },
   { icon: "\uD83D\uDCC8", labelKey: "profile.growth", route: "Growth" },
-  { icon: "\uD83E\uDD1D", labelKey: "profile.matching", route: "Matching", koOnly: true },
+  { icon: "\uD83E\uDD1D", labelKey: "studio.opportunities", route: "Matching" },
   { icon: "\uD83C\uDFA8", labelKey: "profile.share_card", route: "ShareCard" },
   { icon: "\uD83D\uDCC1", labelKey: "profile.portfolio", route: "Portfolio" },
   { icon: "\uD83C\uDFE2", labelKey: "profile.b2b", route: "B2B", koOnly: true },
@@ -423,6 +423,7 @@ export default function ProfileScreen({ navigation }) {
 
         {/* ─── App Version ─── */}
         <Text style={styles.versionText}>ArtLink v{APP_VERSION}</Text>
+        <Text style={[T.small, { color: CLight.gray500, textAlign: "center", paddingHorizontal: 24, marginTop: 6 }]}>{t("studio.creator")}</Text>
 
         {/* Account deletion — small, bottom */}
         <TouchableOpacity onPress={handleDeleteAccountPress} activeOpacity={0.6} style={{ alignSelf: "center", marginTop: 8, marginBottom: 32 }}>

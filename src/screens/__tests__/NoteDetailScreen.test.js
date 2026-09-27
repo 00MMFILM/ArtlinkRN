@@ -202,6 +202,39 @@ const resetDetail = () => {
   Object.keys(lastAiMeta).forEach((k) => delete lastAiMeta[k]);
 };
 
+describe("studio context after saving a note", () => {
+  beforeEach(resetDetail);
+  const meta = {
+    feedbackLanguage: "en", scriptLanguage: "ko",
+    rehearsalContext: { sceneTitle: "Scene", role: "Lear", feedbackLanguage: "en", scriptLanguage: "ko" },
+    applicationContext: { postId: "casting-1", title: "Application", country: "UK", submissions: ["Self-tape"] },
+  };
+
+  it("shows the saved context and uses its language during text reanalysis despite Korean UI", async () => {
+    const ctx = buildCtx([{ ...baseNote, ...meta }]);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    expect(utils.getByTestId("studio-context-card")).toBeTruthy();
+    expect(utils.getByText("Lear")).toBeTruthy();
+    expect(utils.getByText("UK")).toBeTruthy();
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.ai_reanalyze")));
+    expect(analyzeNote.mock.calls[0][6]).toEqual(expect.objectContaining(meta));
+    expect(ctx.handleUpdateNote.mock.calls[0][0]).toEqual(expect.objectContaining(meta));
+  });
+
+  it("uses the saved context for video analysis and the next practice prefill", async () => {
+    const note = { ...baseNote, ...meta, chosenFocus: "Wait", images: [{ uri: "file:///take.mov", type: "video", duration: 5000 }] };
+    useApp.mockReturnValue(buildCtx([note]));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.video_ai_request")));
+    expect(analyzeVideoFrames.mock.calls[0][6]).toEqual(expect.objectContaining(meta));
+    fireEvent.press(utils.getByText("focus.repractice_cta"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: expect.objectContaining(meta) });
+  });
+});
+
 describe("항목2 — 영상 AI만 있는 노트에도 고칠 점·재연습이 뜬다", () => {
   beforeEach(resetDetail);
 

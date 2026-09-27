@@ -7,6 +7,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabaseClient";
 import { SERVER_URL, getApiHeaders } from "./apiConfig";
 import { getOrCreateDeviceId } from "./mauService";
 import i18n from "i18next";
+import { studioLanguage, sanitizeStudioMetadata, studioFeedbackContext } from "../utils/studioMetadata";
 
 // 마지막 AI 생성 메타 — 노트 저장 시 함께 기록 (모델·프롬프트 버전 추적 = 학습 데이터 필터 기준)
 export const lastAiMeta = { model: null, promptVersion: null, pipeline: null, transcript: null, focusOptions: [] };
@@ -65,8 +66,8 @@ async function resizeImageForAI(uri) {
  * - "zh" for any Chinese variant (zh-CN, zh-TW, etc.)
  * - "en" for everything else
  */
-function getAILanguage() {
-  const lang = i18n.language || "en";
+function getAILanguage(preferred) {
+  const lang = studioLanguage(preferred) || i18n.language || "en";
   if (lang === "ko") return "ko";
   if (lang === "ja") return "ja";
   if (lang.startsWith("zh")) return "zh";
@@ -78,10 +79,10 @@ function getAILanguage() {
  * For Korean, uses FIELD_LABELS from theme.js (original behavior).
  * For other languages, uses i18n translations.
  */
-function getFieldLabel(field) {
-  const lang = getAILanguage();
+function getFieldLabel(field, preferred) {
+  const lang = getAILanguage(preferred);
   if (lang === "ko") return FIELD_LABELS[field] || "예술";
-  return i18n.t(`fields.${field}`, { defaultValue: i18n.t("fields.general", { defaultValue: "Art" }) });
+  return i18n.t(`fields.${field}`, { lng: lang, defaultValue: i18n.t("fields.general", { lng: lang, defaultValue: "Art" }) });
 }
 
 /**
@@ -542,16 +543,16 @@ const RESPONSE_FORMAT = {
 /**
  * Get the current language's response format helpers.
  */
-function getResponseFormat() {
-  return RESPONSE_FORMAT[getAILanguage()] || RESPONSE_FORMAT.en;
+function getResponseFormat(preferred) {
+  return RESPONSE_FORMAT[getAILanguage(preferred)] || RESPONSE_FORMAT.en;
 }
 
 /**
  * Get the field-specific AI prompt config for the current language.
  */
-function getFieldConfig(field) {
+function getFieldConfig(field, preferred) {
   const fieldPrompts = FIELD_AI_PROMPTS[field] || FIELD_AI_PROMPTS.acting;
-  const lang = getAILanguage();
+  const lang = getAILanguage(preferred);
   return fieldPrompts[lang] || fieldPrompts.en;
 }
 
@@ -639,10 +640,10 @@ async function extractAllPdfTexts(pdfFiles) {
   return results.filter(Boolean).join("\n\n");
 }
 
-function buildAIPrompt(field, content, savedNotes = [], currentNote = null, userProfile = {}) {
-  const fieldConfig = getFieldConfig(field);
-  const fieldLabel = getFieldLabel(field);
-  const fmt = getResponseFormat();
+function buildAIPrompt(field, content, savedNotes = [], currentNote = null, userProfile = {}, preferred) {
+  const fieldConfig = getFieldConfig(field, preferred);
+  const fieldLabel = getFieldLabel(field, preferred);
+  const fmt = getResponseFormat(preferred);
 
   const sameFieldNotes = savedNotes.filter((n) => n.field === field && n.aiComment).slice(0, 10);
 
@@ -964,6 +965,8 @@ export function buildPreviousContext(prevNote) {
 function withPracticeContext(body, extra) {
   if (extra?.focus) body.focus = String(extra.focus).slice(0, 80);
   if (extra?.previous) body.previous = extra.previous;
+  const language = studioLanguage(extra?.feedbackLanguage);
+  if (language) body.feedbackLanguage = language;
   return body;
 }
 
@@ -1048,7 +1051,8 @@ function withFocus(scored) {
 }
 
 export async function analyzeNote(field, content, savedNotes = [], currentNote = null, userProfile = {}, onToken = null, extra = null) {
-  const fmt = getResponseFormat();
+  const context = { ...sanitizeStudioMetadata(currentNote), ...sanitizeStudioMetadata(extra) };
+  const fmt = getResponseFormat(context.feedbackLanguage);
 
   // Extract PDF text if PDF files are attached
   let pdfText = "";
@@ -1107,7 +1111,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
     imageFrames = frameResults.filter(Boolean);
   }
 
-  const prompt = buildAIPrompt(field, combinedContent, savedNotes, currentNote, userProfile);
+  const prompt = buildAIPrompt(field, combinedContent, savedNotes, currentNote, userProfile, context.feedbackLanguage) + studioFeedbackContext(context);
 
   try {
     const requestBody = withPracticeContext({
@@ -1116,7 +1120,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
       noteTitle: currentNote?.title || "",
       wantScores: true, // 서버가 끝에 [[SCORES]] 붙여줌 → parseScores로 aiScores 저장 (성장 분석용)
       wantFocus: true, // 서버가 [[SCORES]] 바로 앞에 [[FOCUS]] 붙여줌 (이 플래그가 없으면 안 붙는다 — 구버전 앱 보호)
-    }, extra);
+    }, { ...extra, ...context });
     if (imageFrames.length > 0) {
       requestBody.frames = imageFrames;
     }
@@ -1445,9 +1449,9 @@ Write a professional yet distinctive profile introduction.`;
 
 // ─── Video Analysis ───
 
-function buildVideoPrompt(field, content, title) {
-  const fieldLabel = getFieldLabel(field);
-  const fmt = getResponseFormat();
+function buildVideoPrompt(field, content, title, preferred) {
+  const fieldLabel = getFieldLabel(field, preferred);
+  const fmt = getResponseFormat(preferred);
 
   return `${fmt.videoRequestLabel(fieldLabel)}
 ${fmt.noteTitle(title)}
@@ -1607,7 +1611,7 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
     // Phase 2: Send to Claude Vision (40-95%)
     onProgress?.({ phase: "analyzing", percent: 45, message: fmt.progressAIRequest });
 
-    const prompt = buildVideoPrompt(field, content, title);
+    const prompt = buildVideoPrompt(field, content, title, studioLanguage(extra?.feedbackLanguage)) + studioFeedbackContext(extra);
     const body = JSON.stringify(withPracticeContext({
       prompt,
       field,

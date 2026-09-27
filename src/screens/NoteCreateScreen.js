@@ -26,6 +26,7 @@ import { analyzeNote, analyzeVideoFrames, lastAiMeta, buildPreviousContext } fro
 import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, showRewardedAd } from "../services/adService";
 import { FIELDS } from "../utils/helpers";
 import { buildRepracticePrefill } from "../utils/repractice";
+import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 import { getStorageScope } from "../utils/accountStorage";
 import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
 import { trackFunnelEvent } from "../services/mauService";
@@ -33,6 +34,7 @@ import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
 import { startPractice, resumePractice, completePractice, abandonPractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
 import FocusPicker from "../components/FocusPicker";
+import StudioContextCard from "../components/StudioContextCard";
 import { useTranslation } from "react-i18next";
 
 // 게스트 가입 유도는 기기당 딱 1회 (리마인더 플래그와 같은 방식)
@@ -141,6 +143,9 @@ export default function NoteCreateScreen({ navigation, route }) {
 
   // 딥링크 프리필 (artlink://practice — 비움스튜디오 대본 등)
   const [prefill, setPrefill] = useState(route?.params?.prefill || null);
+  // Derive only from the accepted prefill: cancelling a replacement must keep
+  // the current script language, role, and application context unchanged.
+  const studioMetadata = useMemo(() => sanitizeStudioMetadata(prefill), [prefill]);
   // 가입 왕복 후 복원으로 열린 경우 (App.js가 보관된 초안을 prefill로 넘긴다)
   const restoredDraft = !!route?.params?.restoredDraft;
   const [title, setTitle] = useState(prefill?.title || "");
@@ -355,7 +360,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   // 초안으로 돌아와 이어받으면(resumePractice) 다시 열려 완료로 집계된다.
   useEffect(() => () => abandonPractice(practiceRef.current), []);
 
-  draftStateRef.current = { title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, aiModel: videoMetaRef.current.model, promptVersion: videoMetaRef.current.promptVersion, transcript: videoMetaRef.current.transcript, images, voiceRecordings, audioFiles, pdfFiles, sessionId: practiceRef.current?.sessionId, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions };
+  draftStateRef.current = { ...studioMetadata, title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, aiModel: videoMetaRef.current.model, promptVersion: videoMetaRef.current.promptVersion, transcript: videoMetaRef.current.transcript, images, voiceRecordings, audioFiles, pdfFiles, sessionId: practiceRef.current?.sessionId, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions };
 
   // Handle back with unsaved changes warning
   const handleCancel = useCallback(() => {
@@ -432,10 +437,10 @@ export default function NoteCreateScreen({ navigation, route }) {
       // 스트리밍: 도착하는 대로 실시간 표시 (체감 대기 감소)
       const result = await analyzeNote(
         field, content, savedNotes,
-        { title, field, images, voiceRecordings, audioFiles, pdfFiles },
+        { ...studioMetadata, title, field, images, voiceRecordings, audioFiles, pdfFiles },
         userProfile,
         (partial) => { if (ownerIsCurrent(owner)) setAiComment(partial); },
-        { focus, previous: buildPreviousContext(parentNote) }
+        { ...studioMetadata, focus, previous: buildPreviousContext(parentNote) }
       );
       if (!ownerIsCurrent(owner)) return; // 계정이나 화면이 바뀌면 결과를 반영하지 않는다
       setAiComment(result.analysis || result);
@@ -459,7 +464,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       textWorkRef.current = false;
       if (ownerIsCurrent(owner)) { setAiLoading(false); refreshPremium?.(); }
     }
-  }, [videoAnalysis, content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, premium?.active, t, i18n.language, promptQuotaExceeded, focus, parentNote, safeAlert, refreshPremium]);
+  }, [videoAnalysis, content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, premium?.active, t, i18n.language, promptQuotaExceeded, focus, parentNote, safeAlert, refreshPremium, studioMetadata]);
 
   // 첫 AI 피드백 직후 딱 한 번 — 게스트는 가입 유도, 로그인 유저는 연습 알림 제안 (Calm 패턴)
   const maybeOfferReminder = useCallback(async () => {
@@ -580,7 +585,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       const result = await analyzeVideoFrames(
         field, content, title, [video], userProfile,
         (progress) => { if (ownerIsCurrent(owner)) setVideoAiProgress(progress); },
-        { focus, previous: videoPreviousContext }
+        { ...studioMetadata, focus, previous: videoPreviousContext }
       );
       if (!ownerIsCurrent(owner)) return;
       setVideoAnalysis(result);
@@ -609,7 +614,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         refreshPremium?.();
       }
     }
-  }, [noteVideos, aiLoading, videoQuotaEmpty, videoQuota?.max, field, content, title, userProfile, isKoreanLocale, premium?.active, t, promptQuotaExceeded, focus, videoPreviousContext, parentNoteId, safeAlert, refreshPremium, i18n.language]);
+  }, [noteVideos, aiLoading, videoQuotaEmpty, videoQuota?.max, field, content, title, userProfile, isKoreanLocale, premium?.active, t, promptQuotaExceeded, focus, videoPreviousContext, parentNoteId, safeAlert, refreshPremium, i18n.language, studioMetadata]);
 
   const handleVideoAnalyze = useCallback(() => {
     if (videoWorkRef.current || mediaWorkRef.current || savingRef.current || textWorkRef.current) return;
@@ -954,6 +959,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       // 세션 없이 저장되지 않게 — 저장 시점에 없으면 여기서 시작한다. 노트와 완료 이벤트가 같은 세션을 쓴다.
       const practiceSession = ensurePracticeSession();
       const noteData = {
+        ...studioMetadata,
         title: title.trim(),
         content: content.trim(),
         field,
@@ -1007,7 +1013,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       savingRef.current = false;
       if (ownerIsCurrent(owner)) setSaving(false);
     }
-  }, [aiBusy, title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions, practiceSubjectKey, ensurePracticeSession]);
+  }, [aiBusy, title, content, field, tags, seriesName, aiComment, aiScores, videoAnalysis, images, voiceRecordings, audioFiles, pdfFiles, noteVideos, hasAttachments, hasAiResult, handleSaveNote, navigation, t, i18n.language, sceneId, parentNoteId, rootNoteId, focus, chosenFocus, focusOptions, practiceSubjectKey, ensurePracticeSession, studioMetadata]);
 
   // Shimmer interpolation
   const shimmerOpacity = shimmerAnim.interpolate({
@@ -1042,6 +1048,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <StudioContextCard note={studioMetadata} />
         {isVideoRetake ? (
           <View style={styles.focusBanner}>
             <Text style={[T.bodyBold, { color: CLight.pink }]}>{t("retake.current_focus", { focus: focus || "" })}</Text>

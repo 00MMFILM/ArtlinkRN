@@ -29,7 +29,9 @@ import { aiFeedbackDone, newUuid } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import FocusPicker from "../components/FocusPicker";
 import RetakeCompareCard from "../components/RetakeCompareCard";
+import StudioContextCard from "../components/StudioContextCard";
 import { buildRepracticePrefill } from "../utils/repractice";
+import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 import { getStorageScope } from "../utils/accountStorage";
 import { formatDate, timeAgo } from "../utils/helpers";
 import FeedbackShareCard from "../components/FeedbackShareCard";
@@ -100,6 +102,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     () => savedNotes.find((n) => n.id === noteId),
     [savedNotes, noteId]
   );
+  const studioMetadata = useMemo(() => sanitizeStudioMetadata(note), [note]);
 
   const mountedRef = useRef(true);
   const ownerRef = useRef(null);
@@ -454,7 +457,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         note,
         userProfile,
         (partial) => setStreamingText(partial),
-        { focus: note.focus, previous: buildPreviousContext(previousNote) }
+        { ...studioMetadata, focus: note.focus, previous: buildPreviousContext(previousNote) }
       );
       const analysis = result.analysis || result;
       const scores = result.scores || null;
@@ -480,7 +483,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       setAiLoading(false);
       refreshPremium?.(); // 한 번 썼으니 남은 횟수 캡션을 즉시 갱신한다
     }
-  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded, refreshPremium]);
+  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded, refreshPremium, studioMetadata]);
 
   const handleRequestAI = useCallback(async () => {
     if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
@@ -514,7 +517,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         noteVideos,
         userProfile,
         (progress) => { if (ownerIsCurrent(owner)) setVideoAiProgress(progress); },
-        { focus: note.focus, previous: buildPreviousContext(previousNote?.videoAnalysis
+        { ...studioMetadata, focus: note.focus, previous: buildPreviousContext(previousNote?.videoAnalysis
           ? { ...previousNote, aiComment: undefined, aiScores: undefined } : previousNote) }
       );
       if (!ownerIsCurrent(owner)) return;
@@ -555,7 +558,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         refreshPremium?.();
       }
     }
-  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote, refreshPremium]);
+  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote, refreshPremium, studioMetadata]);
 
   const runVideoAIFlow = useCallback(async (owner = captureOwner()) => {
     if (pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || !ownerIsCurrent(owner)) return;
@@ -737,6 +740,8 @@ export default function NoteDetailScreen({ route, navigation }) {
             </View>
           )}
         </View>
+
+        <StudioContextCard note={studioMetadata} />
 
         {/* Tab Bar */}
         {pendingAi ? (

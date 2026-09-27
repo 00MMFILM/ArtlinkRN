@@ -1,0 +1,786 @@
+{
+  "version": 1,
+  "source": "ArtLink original practice collection",
+  "scenes": [
+    {
+      "id": "artlink-en-last-train",
+      "play": "The Last Train",
+      "playKo": "막차",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Maya",
+          "gender": ""
+        },
+        {
+          "name": "Alex",
+          "gender": ""
+        }
+      ],
+      "label": "A station platform just before the last train. One friend is leaving; the other has brought a forgotten key.",
+      "point": "Ask someone to stay without asking them to give up their plans.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "막차 직전의 승강장. 떠나는 친구에게 두고 간 열쇠를 건넨다.",
+          "point": "상대의 계획을 꺾지 않으면서 조금 더 머물러 달라고 해보세요."
+        },
+        "en": {
+          "label": "A station platform just before the last train. One friend is leaving; the other has brought a forgotten key.",
+          "point": "Ask someone to stay without asking them to give up their plans."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "You left this on the kitchen table."
+        },
+        {
+          "r": 1,
+          "t": "My key. I thought I had everything."
+        },
+        {
+          "r": 0,
+          "t": "I could post it tomorrow."
+        },
+        {
+          "r": 1,
+          "t": "Then why did you run all the way here?"
+        },
+        {
+          "r": 0,
+          "t": "I wanted to know you got on the right train."
+        },
+        {
+          "r": 1,
+          "t": "There is only one train, Maya."
+        },
+        {
+          "r": 0,
+          "t": "I know. I had a better sentence on the way."
+        },
+        {
+          "r": 1,
+          "t": "You still have a minute."
+        },
+        {
+          "r": 0,
+          "t": "Call me when the new place starts to feel like home."
+        },
+        {
+          "r": 1,
+          "t": "I will. And I am keeping the key."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-borrowed-jacket",
+      "play": "The Borrowed Jacket",
+      "playKo": "빌린 재킷",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Sam",
+          "gender": ""
+        },
+        {
+          "name": "Noor",
+          "gender": ""
+        }
+      ],
+      "label": "Two flatmates pack a jacket for a job interview. There is something hidden in its pocket.",
+      "point": "Offer help while respecting the other person’s pride.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "면접용 재킷을 빌려주는 두 룸메이트. 주머니에 무언가 들어 있다.",
+          "point": "상대의 자존심을 존중하며 도움을 건네보세요."
+        },
+        "en": {
+          "label": "Two flatmates pack a jacket for a job interview. There is something hidden in its pocket.",
+          "point": "Offer help while respecting the other person’s pride."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "The sleeves are a little long."
+        },
+        {
+          "r": 1,
+          "t": "Fold them once. Nobody will notice."
+        },
+        {
+          "r": 0,
+          "t": "There is cash in the pocket."
+        },
+        {
+          "r": 1,
+          "t": "Old jacket. Things get lost in it."
+        },
+        {
+          "r": 0,
+          "t": "Exactly enough for a return ticket?"
+        },
+        {
+          "r": 1,
+          "t": "A very organised jacket."
+        },
+        {
+          "r": 0,
+          "t": "I said I could manage."
+        },
+        {
+          "r": 1,
+          "t": "And I said you could borrow it. All of it."
+        },
+        {
+          "r": 0,
+          "t": "I will bring it back tomorrow."
+        },
+        {
+          "r": 1,
+          "t": "Keep it until they give you the job."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-five-minutes",
+      "play": "Five More Minutes",
+      "playKo": "오 분만 더",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Robin",
+          "gender": ""
+        },
+        {
+          "name": "Lee",
+          "gender": ""
+        }
+      ],
+      "label": "A small gallery is closing. A visitor will not leave a painting.",
+      "point": "Let curiosity change an ordinary rule.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "문을 닫는 작은 갤러리. 관람객이 그림 앞을 떠나지 못한다.",
+          "point": "호기심 때문에 평소의 규칙이 달라지는 순간을 찾아보세요."
+        },
+        "en": {
+          "label": "A small gallery is closing. A visitor will not leave a painting.",
+          "point": "Let curiosity change an ordinary rule."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "We close in five minutes."
+        },
+        {
+          "r": 1,
+          "t": "You said that five minutes ago."
+        },
+        {
+          "r": 0,
+          "t": "I was hoping you had a watch."
+        },
+        {
+          "r": 1,
+          "t": "My mother used to paint windows like that."
+        },
+        {
+          "r": 0,
+          "t": "Is that why you have been standing here?"
+        },
+        {
+          "r": 1,
+          "t": "Her windows always had someone coming home."
+        },
+        {
+          "r": 0,
+          "t": "This one is empty."
+        },
+        {
+          "r": 1,
+          "t": "Maybe they are just late."
+        },
+        {
+          "r": 0,
+          "t": "I need to turn the lights off in the other room."
+        },
+        {
+          "r": 1,
+          "t": "Then I have five more minutes."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-wrong-take",
+      "play": "The Wrong Take",
+      "playKo": "잘못된 테이크",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Jess",
+          "gender": ""
+        },
+        {
+          "name": "Drew",
+          "gender": ""
+        }
+      ],
+      "label": "Two filmmakers discover that their favourite take was recorded without sound.",
+      "point": "Admit a mistake, then make a practical offer.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "두 영화 제작자가 가장 좋아한 테이크에 소리가 없다는 걸 알게 된다.",
+          "point": "실수를 인정한 뒤 실제로 할 수 있는 제안을 해보세요."
+        },
+        "en": {
+          "label": "Two filmmakers discover that their favourite take was recorded without sound.",
+          "point": "Admit a mistake, then make a practical offer."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "Play it from the beginning."
+        },
+        {
+          "r": 1,
+          "t": "I have. Three times."
+        },
+        {
+          "r": 0,
+          "t": "Why is it quiet?"
+        },
+        {
+          "r": 1,
+          "t": "I checked the camera. I did not check the microphone."
+        },
+        {
+          "r": 0,
+          "t": "That was the take."
+        },
+        {
+          "r": 1,
+          "t": "I know."
+        },
+        {
+          "r": 0,
+          "t": "We cannot get that light tomorrow."
+        },
+        {
+          "r": 1,
+          "t": "We have twelve minutes of it left today."
+        },
+        {
+          "r": 0,
+          "t": "You think we can do it again?"
+        },
+        {
+          "r": 1,
+          "t": "I think I owe you a reason to try."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-empty-chair",
+      "play": "The Empty Chair",
+      "playKo": "빈 의자",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Ari",
+          "gender": ""
+        },
+        {
+          "name": "Morgan",
+          "gender": ""
+        }
+      ],
+      "label": "A café owner has kept a table for an old friend who rarely visits.",
+      "point": "Ask for connection through an everyday task.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "카페 주인이 좀처럼 오지 않는 옛 친구를 위해 자리를 남겨둔다.",
+          "point": "일상적인 부탁 속에 다시 가까워지고 싶은 마음을 담아보세요."
+        },
+        "en": {
+          "label": "A café owner has kept a table for an old friend who rarely visits.",
+          "point": "Ask for connection through an everyday task."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "Is this seat taken?"
+        },
+        {
+          "r": 1,
+          "t": "It has been waiting for someone."
+        },
+        {
+          "r": 0,
+          "t": "I can find another table."
+        },
+        {
+          "r": 1,
+          "t": "You could also sit down."
+        },
+        {
+          "r": 0,
+          "t": "I was not sure you would want me here."
+        },
+        {
+          "r": 1,
+          "t": "I bought the tea you like. It expires on Friday."
+        },
+        {
+          "r": 0,
+          "t": "That sounds like a deadline."
+        },
+        {
+          "r": 1,
+          "t": "It is a very small box."
+        },
+        {
+          "r": 0,
+          "t": "Then we should probably start today."
+        },
+        {
+          "r": 1,
+          "t": "I will get a second cup."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-last-box",
+      "play": "The Last Box",
+      "playKo": "마지막 상자",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Jamie",
+          "gender": ""
+        },
+        {
+          "name": "Casey",
+          "gender": ""
+        }
+      ],
+      "label": "Siblings clear a family home. One unlabelled box remains.",
+      "point": "Negotiate what to keep without deciding for the other person.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "가족의 집을 정리하는 남매. 이름 없는 상자 하나가 남아 있다.",
+          "point": "상대를 대신해 결정하지 않으면서 무엇을 남길지 이야기해보세요."
+        },
+        "en": {
+          "label": "Siblings clear a family home. One unlabelled box remains.",
+          "point": "Negotiate what to keep without deciding for the other person."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "What is in the last box?"
+        },
+        {
+          "r": 1,
+          "t": "Things nobody wanted to label."
+        },
+        {
+          "r": 0,
+          "t": "That means you have already looked."
+        },
+        {
+          "r": 1,
+          "t": "There is a photo of us in the garden."
+        },
+        {
+          "r": 0,
+          "t": "Keep it."
+        },
+        {
+          "r": 1,
+          "t": "You say that about everything."
+        },
+        {
+          "r": 0,
+          "t": "It is easier than saying I want it."
+        },
+        {
+          "r": 1,
+          "t": "We can make a copy."
+        },
+        {
+          "r": 0,
+          "t": "A copy will not have the fold in the middle."
+        },
+        {
+          "r": 1,
+          "t": "Then you keep this one. I remember the fold."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-opening-night",
+      "play": "Before the Doors Open",
+      "playKo": "문이 열리기 전",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Taylor",
+          "gender": ""
+        },
+        {
+          "name": "Imani",
+          "gender": ""
+        }
+      ],
+      "label": "Minutes before a first performance, one actor considers leaving.",
+      "point": "Help a partner take one small action instead of promising success.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "첫 공연 직전, 한 배우가 떠날 생각을 한다.",
+          "point": "성공을 장담하기보다 상대가 작은 행동 하나를 하도록 도와보세요."
+        },
+        "en": {
+          "label": "Minutes before a first performance, one actor considers leaving.",
+          "point": "Help a partner take one small action instead of promising success."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "I cannot remember the first line."
+        },
+        {
+          "r": 1,
+          "t": "You said it in the lift."
+        },
+        {
+          "r": 0,
+          "t": "That was before there were people outside."
+        },
+        {
+          "r": 1,
+          "t": "Then say it to me."
+        },
+        {
+          "r": 0,
+          "t": "What if nothing comes out?"
+        },
+        {
+          "r": 1,
+          "t": "I will still be standing here."
+        },
+        {
+          "r": 0,
+          "t": "You make it sound very simple."
+        },
+        {
+          "r": 1,
+          "t": "It is one line. We can worry about the second after that."
+        },
+        {
+          "r": 0,
+          "t": "Will you look at me when I come on?"
+        },
+        {
+          "r": 1,
+          "t": "I was going to ask you the same thing."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-rain-check",
+      "play": "Rain Check",
+      "playKo": "다음 약속",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Rowan",
+          "gender": ""
+        },
+        {
+          "name": "Kit",
+          "gender": ""
+        }
+      ],
+      "label": "Two friends meet outside a cinema after one has cancelled several times.",
+      "point": "Make a clear boundary while leaving room for repair.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "몇 번이나 약속을 취소했던 친구가 영화관 앞에 나타난다.",
+          "point": "관계를 회복할 여지를 남기면서 분명한 기준을 말해보세요."
+        },
+        "en": {
+          "label": "Two friends meet outside a cinema after one has cancelled several times.",
+          "point": "Make a clear boundary while leaving room for repair."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "You are actually here."
+        },
+        {
+          "r": 1,
+          "t": "I deserve that."
+        },
+        {
+          "r": 0,
+          "t": "The film started ten minutes ago."
+        },
+        {
+          "r": 1,
+          "t": "We could catch the next one."
+        },
+        {
+          "r": 0,
+          "t": "I do not want another next one."
+        },
+        {
+          "r": 1,
+          "t": "Then tell me what would help."
+        },
+        {
+          "r": 0,
+          "t": "A message before I leave home. Even a bad one."
+        },
+        {
+          "r": 1,
+          "t": "I can do that."
+        },
+        {
+          "r": 0,
+          "t": "And dinner. I skipped dinner for this."
+        },
+        {
+          "r": 1,
+          "t": "There is a place across the road. We can go now."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-unopened-letter",
+      "play": "The Unopened Letter",
+      "playKo": "열지 않은 편지",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Emery",
+          "gender": ""
+        },
+        {
+          "name": "Sasha",
+          "gender": ""
+        }
+      ],
+      "label": "An artist asks a friend to open a letter from an exhibition jury.",
+      "point": "Separate the fear of an answer from the desire to know it.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "전시 심사 결과를 받은 예술가가 친구에게 편지를 열어 달라고 한다.",
+          "point": "답이 두려운 마음과 알고 싶은 마음을 구별해보세요."
+        },
+        "en": {
+          "label": "An artist asks a friend to open a letter from an exhibition jury.",
+          "point": "Separate the fear of an answer from the desire to know it."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "Will you open it?"
+        },
+        {
+          "r": 1,
+          "t": "You put your name on the application."
+        },
+        {
+          "r": 0,
+          "t": "That version of me was very confident."
+        },
+        {
+          "r": 1,
+          "t": "This version made the same work."
+        },
+        {
+          "r": 0,
+          "t": "If it is a no, do not make that face."
+        },
+        {
+          "r": 1,
+          "t": "Which face?"
+        },
+        {
+          "r": 0,
+          "t": "The one that says you knew it would be."
+        },
+        {
+          "r": 1,
+          "t": "I do not know. That is why the envelope is interesting."
+        },
+        {
+          "r": 0,
+          "t": "All right. Open it while I am looking."
+        },
+        {
+          "r": 1,
+          "t": "Come closer. We can read it together."
+        }
+      ]
+    },
+    {
+      "id": "artlink-en-night-shift",
+      "play": "The Night Shift",
+      "playKo": "야간 근무",
+      "author": "ArtLink Original",
+      "genre": "Contemporary scene",
+      "language": "en",
+      "source": "ArtLink original practice collection",
+      "rights": {
+        "type": "artlink-original",
+        "practiceUse": true,
+        "notice": "Original practice text created for ArtLink. No third-party script excerpt."
+      },
+      "roles": [
+        {
+          "name": "Cameron",
+          "gender": ""
+        },
+        {
+          "name": "Reese",
+          "gender": ""
+        }
+      ],
+      "label": "A new colleague arrives early to cover a tired worker’s shift.",
+      "point": "Let concern emerge through practical details.",
+      "descriptionTranslations": {
+        "ko": {
+          "label": "지친 동료를 대신하려 새 직원이 일찍 출근한다.",
+          "point": "구체적인 일 이야기를 통해 걱정하는 마음이 드러나게 해보세요."
+        },
+        "en": {
+          "label": "A new colleague arrives early to cover a tired worker’s shift.",
+          "point": "Let concern emerge through practical details."
+        }
+      },
+      "lines": [
+        {
+          "r": 0,
+          "t": "You are an hour early."
+        },
+        {
+          "r": 1,
+          "t": "The bus was unusually helpful."
+        },
+        {
+          "r": 0,
+          "t": "There is another one every ten minutes."
+        },
+        {
+          "r": 1,
+          "t": "I thought you might want to go home."
+        },
+        {
+          "r": 0,
+          "t": "I said I was fine."
+        },
+        {
+          "r": 1,
+          "t": "You have made the same cup of coffee twice."
+        },
+        {
+          "r": 0,
+          "t": "The first one went cold."
+        },
+        {
+          "r": 1,
+          "t": "So did the second. Give me the keys."
+        },
+        {
+          "r": 0,
+          "t": "The back door sticks when it rains."
+        },
+        {
+          "r": 1,
+          "t": "Show me once. Then go get some sleep."
+        }
+      ]
+    }
+  ]
+}

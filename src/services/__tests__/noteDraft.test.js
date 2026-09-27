@@ -45,6 +45,20 @@ describe("noteDraft", () => {
     Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
   });
 
+  it("restores rehearsal language/role and application requirements after a signup draft round trip", async () => {
+    const meta = {
+      feedbackLanguage: "ko", scriptLanguage: "en",
+      rehearsalContext: { sceneTitle: "Original scene", role: "Lear", scriptLanguage: "en", feedbackLanguage: "ko" },
+      applicationContext: { postId: "casting-1", title: "Film", country: "UK", submissions: ["Self-tape", "CV"] },
+    };
+    await expect(saveDraft({ ...fullState, ...meta, unknown: true })).resolves.toBe(true);
+    expect(await loadDraft()).toEqual(expect.objectContaining(meta));
+    const contaminated = { ...buildDraft(fullState), ...meta, rehearsalContext: { ...meta.rehearsalContext, recording: "file:///old" } };
+    const restored = validateDraft(contaminated);
+    expect(restored.rehearsalContext).toEqual(meta.rehearsalContext);
+    expect(restored.unknown).toBeUndefined();
+  });
+
   it("buildDraft는 알려진 필드 + savedAt만 담는다", () => {
     const draft = buildDraft({ ...fullState, tagInput: "버려질값", aiLoading: true });
     expect(draft.tagInput).toBeUndefined();
