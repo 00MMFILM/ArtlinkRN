@@ -1305,3 +1305,64 @@ describe("1.11.9 retake creation", () => {
   });
 
 });
+
+describe("녹음 중 앱이 백그라운드로 가면", () => {
+  const { AppState } = require("react-native");
+  let emit;
+  let rec;
+  beforeEach(() => {
+    resetAll();
+    useApp.mockReturnValue(buildCtx("u1"));
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_, fn) => { emit = fn; return { remove: jest.fn() }; });
+    Audio.RecordingOptionsPresets = { HIGH_QUALITY: {} };
+    Audio.requestPermissionsAsync.mockResolvedValue({ status: "granted" });
+    rec = {
+      prepareToRecordAsync: jest.fn(async () => {}),
+      startAsync: jest.fn(async () => {}),
+      stopAndUnloadAsync: jest.fn(async () => {}),
+      getURI: jest.fn(() => "file:///cache/Audio/take.m4a"),
+    };
+    Audio.Recording.mockImplementation(() => rec);
+  });
+  afterEach(() => AppState.addEventListener.mockRestore());
+
+  it.each(["background", "inactive"])("%s: 녹음을 멈추고 녹음물은 첨부로 남긴다 — 복귀해도 다시 녹음하지 않는다", async (state) => {
+    const ctx = buildCtx("u1");
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.record")); });
+    expect(rec.startAsync).toHaveBeenCalledTimes(1);
+    await act(async () => { emit(state); });
+    await act(async () => { emit("background"); }); // inactive → background 순서로 와도 한 번만 첨부
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(utils.getByText("noteCreate.record")).toBeTruthy());
+    await act(async () => { emit("active"); });
+    expect(Audio.Recording).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(ctx.handleSaveNote.mock.calls[0][0].voiceRecordings).toHaveLength(1);
+  });
+
+  it("권한 창 때문에 inactive가 와도 녹음 시작은 취소하지 않는다", async () => {
+    let grant;
+    Audio.requestPermissionsAsync.mockImplementation(() => new Promise((resolve) => { grant = resolve; }));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.press(utils.getByText("noteCreate.record"));
+    await act(async () => { emit("inactive"); });
+    await act(async () => { emit("active"); });
+    await act(async () => { grant({ status: "granted" }); });
+    expect(rec.startAsync).toHaveBeenCalledTimes(1);
+    expect(rec.stopAndUnloadAsync).not.toHaveBeenCalled();
+    expect(utils.queryByText("noteCreate.record")).toBeNull();
+  });
+
+  it("준비 중에 백그라운드로 가면 녹음을 시작하지 않고 마이크를 놓는다", async () => {
+    let grant;
+    Audio.requestPermissionsAsync.mockImplementation(() => new Promise((resolve) => { grant = resolve; }));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    fireEvent.press(utils.getByText("noteCreate.record"));
+    await act(async () => { emit("background"); });
+    await act(async () => { grant({ status: "granted" }); });
+    expect(Audio.Recording).not.toHaveBeenCalled();
+    expect(utils.getByText("noteCreate.record")).toBeTruthy();
+  });
+});

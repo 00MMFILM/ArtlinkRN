@@ -495,7 +495,7 @@ describe("feedback prompt keeps to the available evidence", () => {
     return body.prompt;
   };
 
-  it.each(["acting", "music"])("%s: every language treats sound as a next-take suggestion without recording evidence", (field) => {
+  it.each(["acting", "music", "film", "dance"])("%s: every language treats sound as a next-take suggestion without recording evidence", (field) => {
     const marker = { ko: "현재 상태로 단정하지", en: "as the current state", ja: "現在の状態として断定", zh: "断定为当前" };
     const unchecked = { ko: "소리는 확인하지 못했다", en: "sound itself was not checked", ja: "音そのものは確認できなかった", zh: "未能确认声音本身" };
     for (const lang of ["ko", "en", "ja", "zh"]) {
@@ -504,6 +504,25 @@ describe("feedback prompt keeps to the available evidence", () => {
       expect(system).toContain(unchecked[lang]);
       expect(system).not.toMatch(/0\.3/);
     }
+  });
+
+  it("film no longer asks for dialogue tone or pause timing analysis, and shots are observations only with video", () => {
+    const stale = { ko: "쉼 타이밍", en: "pause timing", ja: "ポーズのタイミング", zh: "停顿时机" };
+    const visualOnly = { ko: "영상·사진이 있을 때만 관찰", en: "only when video or photos are attached", ja: "映像・写真があるときだけ観察", zh: "只有附有视频或照片时才作为观察" };
+    for (const lang of ["ko", "en", "ja", "zh"]) {
+      const system = FIELD_AI_PROMPTS.film[lang].system;
+      expect(system).not.toContain(stale[lang]);
+      expect(system).not.toMatch(/Analyze actor dialogue delivery|분석하세요 — 각 대사의 톤|台詞デリバリーを感情タグ体系で分析|分析演员的台词传达/);
+      expect(system).toContain(visualOnly[lang]);
+    }
+  });
+
+  it("video feedback treats the transcript as words, not sound, in every language", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "../aiService.js"), "utf8");
+    const mic = src.split("\n").filter((line) => line.startsWith("🎤"));
+    expect(mic).toHaveLength(4);
+    ["소리는 확인하지 못했다", "sound itself was not checked", "音そのものは確認できなかった", "未能确认声音本身"]
+      .forEach((phrase, i) => expect(mic[i]).toContain(phrase));
   });
 
   it("omits 🎨 and 📈 without role models or an earlier record, and bans repeated section names", async () => {

@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
@@ -245,6 +246,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
   const recordingTimerRef = useRef(null);
+  const recordingStartTokenRef = useRef(0); // bumped to cancel a start that is still waiting on permission/prepare
   const [playingSound, setPlayingSound] = useState(null);
   const [playingIdx, setPlayingIdx] = useState(null);
   // 언마운트 cleanup은 []로 걸려 있어 최초 렌더의 playingSound(null)만 본다 →
@@ -296,6 +298,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         playingSoundRef.current.unloadAsync?.();
         playingSoundRef.current = null;
       }
+      recordingStartTokenRef.current += 1;
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
@@ -725,8 +728,17 @@ export default function NoteCreateScreen({ navigation, route }) {
   }, [images, aiLoading]);
 
   const handleStartRecording = useCallback(async () => {
+    const token = ++recordingStartTokenRef.current;
+    const cancelled = () => token !== recordingStartTokenRef.current;
+    let recording = null;
+    // The app went to the background (or the screen closed) mid-start: release the recorder instead of recording unseen.
+    const releaseCancelled = async () => {
+      try { if (recording) await recording.stopAndUnloadAsync(); } catch (e) {}
+      try { await Audio.setAudioModeAsync({ allowsRecordingIOS: false }); } catch (e) {}
+    };
     try {
       const { status } = await Audio.requestPermissionsAsync();
+      if (cancelled()) return;
       if (status !== "granted") {
         Alert.alert(t("common.permission_required"), t("common.mic_permission"));
         return;
@@ -735,9 +747,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      const recording = new Audio.Recording();
+      if (cancelled()) { await releaseCancelled(); return; }
+      recording = new Audio.Recording();
       await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      if (cancelled()) { await releaseCancelled(); return; }
       await recording.startAsync();
+      if (cancelled()) { await releaseCancelled(); return; }
       recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
@@ -745,19 +760,21 @@ export default function NoteCreateScreen({ navigation, route }) {
         setRecordingDuration((d) => d + 1);
       }, 1000);
     } catch (e) {
+      if (cancelled()) { await releaseCancelled(); return; }
       Alert.alert(t("noteCreate.recording_error"), t("noteCreate.recording_error_msg"));
     }
   }, [t]);
 
   const handleStopRecording = useCallback(async () => {
-    if (!recordingRef.current) return;
+    const recording = recordingRef.current;
+    if (!recording) return;
+    recordingRef.current = null; // a second stop (inactive → background) must not attach the take twice
     try {
       clearInterval(recordingTimerRef.current);
-      await recordingRef.current.stopAndUnloadAsync();
+      await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      const uri = recordingRef.current.getURI();
+      const uri = recording.getURI();
       const finalDuration = recordingDuration;
-      recordingRef.current = null;
       setIsRecording(false);
       if (uri) {
         ensurePracticeSession(); // 녹음 첨부 = 연습 시작
@@ -767,6 +784,18 @@ export default function NoteCreateScreen({ navigation, route }) {
       setIsRecording(false);
     }
   }, [recordingDuration, ensurePracticeSession]);
+
+  // Leaving the app ends the take: keep what was recorded, never keep recording in the background.
+  // "inactive" also fires for the first permission dialog, so only "background" cancels a pending start.
+  const stopRecordingRef = useRef(handleStopRecording);
+  stopRecordingRef.current = handleStopRecording;
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") recordingStartTokenRef.current += 1;
+      if ((state === "background" || state === "inactive") && recordingRef.current) stopRecordingRef.current();
+    });
+    return () => sub?.remove?.();
+  }, []);
 
   const handleRemoveRecording = useCallback((index) => {
     setVoiceRecordings((prev) => prev.filter((_, i) => i !== index));
