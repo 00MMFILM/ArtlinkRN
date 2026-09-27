@@ -405,3 +405,31 @@ describe("포트폴리오 AI는 429를 삼키지 않는다", () => {
     expect(await generatePortfolioSummary(items, profile, stats)).toBe("AI 소개 문구");
   });
 });
+
+
+describe("첫 체크인 메모가 모델 프롬프트에 전달된다", () => {
+  const memo = "호흡을 길게 유지하며 발성 30분";
+  it("본문이 비어도 제목에 저장된 메모를 실제 요청 prompt에 포함한다", async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ analysis: "피드백 본문" }) }));
+    await analyzeNote("music", "", [], { title: memo, content: "", type: "checkin" }, {});
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(body.prompt).toContain(`노트 제목: ${memo}`);
+    expect(body.noteTitle).toBe(memo);
+  });
+  it("상세 화면의 스트리밍 요청도 같은 메모를 모델 prompt에 포함한다", async () => {
+    const originalXHR = global.XMLHttpRequest;
+    let requestBody;
+    global.XMLHttpRequest = jest.fn(() => ({
+      open: jest.fn(), setRequestHeader: jest.fn(), status: 200, responseText: "",
+      send(body) {
+        requestBody = JSON.parse(body);
+        this.responseText = JSON.stringify({ type: "delta", text: "충분한 길이의 모의 피드백입니다." }) + "\n" + JSON.stringify({ type: "done", model: "mock-model", promptVersion: "test" }) + "\n";
+        this.onload();
+      },
+    }));
+    try {
+      await analyzeNote("music", "", [], { title: memo, type: "checkin" }, {}, jest.fn());
+      expect(requestBody.prompt).toContain(`노트 제목: ${memo}`);
+    } finally { global.XMLHttpRequest = originalXHR; }
+  });
+});

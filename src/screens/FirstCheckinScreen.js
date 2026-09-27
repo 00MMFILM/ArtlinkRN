@@ -57,7 +57,7 @@ export default function FirstCheckinScreen({ navigation }) {
   const goFeedback = useCallback(() => {
     navigation.reset({
       index: 1,
-      routes: [{ name: "MainTabs" }, { name: "NoteDetail", params: { noteId: saved?.noteId } }],
+      routes: [{ name: "MainTabs" }, { name: "NoteDetail", params: { noteId: saved?.noteId, initialTab: "ai" } }],
     });
     dismissFirstCheckin();
   }, [navigation, saved, dismissFirstCheckin]);

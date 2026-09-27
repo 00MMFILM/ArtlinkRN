@@ -688,11 +688,13 @@ function buildAIPrompt(field, content, savedNotes = [], currentNote = null, user
   if (voiceCount > 0) mediaParts.push(fmt.mediaVoice(voiceCount));
   const mediaContext = mediaParts.length > 0 ? `\n[${mediaParts.join(", ")}]` : "";
 
+  // Check-in notes store their one-line memo as the title, with an empty body.
+  const noteTitle = typeof currentNote?.title === "string" ? currentNote.title.trim() : "";
   return `${fieldConfig.system}
 ${historyContext}${prevTaskContext}${personalContext}${interestContext}${careerContext}${specialtyContext}${mediaContext}
 
 ${fmt.userNoteLabel(fieldLabel)}
-${content}
+${noteTitle ? fmt.noteTitle(noteTitle) + "\n" : ""}${content}
 
 ${fmt.feedbackHeader(fieldLabel)}`;
 }

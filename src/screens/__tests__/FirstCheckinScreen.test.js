@@ -84,7 +84,7 @@ describe("FirstCheckinScreen — 첫 체크인", () => {
   });
 
   // AI 분석은 노트 화면에서 사용자가 직접 누른다 — 여기서 자동으로 발사하지 않는다
-  it("AI 피드백 버튼은 저장한 노트 화면으로 보내기만 한다", async () => {
+  it("AI 피드백 버튼은 홈을 뒤로가기 대상으로 남기고 저장한 노트의 AI 탭을 연다", async () => {
     useApp.mockReturnValue(buildCtx());
     const { getByText } = render(<FirstCheckinScreen navigation={navigation} />);
 
@@ -93,7 +93,7 @@ describe("FirstCheckinScreen — 첫 체크인", () => {
 
     expect(navigation.reset).toHaveBeenCalledWith({
       index: 1,
-      routes: [{ name: "MainTabs" }, { name: "NoteDetail", params: { noteId: 777 } }],
+      routes: [{ name: "MainTabs" }, { name: "NoteDetail", params: { noteId: 777, initialTab: "ai" } }],
     });
   });
 
