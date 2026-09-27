@@ -7,14 +7,19 @@ export const DRAFT_KEY = "artlink-note-draft";
 // savedAt이 없는 구버전 초안(0)은 만료로 보지 않는다.
 export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const TEXT_FIELDS = ["title", "content", "field", "seriesName", "aiComment", "videoAnalysis"];
+const TEXT_FIELDS = ["title", "content", "field", "seriesName", "aiComment", "videoAnalysis", "aiModel", "promptVersion", "transcript"];
 const LIST_FIELDS = ["tags", "images", "voiceRecordings", "audioFiles", "pdfFiles"];
 // 재연습 체인 (장면·부모 노트·이번 초점) — 가입 왕복에서도 연결이 끊기지 않게 함께 보관
 const CHAIN_FIELDS = ["sceneId", "parentNoteId", "rootNoteId", "focus", "chosenFocus"];
 const scalarOrNull = (v) => (typeof v === "string" || typeof v === "number" ? v : null);
 
 // 초안에서 실제 "내용"으로 칠 것 — 제목만 있는 건 보관하지 않는다
+const hasRetakeIntent = (d) =>
+  ((typeof d.parentNoteId === "number" && Number.isFinite(d.parentNoteId)) ||
+   (typeof d.parentNoteId === "string" && !!d.parentNoteId.trim())) &&
+  typeof d.focus === "string" && !!d.focus.trim();
 const hasSubstance = (d) =>
+  hasRetakeIntent(d) ||
   !!(d.content || "").trim() ||
   !!(d.aiComment || "").trim() ||
   !!(d.videoAnalysis || "").trim() ||

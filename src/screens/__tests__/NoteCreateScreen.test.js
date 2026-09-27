@@ -80,7 +80,7 @@ jest.mock("../../components/TopBar", () => {
   return ({ left, right }) => React.createElement(RN.View, null, left, right);
 });
 
-const { analyzeNote, analyzeVideoFrames, lastAiMeta } = require("../../services/aiService");
+const { analyzeNote, analyzeVideoFrames, lastAiMeta, buildPreviousContext } = require("../../services/aiService");
 const { Audio } = require("expo-av");
 const { showInterstitialAd, showRewardedAd, incrementDailyAICount, shouldShowInterstitial } = require("../../services/adService");
 const ImagePicker = require("expo-image-picker");
@@ -100,7 +100,7 @@ const buildCtx = (authUserId, premium = { active: false }) => ({
   premium,
 });
 
-const navigation = { goBack: jest.fn(), navigate: jest.fn(), addListener: jest.fn(() => jest.fn()) };
+const navigation = { dispatch: jest.fn(), replace: jest.fn(), goBack: jest.fn(), navigate: jest.fn(), addListener: jest.fn(() => jest.fn()) };
 
 const todayYmd = () => {
   const d = new Date();
@@ -223,7 +223,7 @@ describe("항목4 — 글 없이 영상·음성 기록 저장", () => {
     expect(noteData.videoAnalysis).toBe("영상 분석 결과");
     expect(noteData.images).toHaveLength(1);
     expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
-    expect(navigation.goBack).toHaveBeenCalled();
+    expect(navigation.replace).toHaveBeenCalledWith("NoteDetail", { noteId: undefined, initialTab: "ai" });
   });
 
   it("(b) 본문·첨부·분석이 전부 비면 저장되지 않고 안내가 뜬다", async () => {
@@ -1026,4 +1026,213 @@ describe("녹음 파일 캐시 → 문서 폴더 보존 (OS 캐시 정리로 녹
     expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
+});
+
+describe("1.11.9 retake creation", () => {
+  const parent = { id: 10, title: "First take", field: "acting", rootNoteId: 1, sceneId: "scene", chosenFocus: "호흡", videoAnalysis: "🎯 breathe", images: [{ type: "video", uri: "file:///old.mov" }] };
+  const retakeRoute = { params: { prefill: { title: "Next take", field: "acting", parentNoteId: 10, rootNoteId: 1, sceneId: "scene", focus: "호흡" } } };
+  beforeEach(() => {
+    resetAll();
+    Alert.alert.mockImplementation((title, message, buttons) => {
+      if (title === "retake.replace_video_title") buttons.find((button) => button.text === "retake.replace_video_confirm").onPress();
+    });
+    require("expo-file-system/legacy").copyAsync.mockResolvedValue();
+    require("expo-file-system/legacy").getInfoAsync.mockResolvedValue({ exists: true, size: 1024 });
+    Audio.requestPermissionsAsync.mockResolvedValue({ status: "granted" });
+  });
+  const setup = (authId = "u1", extra = {}, route = retakeRoute) => {
+    const ctx = { ...buildCtx(authId), savedNotes: [parent], handleSaveNote: jest.fn(async () => 22), refreshPremium: jest.fn(), ...extra };
+    useApp.mockReturnValue(ctx);
+    return { ctx, utils: render(<NoteCreateScreen navigation={navigation} route={route} />) };
+  };
+  const addRetake = async (utils) => {
+    ImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.launchImageLibraryAsync.mockResolvedValue({ canceled: false, assets: [{ type: "video", uri: "file:///take.mov", duration: 30000 }] });
+    VideoThumbnails.getThumbnailAsync.mockResolvedValue({ uri: "file:///thumb.jpg" });
+    await act(async () => fireEvent.press(utils.getByText("retake.pick_gallery")));
+  };
+  it("saves a first result once and replaces it with a fresh take without copying video/results", async () => {
+    const { ctx, utils } = setup("u1", {}, {});
+    lastAiMeta.focusOptions = ["호흡"];
+    await attachVideo(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteCreate.video_ai_analyze")));
+    expect(utils.queryByText("noteCreate.video_ai_analyze")).toBeNull();
+    expect(utils.getByText("retake.reanalyze_link")).toBeTruthy();
+    fireEvent.press(utils.getByText("호흡"));
+    const saved = deferred();
+    ctx.handleSaveNote.mockReturnValue(saved.promise);
+    await act(async () => { fireEvent.press(utils.getByText("retake.fix_and_retake")); fireEvent.press(utils.getByText("retake.fix_and_retake")); });
+    expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
+    expect(navigation.replace).not.toHaveBeenCalled();
+    await act(async () => saved.resolve(22));
+    expect(navigation.replace).toHaveBeenCalledWith("NoteCreate", { prefill: { title: expect.any(String), field: "acting", seriesName: expect.any(String), rootNoteId: 22, parentNoteId: 22, sceneId: undefined, focus: "호흡" } });
+    expect(completePractice).toHaveBeenCalledWith(expect.any(Object), { subjectKey: 22, kind: "video" });
+  });
+  it("retake save opens the newly saved AI tab and keeps the subject key", async () => {
+    const { ctx, utils } = setup();
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    expect(ctx.refreshPremium).toHaveBeenCalledTimes(1);
+    expect(trackFunnelEvent).toHaveBeenCalledWith("retake_capture_added", "ko");
+    expect(trackFunnelEvent).toHaveBeenCalledWith("retake_analysis_done", "ko");
+    await act(async () => fireEvent.press(utils.getByText("retake.save_compare")));
+    expect(navigation.replace).toHaveBeenCalledWith("NoteDetail", { noteId: 22, initialTab: "ai" });
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ parentNoteId: 10, rootNoteId: 1, sceneId: "scene", focus: "호흡" }));
+    expect(completePractice).toHaveBeenCalledWith(expect.any(Object), { subjectKey: "scene", kind: "video" });
+  });
+  it("asks before repeating the same analysis and preserves the completed result if retry fails", async () => {
+    const { ctx, utils } = setup();
+    await addRetake(utils);
+    lastAiMeta.transcript = "original transcript";
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    await act(async () => fireEvent.press(utils.getByText("retake.reanalyze_link")));
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(1);
+    const confirm = Alert.alert.mock.calls.find((c) => c[0] === "retake.reanalyze_title")[2].find((b) => b.text === "retake.reanalyze_confirm");
+    analyzeVideoFrames.mockImplementationOnce(async () => { lastAiMeta.transcript = "failed new transcript"; throw new Error("NETWORK"); });
+    await act(async () => confirm.onPress());
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(2);
+    expect(utils.getByText("영상 분석 결과")).toBeTruthy();
+    await act(async () => fireEvent.press(utils.getByText("retake.save_compare")));
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ videoAnalysis: "영상 분석 결과", transcript: "original transcript" }));
+  });
+  it("replacing the take clears its old result, focus, and stale confirmation", async () => {
+    const { utils } = setup();
+    await addRetake(utils);
+    lastAiMeta.focusOptions = ["호흡"];
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    fireEvent.press(utils.getByText("호흡"));
+    fireEvent.press(utils.getByText("retake.reanalyze_link"));
+    const confirm = Alert.alert.mock.calls.find((c) => c[0] === "retake.reanalyze_title")[2].find((b) => b.text === "retake.reanalyze_confirm");
+    await addRetake(utils);
+    expect(utils.queryByText("영상 분석 결과")).toBeNull();
+    expect(utils.queryByText("retake.capture_again")).toBeNull();
+    await act(async () => confirm.onPress());
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(1);
+  });
+  it("shows real video allowance before capture and does not request AI when exhausted", async () => {
+    const { utils } = setup("u1", { usage: { video: { left: 0, max: 3 } } });
+    expect(utils.getByText("retake.quota_empty")).toBeTruthy();
+    expect(utils.getByText("retake.video_trial_remaining")).toBeTruthy();
+    expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith("common.video_quota_exceeded", "", expect.any(Array));
+  });
+  it("requests both permissions then records a video with a five minute cap, without automatic AI", async () => {
+    const { utils } = setup();
+    ImagePicker.requestCameraPermissionsAsync.mockResolvedValue({ status: "granted" });
+    ImagePicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [{ type: "video", uri: "file:///camera.mov", duration: 5000 }] });
+    await act(async () => fireEvent.press(utils.getByText("retake.capture_now")));
+    expect(Audio.requestPermissionsAsync).toHaveBeenCalled();
+    expect(ImagePicker.launchCameraAsync).toHaveBeenCalledWith(expect.objectContaining({ mediaTypes: ["videos"], videoMaxDuration: 300 }));
+    expect(utils.getByText("retake.analyze_improvement")).toBeTruthy();
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+  });
+  it("denied microphone permission does not start recording", async () => {
+    const { utils } = setup();
+    ImagePicker.requestCameraPermissionsAsync.mockResolvedValue({ status: "granted" });
+    Audio.requestPermissionsAsync.mockResolvedValue({ status: "denied" });
+    await act(async () => fireEvent.press(utils.getByText("retake.capture_now")));
+    expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith("common.permission_required", "common.mic_permission");
+  });
+  it("keeps a ready-to-record guest draft before opening signup", async () => {
+    const { utils } = setup(null);
+    fireEvent.press(utils.getByText("premium.guest_trial_cta"));
+    await waitFor(() => expect(setAuthState).toHaveBeenCalledWith("auth"));
+    expect(JSON.parse(AsyncStorage.__store[DRAFT_KEY])).toEqual(expect.objectContaining({ parentNoteId: 10, rootNoteId: 1, sceneId: "scene", focus: "호흡" }));
+  });
+  it("a late result after account switch is discarded with no completion event", async () => {
+    const { ctx, utils } = setup();
+    const pending = deferred();
+    analyzeVideoFrames.mockReturnValue(pending.promise);
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    useApp.mockReturnValue({ ...ctx, userProfile: { authUserId: "u2" } });
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={retakeRoute} />);
+    await act(async () => pending.resolve("other user result"));
+    expect(utils.queryByText("other user result")).toBeNull();
+    expect(aiFeedbackDone).not.toHaveBeenCalled();
+    expect(trackFunnelEvent).not.toHaveBeenCalledWith("retake_analysis_done", "ko");
+  });
+  it("an account change during saving prevents navigation, completion and clearing another draft", async () => {
+    const { ctx, utils } = setup();
+    await addRetake(utils);
+    const pending = deferred();
+    ctx.handleSaveNote.mockReturnValue(pending.promise);
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    useApp.mockReturnValue({ ...ctx, userProfile: { authUserId: "u2" } });
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={retakeRoute} />);
+    AsyncStorage.__store[DRAFT_KEY] = "another draft";
+    await act(async () => pending.resolve(22));
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(completePractice).not.toHaveBeenCalled();
+    expect(AsyncStorage.__store[DRAFT_KEY]).toBe("another draft");
+  });
+  it("failed local media copy keeps the original result attached to the original take", async () => {
+    const { utils } = setup();
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    require("expo-file-system/legacy").copyAsync.mockRejectedValueOnce(new Error("DISK_FULL"));
+    await addRetake(utils);
+    expect(utils.getByText("영상 분석 결과")).toBeTruthy();
+    expect(Alert.alert).toHaveBeenCalledWith("noteCreate.file_select_error", "retake.media_failed");
+  });
+  it("cancelling video replacement keeps the previous take and result", async () => {
+    const { utils } = setup();
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    Alert.alert.mockImplementation((title, message, buttons) => {
+      if (title === "retake.replace_video_title") buttons.find((button) => button.text === "common.cancel").onPress();
+    });
+    const copies = require("expo-file-system/legacy").copyAsync.mock.calls.length;
+    await addRetake(utils);
+    expect(require("expo-file-system/legacy").copyAsync).toHaveBeenCalledTimes(copies);
+    expect(utils.getByText("영상 분석 결과")).toBeTruthy();
+  });
+  it("uses the video feedback when the parent also has text feedback", async () => {
+    const mixed = { ...parent, aiComment: "TEXT FEEDBACK", videoAnalysis: "VIDEO FEEDBACK" };
+    const { utils } = setup("u1", { savedNotes: [mixed] });
+    expect(buildPreviousContext).toHaveBeenCalledWith(expect.objectContaining({ aiComment: "VIDEO FEEDBACK" }));
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    expect(analyzeVideoFrames.mock.calls[0][6].previous.summary).toBe("지난 요약");
+  });
+  it("a new deep link does not change the old take's chain unless accepted", async () => {
+    const { ctx, utils } = setup();
+    await addRetake(utils);
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: { title: "New scene", content: "new", parentNoteId: 90, rootNoteId: 80, sceneId: "new-scene", focus: "new-focus" } } }} />);
+    expect(Alert.alert).toHaveBeenCalledWith("noteCreate.replace_with_new_title", "noteCreate.replace_with_new_message", expect.any(Array));
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ parentNoteId: 10, rootNoteId: 1, sceneId: "scene", focus: "호흡" }));
+  });
+  it("accepting a new deep link clears old media, results and focus", async () => {
+    const { ctx, utils } = setup();
+    await addRetake(utils);
+    await act(async () => fireEvent.press(utils.getByText("retake.analyze_improvement")));
+    utils.rerender(<NoteCreateScreen navigation={navigation} route={{ params: { prefill: { title: "New scene", content: "new content", sceneId: "new-scene" } } }} />);
+    const confirm = Alert.alert.mock.calls.find((call) => call[0] === "noteCreate.replace_with_new_title")[2].find((button) => button.text === "common.confirm");
+    await act(async () => confirm.onPress());
+    expect(utils.queryByText("영상 분석 결과")).toBeNull();
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ title: "New scene", content: "new content", sceneId: "new-scene", parentNoteId: undefined, rootNoteId: undefined, videoAnalysis: undefined, images: undefined, focus: undefined }));
+  });
+  it("leaving through the navigation guard does not display the discard dialog again", async () => {
+    const { utils } = setup();
+    fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "draft");
+    const listener = navigation.addListener.mock.calls.find((call) => call[0] === "beforeRemove")[1];
+    const event = { preventDefault: jest.fn(), data: { action: { type: "GO_BACK" } } };
+    act(() => listener(event));
+    const leave = Alert.alert.mock.calls.at(-1)[2].find((button) => button.text === "common.leave");
+    await act(async () => leave.onPress());
+    Alert.alert.mockClear();
+    event.preventDefault.mockClear();
+    act(() => listener(event));
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(navigation.dispatch).toHaveBeenCalledWith(event.data.action);
+  });
+
 });

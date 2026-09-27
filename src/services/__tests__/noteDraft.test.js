@@ -1,5 +1,6 @@
 import {
   DRAFT_KEY,
+  hasDraftContent,
   buildDraft,
   validateDraft,
   saveDraft,
@@ -165,4 +166,21 @@ describe("초안 만료 (7일)", () => {
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith(DRAFT_KEY);
     expect(AsyncStorage.__store[DRAFT_KEY]).toBeUndefined();
   });
+});
+
+describe("retake intent before capture", () => {
+  it("preserves a parent and focus before recording, but not an empty title-only draft", () => {
+    const draft = buildDraft({ title: "독백", parentNoteId: 123, rootNoteId: 100, sceneId: "hamlet", focus: "호흡" });
+    expect(hasDraftContent(draft)).toBe(true);
+    expect(validateDraft(draft)).toEqual(expect.objectContaining({ parentNoteId: 123, rootNoteId: 100, sceneId: "hamlet", focus: "호흡" }));
+    expect(hasDraftContent({ title: "독백" })).toBe(false);
+    expect(hasDraftContent({ parentNoteId: 123, focus: " " })).toBe(false);
+    expect(hasDraftContent({ parentNoteId: {}, focus: "호흡" })).toBe(false);
+  });
+});
+
+
+it("preserves video result metadata through signup draft serialization", () => {
+  const draft = validateDraft(buildDraft({ videoAnalysis: "feedback", aiModel: "model-a", promptVersion: "v3", transcript: "spoken words" }));
+  expect(draft).toEqual(expect.objectContaining({ aiModel: "model-a", promptVersion: "v3", transcript: "spoken words" }));
 });
