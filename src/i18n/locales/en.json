@@ -511,7 +511,7 @@
     "badge_ai": "🤖 AI collected",
     "badge_user": "👤 User posted",
     "match_percent": "{{percent}}% match",
-    "deadline_none": "No deadline",
+    "deadline_none": "Deadline not specified",
     "deadline_prefix": "Deadline: {{date}}",
     "deadline_expired": "Closed",
     "view_original": "View original",

@@ -26,7 +26,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
 
   const getDaysLeft = (deadline) => {
     const diff = matchingDeadlineDays(deadline);
-    if (diff === null) return null; // 마감일 없음·형식 깨짐 → 마감 표시 생략("D-NaN" 방지)
+    if (diff === null) return t("matching.deadline_none");
     if (diff < 0) return t("matchingDetail.deadline_expired");
     if (diff === 0) return t("matchingDetail.deadline_today");
     return `D-${diff}`;
@@ -168,7 +168,7 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
             {post.title}
           </Text>
 
-          {/* Deadline — 형식이 깨진 값이면 통째로 생략한다 */}
+          {/* Missing or invalid dates are unknown, not an unlimited application window. */}
           {daysLeft && (
             <View style={styles.deadlineRow}>
               {matchingDeadlineDays(post.deadline) !== null && <Text style={[T.caption, { color: CLight.gray500 }]}>
@@ -261,14 +261,14 @@ export default function MatchingPostDetailScreen({ route, navigation }) {
         </View>
 
         {/* Description Card */}
-        <View style={styles.card}>
+        {!!post.description?.trim() && <View style={styles.card}>
           <Text style={[T.captionBold, { color: CLight.gray700, marginBottom: 10 }]}>
             {t("matchingDetail.description")}
           </Text>
           <Text selectable style={[T.body, { color: CLight.gray900, lineHeight: 26 }]}>
             {post.description}
           </Text>
-        </View>
+        </View>}
 
         {/* Casting Requirements */}
         {post.requirements && Object.keys(post.requirements).length > 0 && (

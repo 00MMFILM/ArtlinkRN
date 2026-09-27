@@ -31,6 +31,13 @@ it("uses the source hostname when a publisher label is missing", () => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+it.each([null, "2026-06-31"])("labels an unknown deadline (%s) and omits an empty description card", (deadline) => {
+  const view = screen({ deadline, description: "  " });
+  expect(view.getByText("matching.deadline_none")).toBeTruthy();
+  expect(view.queryByText("matchingDetail.description")).toBeNull();
+  expect(view.getByText("matchingDetail.view_original")).toBeTruthy();
+});
+
 it("shows the actual source and contact before opening another app, and copies a crawled email", () => {
   const view = screen({ contact: "cast@example.org" });
   expect(view.getByText("필름메이커스")).toBeTruthy();
