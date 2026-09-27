@@ -20,6 +20,7 @@ jest.mock("../../services/aiService", () => ({
   rateFeedback: jest.fn(),
   lastAiMeta: {},
   buildPreviousContext: jest.fn(() => null),
+  changeSummary: jest.fn((text) => text?.includes("🔁") ? "변화 요약" : ""),
   focusSummary: jest.fn((text) => (text ? `요약:${text.slice(0, 10)}` : "")),
 }));
 jest.mock("../../services/dataCollectionService", () => ({ submitTrainingData: jest.fn(), submitAnonymousMetadata: jest.fn() }));
@@ -531,5 +532,69 @@ describe("completed AI feedback survives a failed local save", () => {
     act(() => onPrevented({ data: { action } }));
     act(() => Alert.alert.mock.calls.at(-1)[2].find((b) => b.text === "common.leave").onPress());
     expect(nav.dispatch).toHaveBeenCalledWith(action);
+  });
+});
+
+describe("1.11.9 — 영상 비교와 재분석 확인", () => {
+  beforeEach(resetDetail);
+  const previous = { ...baseNote, id: 100, videoAnalysis: "🎯 호흡", images: [{ uri: "file:///old.mp4", type: "video" }] };
+  const current = { ...baseNote, id: 200, parentNoteId: 100, focus: "호흡", videoAnalysis: "🔁 호흡 변화", images: [{ uri: "file:///new.mp4", type: "video" }] };
+
+  it("initialTab ai opens the comparison immediately; the content tab does not count a comparison view", async () => {
+    useApp.mockReturnValue(buildCtx([current, previous]));
+    const props = { navigation, route: { params: { noteId: 200 } } };
+    const utils = render(<NoteDetailScreen {...props} />);
+    expect(utils.queryByTestId("retake-compare-card")).toBeNull();
+    expect(trackFunnelEvent).not.toHaveBeenCalledWith("compare_viewed");
+    utils.rerender(<NoteDetailScreen {...props} route={{ params: { noteId: 200, initialTab: "ai" } }} />);
+    await act(async () => {});
+    expect(utils.getByTestId("retake-compare-card")).toBeTruthy();
+    expect(trackFunnelEvent).toHaveBeenCalledWith("compare_viewed");
+    fireEvent.press(utils.getByText("retake.again"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({
+      prefill: expect.objectContaining({ parentNoteId: 200, focus: "호흡" }),
+    }));
+  });
+
+  it("reanalysis uses no credit until confirmed, cancellation is free, and double taps show one prompt", async () => {
+    const ctx = buildCtx([current]);
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200, initialTab: "ai" } }} navigation={navigation} />);
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+    act(() => Alert.alert.mock.calls.at(-1)[2].find((button) => button.style === "cancel").onPress());
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    await act(async () => Alert.alert.mock.calls.at(-1)[2].find((button) => button.text === "retake.reanalyze_confirm").onPress());
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(1);
+    expect(ctx.handleUpdateNote).toHaveBeenCalledWith(expect.objectContaining({ id: 200, videoAnalysis: "새 영상 분석" }));
+  });
+
+  it("preflight and saving remain guarded while the confirmation action is tapped twice", async () => {
+    let finishFileCheck;
+    const { getInfoAsync } = require("expo-file-system/legacy");
+    getInfoAsync.mockImplementationOnce(() => new Promise((resolve) => { finishFileCheck = resolve; }));
+    useApp.mockReturnValue(buildCtx([current]));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200, initialTab: "ai" } }} navigation={navigation} />);
+    fireEvent.press(utils.getByText("noteDetail.video_ai_reanalyze"));
+    const confirm = Alert.alert.mock.calls.at(-1)[2].find((button) => button.text === "retake.reanalyze_confirm").onPress;
+    act(() => { confirm(); confirm(); });
+    expect(analyzeVideoFrames).not.toHaveBeenCalled();
+    await act(async () => finishFileCheck({ exists: true, size: 100 }));
+    expect(analyzeVideoFrames).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("영상 횟수 캡션", () => {
+  beforeEach(resetDetail);
+  it.each([[false, "retake.video_trial_remaining"], [true, "retake.video_month_remaining"]])("premium=%s uses the video period", (active, caption) => {
+    const note = { ...baseNote, images: [{ uri: "file:///new.mp4", type: "video" }] };
+    useApp.mockReturnValue(buildCtx([note], { premium: { active }, usage: { video: { left: 2, max: active ? 15 : 3 } } }));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200, initialTab: "ai" } }} navigation={navigation} />);
+    expect(utils.getByText(caption)).toBeTruthy();
+    expect(utils.queryByText("quota.remaining_premium")).toBeNull();
   });
 });

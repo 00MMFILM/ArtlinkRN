@@ -1,5 +1,5 @@
 import React from "react";
-import { render, fireEvent, act } from "@testing-library/react-native";
+import { render, fireEvent, act, waitFor } from "@testing-library/react-native";
 import HomeScreen from "../HomeScreen";
 import { useApp } from "../../context/AppContext";
 import { trackFunnelEvent } from "../../services/mauService";
@@ -153,7 +153,7 @@ describe("HomeScreen — 이번 주 요약이 연습 기록(노트 없는 2인 �
 
     await findByText("home.weekly_summary");
     // 오늘(노트)+어제(2인 대사)가 이어져 연속 2일
-    expect(queryByText("2")).toBeTruthy();
+    await waitFor(() => expect(queryByText("2common.days")).toBeTruthy());
   });
 
   it("포커스로 돌아올 때 연습 기록을 다시 읽는다", async () => {
@@ -386,5 +386,34 @@ describe("HomeScreen — 퀵액션 매칭 노출", () => {
     // 나머지 퀵액션은 그대로
     expect(queryByText("home.new_note")).toBeTruthy();
     expect(queryByText("home.growth_report")).toBeTruthy();
+  });
+});
+
+describe("1.11.9 — 최근 장면 이어하기", () => {
+  beforeEach(() => jest.clearAllMocks());
+  const recent = { id: "scene", title: "이어갈 장면", chosenFocus: "호흡을 늦추기", field: "acting", createdAt: new Date().toISOString() };
+
+  it("a recent leaf with a chosen focus goes directly to the next take and records the tap", async () => {
+    useApp.mockReturnValue(buildCtx([recent]));
+    const utils = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    fireEvent.press(utils.getByTestId("retake-resume-card"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
+      prefill: expect.objectContaining({ parentNoteId: "scene", rootNoteId: "scene", focus: "호흡을 늦추기" }),
+    });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("resume_card_tapped");
+    expect(trackFunnelEvent).toHaveBeenCalledWith("repractice_started");
+  });
+
+  it("does not offer an old scene, a parent with an existing take, or an unchosen focus", async () => {
+    useApp.mockReturnValue(buildCtx([
+      recent,
+      { id: "child", parentNoteId: "scene", createdAt: new Date().toISOString() },
+      { ...recent, id: "old", createdAt: new Date(Date.now() - 15 * 86400000).toISOString() },
+    ]));
+    const utils = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    expect(utils.queryByTestId("retake-resume-card")).toBeNull();
+    expect(trackFunnelEvent).not.toHaveBeenCalledWith("resume_card_tapped");
   });
 });

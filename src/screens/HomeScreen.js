@@ -17,6 +17,8 @@ import { buildPracticeActivities } from "../utils/practiceStats";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
 import PremiumBadge from "../components/PremiumBadge";
+import { buildRepracticePrefill, findResumeTarget } from "../utils/repractice";
+import { trackFunnelEvent } from "../services/mauService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -71,8 +73,10 @@ export default function HomeScreen({ navigation }) {
   // 노트 저장만 세면 2인 대사 연습이 대시보드에 안 잡힌다 — 기기 기록을 합쳐서 쓴다.
   // 화면 포커스마다 다시 읽어서, 2인 대사를 마치고 홈으로 돌아오면 바로 반영되게 한다.
   const [practiceLog, setPracticeLog] = useState([]);
+  const [resumeNow, setResumeNow] = useState(() => Date.now());
   useEffect(() => {
     const loadPracticeLog = () => {
+      setResumeNow(Date.now());
       getPracticeLog().then(setPracticeLog).catch(() => {});
     };
     loadPracticeLog();
@@ -89,6 +93,13 @@ export default function HomeScreen({ navigation }) {
 
   // ---- Computed data ----
   const recentNotes = useMemo(() => savedNotes.slice(0, 5), [savedNotes]);
+  const resumeTarget = useMemo(() => findResumeTarget(savedNotes, resumeNow), [savedNotes, resumeNow]);
+  const resumePractice = useCallback(() => {
+    if (!resumeTarget) return;
+    trackFunnelEvent("resume_card_tapped");
+    trackFunnelEvent("repractice_started");
+    navigation.navigate("NoteCreate", { prefill: buildRepracticePrefill(resumeTarget) });
+  }, [resumeTarget, navigation]);
   // 최근 노트 섹션은 실제 저장된 노트 기준 그대로 유지
   const hasNotes = savedNotes.length > 0;
   // 요약 카드 표시 여부는 연습 활동(노트 없이 끝낸 2인 대사 포함) 기준 — 2인 대사만 한 사용자도 요약이 보여야 한다
@@ -259,6 +270,20 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.bellIcon}>{"\uD83D\uDD14"}</Text>
           </TouchableOpacity>
         </View>
+
+        {resumeTarget ? (
+          <TouchableOpacity
+            testID="retake-resume-card"
+            accessibilityRole="button"
+            style={[styles.summaryCard, { backgroundColor: CLight.surface, borderWidth: 1, borderColor: CLight.pinkGlow }]}
+            onPress={resumePractice}
+            activeOpacity={0.85}
+          >
+            <Text style={[T.captionBold, { color: CLight.pink }]}>{t("retake.resume_title")}</Text>
+            <Text style={[T.titleBold, { color: CLight.gray900, marginTop: 8 }]} numberOfLines={2}>{resumeTarget.title}</Text>
+            <Text style={[T.small, { color: CLight.gray700, marginTop: 6 }]}>{resumeTarget.chosenFocus}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* ---- Weekly summary (연습 활동이 0이면 첫 기록 히어로 카드) ---- */}
         {!hasPracticeActivity ? (

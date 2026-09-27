@@ -28,6 +28,8 @@ import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { aiFeedbackDone, newUuid } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import FocusPicker from "../components/FocusPicker";
+import RetakeCompareCard from "../components/RetakeCompareCard";
+import { buildRepracticePrefill } from "../utils/repractice";
 import { formatDate, timeAgo } from "../utils/helpers";
 import FeedbackShareCard from "../components/FeedbackShareCard";
 import { buildCardProps, shareCardImage } from "../utils/shareCard";
@@ -59,6 +61,11 @@ export default function NoteDetailScreen({ route, navigation }) {
         max: usage.text.max,
       })
     : null;
+  const videoQuotaCaption = usage?.video
+    ? t(premium?.active ? "retake.video_month_remaining" : "retake.video_trial_remaining", {
+        left: usage.video.left, max: usage.video.max,
+      })
+    : !userProfile?.authUserId ? t("retake.guest_quota") : null;
 
   // 게스트(비로그인)면 로그인 유도, 무료 로그인 유저면 프리미엄 안내,
   // 이미 프리미엄이면 결제 권유 대신 남은 한도 안내. AI 쿼터 소진 공통 처리.
@@ -108,7 +115,16 @@ export default function NoteDetailScreen({ route, navigation }) {
     { key: "related", label: t("noteDetail.tab_related") },
   ];
 
-  const [activeTab, setActiveTab] = useState("content");
+  const [activeTab, setActiveTab] = useState(route.params.initialTab === "ai" ? "ai" : "content");
+  const [screenFocused, setScreenFocused] = useState(navigation.isFocused?.() ?? true);
+  useEffect(() => {
+    const focus = navigation.addListener?.("focus", () => setScreenFocused(true));
+    const blur = navigation.addListener?.("blur", () => setScreenFocused(false));
+    return () => { focus?.(); blur?.(); };
+  }, [navigation]);
+  useEffect(() => {
+    setActiveTab(route.params.initialTab === "ai" ? "ai" : "content");
+  }, [noteId, route.params.initialTab]);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(note?.title || "");
   const [editContent, setEditContent] = useState(note?.content || "");
@@ -119,6 +135,8 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [pendingAi, setPendingAi] = useState(null);
   const pendingAiRef = useRef(null);
   const aiRequestBusyRef = useRef(false);
+  const videoPreflightBusyRef = useRef(false);
+  const videoPromptOpenRef = useRef(false);
   const pendingSaveBusyRef = useRef(false);
   const [pendingSaving, setPendingSaving] = useState(false);
   const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
@@ -274,15 +292,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     if (!note) return;
     trackFunnelEvent("repractice_started");
     navigation.navigate("NoteCreate", {
-      prefill: {
-        title: note.title,
-        field: note.field,
-        seriesName: note.seriesName || note.title,
-        rootNoteId: note.rootNoteId || note.id,
-        parentNoteId: note.id,
-        focus: note.chosenFocus,
-        sceneId: note.sceneId,
-      },
+      prefill: buildRepracticePrefill({ ...note, chosenFocus: note.chosenFocus || note.focus }),
     });
   }, [note, navigation]);
 
@@ -523,55 +533,73 @@ export default function NoteDetailScreen({ route, navigation }) {
       aiRequestBusyRef.current = false;
       setVideoAiLoading(false);
       setVideoAiProgress({ phase: "", percent: 0, message: "" });
+      refreshPremium?.();
     }
-  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote]);
-
-  useEffect(() => {
-    startVideoAIRef.current = startVideoAI;
-  }, [startVideoAI]);
+  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote, refreshPremium]);
 
   const runVideoAIFlow = useCallback(async () => {
-    if (pendingAiRef.current || aiRequestBusyRef.current) return;
-    const video = noteVideos[0];
-    const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
-    if (durationSec > 300) {
-      Alert.alert(t("noteCreate.video_too_long"), t("noteCreate.video_too_long_msg"));
-      return;
-    }
+    if (pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current) return;
+    videoPreflightBusyRef.current = true;
     try {
-      const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
-      const sizeMB = (fileInfo.size || 0) / (1024 * 1024);
-      if (sizeMB > 100) {
-        Alert.alert(t("noteCreate.video_too_large"), t("noteCreate.video_too_large_msg", { size: Math.round(sizeMB) }));
+      const video = noteVideos[0];
+      if (!video?.uri) return;
+      const durationSec = video.duration ? Math.round(video.duration / 1000) : 0;
+      if (durationSec > 300) {
+        Alert.alert(t("noteCreate.video_too_long"), t("noteCreate.video_too_long_msg"));
         return;
       }
-    } catch {}
-    // Foreign users: must watch rewarded ad before video AI (프리미엄은 광고 없이 바로 분석)
-    if (!isKoreanLocale && !premium?.active) {
-      const rewarded = await showRewardedAd();
-      if (!rewarded) {
-        Alert.alert(t("common.error"), t("ads.rewarded_required"));
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
+        if (fileInfo.exists === false) {
+          Alert.alert(t("common.error"), t("retake.video_unavailable"));
+          return;
+        }
+        const sizeMB = (fileInfo.size || 0) / (1024 * 1024);
+        if (sizeMB > 100) {
+          Alert.alert(t("noteCreate.video_too_large"), t("noteCreate.video_too_large_msg", { size: Math.round(sizeMB) }));
+          return;
+        }
+      } catch {
+        Alert.alert(t("common.error"), t("retake.video_unavailable"));
         return;
       }
-    }
-    startVideoAI();
+      if (!isKoreanLocale && !premium?.active) {
+        const rewarded = await showRewardedAd();
+        if (!rewarded) {
+          Alert.alert(t("common.error"), t("ads.rewarded_required"));
+          return;
+        }
+      }
+      await startVideoAI();
+    } finally { videoPreflightBusyRef.current = false; }
   }, [noteVideos, startVideoAI, isKoreanLocale, premium?.active, t]);
 
-  const handleRequestVideoAI = useCallback(async () => {
-    if (!note || noteVideos.length === 0 || pendingAiRef.current || aiRequestBusyRef.current) return;
-    if (!aiDisclosureAccepted) {
-      Alert.alert(
-        t("aiDisclosure.title"),
-        t("aiDisclosure.message"),
-        [
-          { text: t("aiDisclosure.cancel"), style: "cancel" },
-          { text: t("aiDisclosure.accept"), onPress: () => { handleAcceptAIDisclosure(); runVideoAIFlow(); } },
-        ]
-      );
-      return;
-    }
-    runVideoAIFlow();
+  const handleRequestVideoAI = useCallback(() => {
+    if (!note || noteVideos.length === 0 || pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || videoPromptOpenRef.current) return;
+    const releasePrompt = () => { videoPromptOpenRef.current = false; };
+    const requestWithDisclosure = () => {
+      if (!aiDisclosureAccepted) {
+        videoPromptOpenRef.current = true;
+        Alert.alert(t("aiDisclosure.title"), t("aiDisclosure.message"), [
+          { text: t("aiDisclosure.cancel"), style: "cancel", onPress: releasePrompt },
+          { text: t("aiDisclosure.accept"), onPress: () => {
+            releasePrompt(); handleAcceptAIDisclosure(); runVideoAIFlow();
+          } },
+        ], { onDismiss: releasePrompt });
+      } else { runVideoAIFlow(); }
+    };
+    if (note.videoAnalysis) {
+      videoPromptOpenRef.current = true;
+      Alert.alert(t("retake.reanalyze_title"), t("retake.reanalyze_message"), [
+        { text: t("common.cancel"), style: "cancel", onPress: releasePrompt },
+        { text: t("retake.reanalyze_confirm"), onPress: () => {
+          releasePrompt(); requestWithDisclosure();
+        } },
+      ], { onDismiss: releasePrompt });
+    } else { requestWithDisclosure(); }
   }, [note, noteVideos, aiDisclosureAccepted, handleAcceptAIDisclosure, runVideoAIFlow, t]);
+
+  useEffect(() => { startVideoAIRef.current = handleRequestVideoAI; }, [handleRequestVideoAI]);
 
   const handleRelatedNotePress = useCallback(
     (relatedNoteId) => {
@@ -959,8 +987,17 @@ export default function NoteDetailScreen({ route, navigation }) {
 
     return (
       <View style={styles.tabContent}>
-        {/* 지난 연습 — 직전 노트가 기기에 남아 있을 때만 */}
-        {previousNote ? (
+        {/* Video comparisons have no invented score delta; the text-note comparison stays below. */}
+        {previousNote && (note.videoAnalysis || noteVideos.length > 0) &&
+          (previousNote.videoAnalysis || previousNote.images?.some((item) => item.type === "video")) ? (
+          <RetakeCompareCard
+            key={note.id}
+            previousNote={previousNote}
+            note={note}
+            visible={screenFocused}
+            onRetake={handleRepractice}
+          />
+        ) : previousNote ? (
           <View style={styles.prevCard}>
             <Text style={[T.captionBold, { color: CLight.gray700 }]}>{t("focus.previous_title")}</Text>
             <Text style={[T.small, { color: CLight.gray500, marginTop: 2 }]} numberOfLines={1}>
@@ -1138,6 +1175,9 @@ export default function NoteDetailScreen({ route, navigation }) {
                 </Text>
               </>
             )}
+            {videoQuotaCaption ? (
+              <Text style={[T.micro, { color: CLight.gray500, textAlign: "center", marginTop: 8 }]}>{videoQuotaCaption}</Text>
+            ) : null}
           </View>
         )}
       </View>
