@@ -1,5 +1,6 @@
 import koreanCollection from "../data/duet-scenes.json";
 import englishCollection from "../data/duet-scenes-en.json";
+import { REHEARSAL_SCRIPT_LIMIT } from "./studioMetadata";
 
 export const SCRIPT_LIMITS = { characters: 12000, lines: 120, lineCharacters: 1000, roleCharacters: 40 };
 export const rehearsalLanguage = (language) => String(language || "").toLowerCase().startsWith("ko") ? "ko" : "en";
@@ -65,4 +66,41 @@ export const parsePrivateScript = (input, language = "en", createId = () => `pri
   }
   if (roles.length !== 2 || lines.length < 2) return { error: "twoRoles" };
   return { scene: { id: createId(), play: language === "ko" ? "내 대본" : "My private script", language: rehearsalLanguage(language), author: "", genre: "", source: "private", rights: { type: "user-provided" }, isPrivate: true, roles, lines } };
+};
+
+// Speaker-labelled scene text for AI feedback. Over the limit, the user's lines are kept
+// first and partner lines fill the rest; "…" marks omitted lines.
+export const rehearsalScript = (scene, roleIndex, limit = REHEARSAL_SCRIPT_LIMIT) => {
+  const rows = (scene?.lines || []).map((line) => ({
+    mine: line.r === roleIndex,
+    text: `${scene.roles?.[line.r]?.name || "?"}: ${line.d ? `(${line.d}) ` : ""}${String(line.t || "").trim()}`,
+  }));
+  const keep = new Set();
+  let used = 0;
+  for (const mine of [true, false]) rows.forEach((row, i) => {
+    if (row.mine === mine && used + row.text.length + 2 <= limit) { keep.add(i); used += row.text.length + 2; }
+  });
+  const out = [];
+  rows.forEach((row, i) => {
+    if (keep.has(i)) out.push(row.text);
+    else if (out[out.length - 1] !== "…") out.push("…");
+  });
+  return out.join("\n").slice(0, limit);
+};
+
+// A pasted private script is promised never to leave the device, so only role names and
+// line counts go with it. Bundled/ACT RAW scenes carry the speaker-labelled script.
+export const rehearsalContextFor = (scene, roleIndex, feedbackLanguage) => {
+  const lines = scene?.lines || [];
+  const context = {
+    sceneTitle: scene?.play,
+    role: scene?.roles?.[roleIndex]?.name,
+    partnerRole: scene?.roles?.[1 - roleIndex]?.name,
+    scriptLanguage: sceneLanguage(scene),
+    feedbackLanguage,
+    userLineCount: lines.filter((line) => line.r === roleIndex).length,
+    partnerLineCount: lines.filter((line) => line.r !== roleIndex).length,
+  };
+  if (!scene?.isPrivate) context.script = rehearsalScript(scene, roleIndex);
+  return context;
 };

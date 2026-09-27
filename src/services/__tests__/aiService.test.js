@@ -482,3 +482,56 @@ describe("studio feedback language and evidence context", () => {
     expect(body.prompt).toContain("do not infer pronunciation");
   });
 });
+
+describe("feedback prompt keeps to the available evidence", () => {
+  const { FIELD_AI_PROMPTS } = require("../aiService");
+  let body;
+  beforeEach(() => {
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ analysis: "📌 충분한 길이의 피드백입니다." }) }));
+  });
+  const promptFor = async (...args) => {
+    await analyzeNote(...args);
+    body = JSON.parse(global.fetch.mock.calls.at(-1)[1].body);
+    return body.prompt;
+  };
+
+  it.each(["acting", "music"])("%s: every language treats sound as a next-take suggestion without recording evidence", (field) => {
+    const marker = { ko: "현재 상태로 단정하지", en: "as the current state", ja: "現在の状態として断定", zh: "断定为当前" };
+    const unchecked = { ko: "소리는 확인하지 못했다", en: "sound itself was not checked", ja: "音そのものは確認できなかった", zh: "未能确认声音本身" };
+    for (const lang of ["ko", "en", "ja", "zh"]) {
+      const system = FIELD_AI_PROMPTS[field][lang].system;
+      expect(system).toContain(marker[lang]);
+      expect(system).toContain(unchecked[lang]);
+      expect(system).not.toMatch(/0\.3/);
+    }
+  });
+
+  it("omits 🎨 and 📈 without role models or an earlier record, and bans repeated section names", async () => {
+    const prompt = await promptFor("acting", "본문", [], { title: "제목" }, {});
+    const format = prompt.slice(prompt.indexOf("위 내용을 분석하고"));
+    expect(format).not.toMatch(/^🎨/m);
+    expect(format).not.toMatch(/^📈/m);
+    expect(format).toMatch(/^🔜/m);
+    expect(format).toContain("🎨 섹션은 쓰지 마세요");
+    expect(format).toContain("📈 섹션은 쓰지 마세요");
+    expect(format).toContain("섹션 이름");
+    expect(format).toContain("실존 감독·배우");
+  });
+
+  it("keeps 🎨 for listed role models and 📈 for a previous record", async () => {
+    const prompt = await promptFor("acting", "Tonight's take", [], { title: "t" }, { roleModels: ["Viola Davis"] }, null,
+      { feedbackLanguage: "en", previous: { summary: "earlier" } });
+    const format = prompt.slice(prompt.indexOf("Analyze the above content"));
+    expect(format).toMatch(/^🎨 Role Model Connection/m);
+    expect(format).toMatch(/^📈 Growth Tracking/m);
+    expect(format).toContain("connect only to the role models the user listed");
+    expect(format).not.toContain("omit the 📈");
+  });
+
+  it("section readers still work when 🎨 and 📈 are omitted", () => {
+    const feedback = "📌 인상\n\n💪 강점\n\n🎯 개선할 점\n\n🎭 기술\n\n💡 영감\n\n🔜 다음 과제";
+    expect(focusSummary(feedback)).toBe("개선할 점");
+    expect(changeSummary(feedback)).toBe("");
+    expect(buildPreviousContext({ aiComment: feedback }).summary).toBe("개선할 점");
+  });
+});

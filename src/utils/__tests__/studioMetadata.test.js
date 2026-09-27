@@ -31,4 +31,27 @@ describe("portable studio metadata boundary", () => {
     expect(meta.applicationContext.secret).toBeUndefined();
     expect(meta.applicationContext.video).toBeUndefined();
   });
+
+  it("keeps the speaker-labelled script and line counts through notes, drafts, and sync", () => {
+    const meta = sanitizeStudioMetadata({ rehearsalContext: {
+      role: "MAYA", partnerRole: " ALEX ", script: "x".repeat(5000), userLineCount: 5, partnerLineCount: -1, extra: "no",
+    } });
+    expect(meta.rehearsalContext.partnerRole).toBe("ALEX");
+    expect(meta.rehearsalContext.script).toHaveLength(4000);
+    expect(meta.rehearsalContext.userLineCount).toBe(5);
+    expect(meta.rehearsalContext.partnerLineCount).toBeUndefined();
+    expect(meta.rehearsalContext.extra).toBeUndefined();
+  });
+
+  it("tells the model which lines are the user's and forbids invented props", () => {
+    const text = studioFeedbackContext({ rehearsalContext: { role: "MAYA", partnerRole: "ALEX", script: "ALEX: You left this.\nMAYA: My key." } });
+    expect(text).toContain("ALEX: You left this.\nMAYA: My key.");
+    expect(text).toContain('Only lines labelled "MAYA" in this script are the user\'s');
+    expect(text).toContain("may also contain the partner's lines");
+    expect(text).toContain("Do not add props");
+    expect(text).not.toContain('"script"');
+    const withoutScript = studioFeedbackContext({ rehearsalContext: { role: "A", userLineCount: 2, partnerLineCount: 1 } });
+    expect(withoutScript).toContain("No script text is provided");
+    expect(withoutScript).toContain('"userLineCount":2');
+  });
 });

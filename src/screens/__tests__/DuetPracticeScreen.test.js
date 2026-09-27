@@ -48,6 +48,13 @@ const { trackFunnelEvent } = require("../../services/mauService");
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn(), addListener: jest.fn(() => jest.fn()), dispatch: jest.fn() };
 const firstScene = scenes.scenes[0];
+const expectedRehearsal = {
+  sceneTitle: firstScene.play, role: firstScene.roles[0].name, partnerRole: firstScene.roles[1].name,
+  scriptLanguage: "ko", feedbackLanguage: "ko",
+  userLineCount: firstScene.lines.filter((line) => line.r === 0).length,
+  partnerLineCount: firstScene.lines.filter((line) => line.r === 1).length,
+  script: firstScene.lines.map((line) => `${firstScene.roles[line.r].name}: ${line.d ? `(${line.d}) ` : ""}${line.t}`).join("\n"),
+};
 
 const openCueMode = (utils) => {
   fireEvent.press(utils.getAllByText(firstScene.play)[0]);
@@ -128,7 +135,7 @@ describe("DuetPracticeScreen — 연습 기록 남기기", () => {
         sessionId: "sess-duet",
         scriptLanguage: "ko",
         feedbackLanguage: "ko",
-        rehearsalContext: { sceneTitle: firstScene.play, role: firstScene.roles[0].name, scriptLanguage: "ko", feedbackLanguage: "ko" },
+        rehearsalContext: expectedRehearsal,
       },
     });
     expect(trackFunnelEvent).toHaveBeenCalledWith("duet_to_note", "ko");
@@ -617,6 +624,42 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
     expect(Audio.setAudioModeAsync).toHaveBeenLastCalledWith({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
   });
 
+  describe("앱이 백그라운드로 가면", () => {
+    const { AppState } = require("react-native");
+    let emit;
+    beforeEach(() => {
+      jest.spyOn(AppState, "addEventListener").mockImplementation((_, fn) => { emit = fn; return { remove: jest.fn() }; });
+    });
+    afterEach(() => AppState.addEventListener.mockRestore());
+
+    it.each(["background", "inactive"])("%s: 진행 중 녹음을 멈추고 지금까지 녹음은 보관한다 — 복귀해도 다시 시작하지 않는다", async (state) => {
+      const utils = render(<DuetPracticeScreen navigation={navigation} />);
+      openScript(utils);
+      await startRec(utils);
+      await act(async () => { emit(state); });
+      await waitFor(() => expect(utils.getByText("🎙 duet.record_start")).toBeTruthy());
+      expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
+      expect(utils.getByText("녹음 1개 보관 중")).toBeTruthy();
+      await act(async () => { emit("active"); });
+      expect(Audio.Recording.createAsync).toHaveBeenCalledTimes(1);
+      fireEvent.press(utils.getByText("연습 기록 남기기"));
+      await waitFor(() => expect(navigation.navigate).toHaveBeenCalledTimes(1));
+      expect(navigation.navigate.mock.calls[0][1].prefill.voiceRecordings).toEqual([{ uri: "file:///rec1.m4a", duration: 12 }]);
+    });
+
+    it("권한 창 때문에 inactive가 와도 녹음 시작은 취소하지 않는다", async () => {
+      let grant;
+      Audio.requestPermissionsAsync.mockImplementation(() => new Promise((resolve) => { grant = resolve; }));
+      const utils = render(<DuetPracticeScreen navigation={navigation} />);
+      openScript(utils);
+      fireEvent.press(utils.getByText("🎙 duet.record_start"));
+      await act(async () => { emit("inactive"); });
+      await act(async () => { grant({ granted: true }); });
+      await waitFor(() => expect(utils.getByText(/duet\.record_stop/)).toBeTruthy());
+      expect(rec.stopAndUnloadAsync).not.toHaveBeenCalled();
+    });
+  });
+
   it("마이크 권한을 거부하면 안내만 띄우고 녹음하지 않는다", async () => {
     Audio.requestPermissionsAsync.mockImplementation(() => Promise.resolve({ granted: false }));
     const utils = render(<DuetPracticeScreen navigation={navigation} />);
@@ -683,7 +726,7 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
         sessionId: "sess-duet",
         scriptLanguage: "ko",
         feedbackLanguage: "ko",
-        rehearsalContext: { sceneTitle: firstScene.play, role: firstScene.roles[0].name, scriptLanguage: "ko", feedbackLanguage: "ko" },
+        rehearsalContext: expectedRehearsal,
       },
     });
     const { prefill } = navigation.navigate.mock.calls[0][1];
@@ -940,6 +983,11 @@ describe("DuetPracticeScreen — global studio", () => {
     expect(JSON.stringify(global.fetch.mock.calls)).not.toContain("Unpublished");
     expect(JSON.stringify(trackFunnelEvent.mock.calls)).not.toContain("Unpublished");
     expect(JSON.stringify(navigation.navigate.mock.calls)).not.toContain("Unpublished");
+    // Pasted text stays on the device: the note gets role names and line counts only.
+    expect(navigation.navigate.mock.calls.at(-1)[1].prefill.rehearsalContext).toEqual({
+      sceneTitle: "My private script", role: "SecretRole", partnerRole: "OtherRole",
+      scriptLanguage: "en", feedbackLanguage: "ko", userLineCount: 1, partnerLineCount: 1,
+    });
   });
   it("rejects an unlabelled line and leaves the draft editable", () => {
     const utils = render(<DuetPracticeScreen navigation={navigation} />);

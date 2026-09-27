@@ -1,6 +1,6 @@
 import korean from "../../data/duet-scenes.json";
 import english from "../../data/duet-scenes-en.json";
-import { mergeDuetScenes, isValidRemoteData, sceneLanguage, voiceLanguage, parsePrivateScript, sceneDescription } from "../duetStudio";
+import { mergeDuetScenes, isValidRemoteData, sceneLanguage, voiceLanguage, parsePrivateScript, sceneDescription, rehearsalScript, rehearsalContextFor } from "../duetStudio";
 
 const remoteScene = { id: "remote", play: "갱신된 장면", roles: [{ name: "A" }, { name: "B" }], lines: [{ r: 0, t: "안녕" }, { r: 1, t: "반가워" }] };
 describe("global rehearsal collection", () => {
@@ -76,5 +76,35 @@ describe("private script parser", () => {
     expect(scene.id).toMatch(/^private-[a-z0-9]+-[a-z0-9]+$/);
     expect(scene.id).not.toContain("SecretName");
     expect(scene.play).toBe("My private script");
+  });
+});
+
+describe("rehearsal script sent with AI feedback", () => {
+  const scene = { play: "Scene", language: "en", roles: [{ name: "MAYA" }, { name: "ALEX" }], lines: [
+    { r: 1, t: "a".repeat(30) }, { r: 0, t: "mine one", d: "holds the key" }, { r: 1, t: "b".repeat(30) }, { r: 0, t: "mine two" },
+  ] };
+
+  it("labels every line with its speaker and keeps stage directions", () => {
+    expect(rehearsalScript(scene, 0)).toBe(`ALEX: ${"a".repeat(30)}\nMAYA: (holds the key) mine one\nALEX: ${"b".repeat(30)}\nMAYA: mine two`);
+  });
+
+  it("keeps the user's lines first when the script is over the limit", () => {
+    const script = rehearsalScript(scene, 0, 80);
+    expect(script).toContain("MAYA: (holds the key) mine one");
+    expect(script).toContain("MAYA: mine two");
+    expect(script).toContain("…");
+    expect(script.length).toBeLessThanOrEqual(80);
+  });
+
+  it("caps every bundled scene at 4,000 characters", () => {
+    mergeDuetScenes().forEach((item) => expect(rehearsalScript(item, 0).length).toBeLessThanOrEqual(4000));
+  });
+
+  it("sends only role names and line counts for a pasted private script", () => {
+    const { scene: privateScene } = parsePrivateScript("A: secret one\nB: secret two\nA: secret three", "en");
+    const context = rehearsalContextFor(privateScene, 0, "ko");
+    expect(context).toEqual({ sceneTitle: "My private script", role: "A", partnerRole: "B", scriptLanguage: "en", feedbackLanguage: "ko", userLineCount: 2, partnerLineCount: 1 });
+    expect(JSON.stringify(context)).not.toContain("secret");
+    expect(rehearsalContextFor(scene, 1, "en").script).toContain("ALEX: " + "a".repeat(30));
   });
 });

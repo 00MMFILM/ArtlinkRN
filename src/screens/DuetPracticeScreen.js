@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Alert,
   TextInput,
+  AppState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePreventRemove } from "@react-navigation/native";
@@ -18,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import { CLight, T } from "../constants/theme";
 import { useApp } from "../context/AppContext";
 import { STUDIO } from "../constants/studioTheme";
-import { mergeDuetScenes, isValidRemoteData, sceneLanguage, voiceLanguage, rehearsalLanguage, parsePrivateScript, sceneDescription, sceneRightsKey, SCRIPT_LIMITS } from "../utils/duetStudio";
+import { mergeDuetScenes, isValidRemoteData, sceneLanguage, voiceLanguage, rehearsalLanguage, parsePrivateScript, sceneDescription, sceneRightsKey, SCRIPT_LIMITS, rehearsalContextFor } from "../utils/duetStudio";
 import { startPractice, completePractice, abandonPractice } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
@@ -350,7 +351,7 @@ export default function DuetPracticeScreen({ navigation }) {
       sessionId: practiceRef.current?.sessionId,
       scriptLanguage: sceneLanguage(s),
       feedbackLanguage,
-      rehearsalContext: { sceneTitle: s.play, role: roleName, scriptLanguage: sceneLanguage(s), feedbackLanguage },
+      rehearsalContext: rehearsalContextFor(s, myRole, feedbackLanguage),
     };
     const go = (recs) => {
       if (!mountedRef.current || owner !== accountRef.current) { noteTransferRef.current = false; return; }
@@ -473,6 +474,16 @@ export default function DuetPracticeScreen({ navigation }) {
     discardPreload();
     if (!noteTransferRef.current) stopRecording(true);
   }), [navigation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Leaving the app ends the take: keep what was recorded, never keep recording in the background.
+  // "inactive" also fires for the first permission dialog, so only "background" cancels a pending start.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") cancelRecordingStart();
+      if ((state === "background" || state === "inactive") && recordingRef.current && !noteTransferRef.current) stopRecording(true);
+    });
+    return () => sub?.remove?.();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previousAccountRef = useRef(accountRef.current);
   useEffect(() => {
