@@ -1087,6 +1087,9 @@
     "again": "Record another take",
     "resume_title": "Continue a scene you practiced recently",
     "video_trial_remaining": "Trial video analyses left: {{left}}/{{max}}",
-    "video_month_remaining": "Video analyses left this month: {{left}}/{{max}}"
+    "video_month_remaining": "Video analyses left this month: {{left}}/{{max}}",
+    "replace_video_title": "Replace the attached video?",
+    "replace_video_message": "Only one video is analyzed at a time. Choosing a new video removes the current attachment and its analysis from this note.",
+    "replace_video_confirm": "Replace video"
   }
 }

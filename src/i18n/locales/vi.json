@@ -1087,6 +1087,9 @@
     "again": "Quay thêm một lần",
     "resume_title": "Tiếp tục cảnh đã luyện tập gần đây",
     "video_trial_remaining": "Lượt phân tích video dùng thử còn lại: {{left}}/{{max}}",
-    "video_month_remaining": "Lượt phân tích video còn lại tháng này: {{left}}/{{max}}"
+    "video_month_remaining": "Lượt phân tích video còn lại tháng này: {{left}}/{{max}}",
+    "replace_video_title": "Thay video đã đính kèm?",
+    "replace_video_message": "Mỗi lần chỉ phân tích một video. Khi chọn video mới, video hiện tại và kết quả phân tích của nó sẽ được gỡ khỏi ghi chú này.",
+    "replace_video_confirm": "Thay video"
   }
 }

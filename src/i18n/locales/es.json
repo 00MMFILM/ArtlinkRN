@@ -1087,6 +1087,9 @@
     "again": "Grabar otra toma",
     "resume_title": "Retomar una escena practicada recientemente",
     "video_trial_remaining": "Análisis de vídeo de prueba restantes: {{left}}/{{max}}",
-    "video_month_remaining": "Análisis de vídeo restantes este mes: {{left}}/{{max}}"
+    "video_month_remaining": "Análisis de vídeo restantes este mes: {{left}}/{{max}}",
+    "replace_video_title": "¿Cambiar el vídeo adjunto?",
+    "replace_video_message": "Solo se analiza un vídeo a la vez. Al elegir uno nuevo, se retirarán de esta nota el vídeo actual y su análisis.",
+    "replace_video_confirm": "Cambiar vídeo"
   }
 }

@@ -1087,6 +1087,9 @@
     "again": "再拍一次",
     "resume_title": "继续最近练习的场景",
     "video_trial_remaining": "视频分析体验剩余 {{left}}/{{max}} 次",
-    "video_month_remaining": "本月视频分析剩余 {{left}}/{{max}} 次"
+    "video_month_remaining": "本月视频分析剩余 {{left}}/{{max}} 次",
+    "replace_video_title": "要更换已添加的视频吗？",
+    "replace_video_message": "每次只分析一个视频。选择新视频后，此笔记中的原视频及其分析结果将被移除。",
+    "replace_video_confirm": "更换视频"
   }
 }

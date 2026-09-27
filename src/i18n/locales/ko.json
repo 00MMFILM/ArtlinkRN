@@ -1087,6 +1087,9 @@
     "again": "한 번 더 다시 촬영",
     "resume_title": "최근 고치던 장면 이어서",
     "video_trial_remaining": "영상 체험 {{left}}/{{max}}회 남음",
-    "video_month_remaining": "이달 영상 분석 {{left}}/{{max}}회 남음"
+    "video_month_remaining": "이달 영상 분석 {{left}}/{{max}}회 남음",
+    "replace_video_title": "첨부한 영상을 바꿀까요?",
+    "replace_video_message": "한 번에 영상 한 개를 분석해요. 새 영상을 선택하면 기존 첨부 영상과 해당 분석 결과가 이 노트에서 빠집니다.",
+    "replace_video_confirm": "영상 바꾸기"
   }
 }

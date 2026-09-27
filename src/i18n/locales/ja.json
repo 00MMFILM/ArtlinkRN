@@ -1087,6 +1087,9 @@
     "again": "もう一度撮影する",
     "resume_title": "最近練習したシーンを続ける",
     "video_trial_remaining": "動画分析のお試し残り {{left}}/{{max}}回",
-    "video_month_remaining": "今月の動画分析 残り {{left}}/{{max}}回"
+    "video_month_remaining": "今月の動画分析 残り {{left}}/{{max}}回",
+    "replace_video_title": "添付した動画を変更しますか？",
+    "replace_video_message": "一度に分析できる動画は1本です。新しい動画を選ぶと、現在の添付動画とその分析結果がこのノートから削除されます。",
+    "replace_video_confirm": "動画を変更"
   }
 }

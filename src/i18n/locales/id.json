@@ -1087,6 +1087,9 @@
     "again": "Rekam sekali lagi",
     "resume_title": "Lanjutkan adegan yang baru dilatih",
     "video_trial_remaining": "Sisa analisis video uji coba: {{left}}/{{max}}",
-    "video_month_remaining": "Sisa analisis video bulan ini: {{left}}/{{max}}"
+    "video_month_remaining": "Sisa analisis video bulan ini: {{left}}/{{max}}",
+    "replace_video_title": "Ganti video terlampir?",
+    "replace_video_message": "Hanya satu video yang dianalisis setiap kali. Memilih video baru akan menghapus lampiran saat ini dan hasil analisisnya dari catatan ini.",
+    "replace_video_confirm": "Ganti video"
   }
 }
