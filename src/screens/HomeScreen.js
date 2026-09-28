@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -20,32 +19,24 @@ import { STUDIO } from "../constants/studioTheme";
 import PremiumBadge from "../components/PremiumBadge";
 import { buildRepracticePrefill, findResumeTarget } from "../utils/repractice";
 import { trackFunnelEvent } from "../services/mauService";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { findFeedbackToReview } from "../utils/nextPractice";
 
 export default function HomeScreen({ navigation }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const {
     savedNotes,
     handleSaveNote,
     userProfile,
-    artistProfile,
     fieldOrder,
-    isKoreanLocale,
     premium,
     showToast,
   } = useApp();
 
   const isActingUser = (userProfile?.fields || []).some((f) => /acting|film/i.test(String(f)));
   const duetCard = (
-    <TouchableOpacity
-      testID="studio-home-card"
+    <View
       style={styles.studioCard}
-      onPress={() => navigation.navigate("DuetPractice")}
-      accessibilityRole="button"
-      accessibilityLabel={t("studio.action")}
-      activeOpacity={0.9}
     >
       <View style={styles.studioTopline}>
         <Text style={styles.studioEyebrow}>{t("studio.eyebrow")}</Text>
@@ -53,19 +44,46 @@ export default function HomeScreen({ navigation }) {
       </View>
       <Text style={styles.studioTitle}>{t("studio.title")}</Text>
       <Text style={styles.studioDescription}>{t("studio.description")}</Text>
-      <View style={styles.studioAction}>
+      <View style={styles.practiceSteps} accessibilityLabel={t("studio.loop")}>
+        {["practice", "feedback", "repeat"].map((step, index) => (
+          <View key={step} style={styles.practiceStep}>
+            <Text style={styles.practiceStepNumber}>{`0${index + 1}`}</Text>
+            <Text style={styles.practiceStepLabel}>{t(`studio.step_${step}`)}</Text>
+          </View>
+        ))}
+      </View>
+      <TouchableOpacity
+        testID="studio-home-card"
+        accessibilityRole="button"
+        accessibilityLabel={t("studio.action")}
+        style={styles.studioAction}
+        onPress={() => {
+          trackFunnelEvent("home_practice_tapped", i18n.language);
+          navigation.navigate("DuetPractice");
+        }}
+        activeOpacity={0.85}
+      >
         <Text style={styles.studioActionText}>{t("studio.action")}</Text>
         <Text style={styles.studioArrow}>↗</Text>
-      </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="home-existing-material"
+        accessibilityRole="button"
+        style={styles.existingMaterial}
+        onPress={() => {
+          trackFunnelEvent("home_material_tapped", i18n.language);
+          navigation.navigate("NoteCreate", { prefill: { field: userProfile?.fields?.find(f => f === "acting" || f === "film") || "acting" } });
+        }}
+      >
+        <Text style={styles.existingMaterialText}>{t("studio.existing_material")} →</Text>
+      </TouchableOpacity>
       <Text style={styles.studioCreator}>{t("studio.creator")}</Text>
-    </TouchableOpacity>
+    </View>
   );
 
-  // 한국어 + 노트 0개 = 첫 경험. 입시·오디션 맥락 문구로 바꾸고 2인 대사 진입을 히어로 바로 아래 둔다.
-  // 단, 분야가 이미 설정돼 있고 그 안에 연기가 없으면(음악·미술 등) 연기 전용 문구는 어색하다 — 일반 히어로로.
-  // 분야 미설정(게스트·신규)은 지금처럼 연기 히어로 유지.
+  // Acting/film and undecided newcomers get one studio entry. Other disciplines
+  // keep their general practice-note entry instead of an acting-specific prompt.
   const hasFields = (userProfile?.fields || []).length > 0;
-  const koFirstRun = isKoreanLocale && savedNotes.length === 0 && (!hasFields || isActingUser);
 
   const [expandedField, setExpandedField] = useState(null);
   const [checkinMemo, setCheckinMemo] = useState("");
@@ -95,6 +113,7 @@ export default function HomeScreen({ navigation }) {
   // ---- Computed data ----
   const recentNotes = useMemo(() => savedNotes.slice(0, 5), [savedNotes]);
   const resumeTarget = useMemo(() => findResumeTarget(savedNotes, resumeNow), [savedNotes, resumeNow]);
+  const feedbackTarget = useMemo(() => resumeTarget ? null : findFeedbackToReview(savedNotes, resumeNow), [savedNotes, resumeNow, resumeTarget]);
   const resumePractice = useCallback(() => {
     if (!resumeTarget) return;
     trackFunnelEvent("resume_card_tapped");
@@ -125,7 +144,7 @@ export default function HomeScreen({ navigation }) {
     const thisCount = thisWeekActivities.length;
     const prevCount = prevWeekActivities.length;
     const weekGrowth =
-      prevCount > 0 ? Math.round(((thisCount - prevCount) / prevCount) * 100) : thisCount > 0 ? 100 : 0;
+      prevCount > 0 ? Math.round(((thisCount - prevCount) / prevCount) * 100) : null;
 
     // Calculate streak (consecutive days with practice activity, counting back from today)
     let streak = 0;
@@ -283,29 +302,52 @@ export default function HomeScreen({ navigation }) {
             <Text style={[T.captionBold, { color: CLight.pink }]}>{t("retake.resume_title")}</Text>
             <Text style={[T.titleBold, { color: CLight.gray900, marginTop: 8 }]} numberOfLines={2}>{resumeTarget.title}</Text>
             <Text style={[T.small, { color: CLight.gray700, marginTop: 6 }]}>{resumeTarget.chosenFocus}</Text>
+            <Text style={styles.nextStepAction}>{t("studio.resume_action")} →</Text>
           </TouchableOpacity>
         ) : null}
 
-        {(!hasFields || isActingUser) ? duetCard : null}
+        {feedbackTarget ? (
+          <TouchableOpacity
+            testID="home-review-feedback"
+            accessibilityRole="button"
+            style={styles.nextStepCard}
+            onPress={() => {
+              trackFunnelEvent("home_feedback_tapped", i18n.language);
+              navigation.navigate("NoteDetail", { noteId: feedbackTarget.id, initialTab: "ai" });
+            }}
+          >
+            <Text style={styles.studioEyebrow}>{t("studio.next_step")}</Text>
+            <Text style={styles.nextStepTitle}>{t("studio.review_title")}</Text>
+            <Text style={styles.studioDescription} numberOfLines={2}>{feedbackTarget.title || t("common.untitled")}</Text>
+            <Text style={styles.nextStepAction}>{t("studio.review_action")} →</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {(!hasFields || isActingUser) && !resumeTarget && !feedbackTarget ? duetCard : null}
+        {(!hasFields || isActingUser) && (resumeTarget || feedbackTarget) ? (
+          <TouchableOpacity accessibilityRole="button" style={styles.existingMaterial} onPress={() => navigation.navigate("DuetPractice")}>
+            <Text style={styles.existingMaterialText}>{t("studio.other_scene")} →</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* ---- Weekly summary (연습 활동이 0이면 첫 기록 히어로 카드) ---- */}
-        {!hasPracticeActivity ? (
+        {!hasPracticeActivity && hasFields && !isActingUser ? (
           <View style={[styles.summaryCard, { backgroundColor: CLight.surface, alignItems: "center" }]}>
             <Text style={[T.h3, { color: CLight.gray900, textAlign: "center" }]}>
-              {t(koFirstRun ? "home.hero_title_ko_acting" : "home.hero_title")}
+              {t("home.hero_title")}
             </Text>
             <Text style={[T.caption, { color: CLight.gray500, marginTop: 8, textAlign: "center" }]}>
-              {t(koFirstRun ? "home.hero_desc_ko_acting" : "home.hero_desc")}
+              {t("home.hero_desc")}
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
               onPress={() => navigation.navigate("NoteCreate")}
               activeOpacity={0.7}
             >
-              <Text style={styles.emptyButtonText}>{t(koFirstRun ? "home.hero_cta_ko_acting" : "home.hero_cta")}</Text>
+              <Text style={styles.emptyButtonText}>{t("home.hero_cta")}</Text>
             </TouchableOpacity>
           </View>
-        ) : (
+        ) : hasPracticeActivity ? (
         <View style={[styles.summaryCard, { backgroundColor: CLight.surface }]}>
           <Text style={[T.captionBold, { color: CLight.gray500, marginBottom: 12 }]}>
             {t("home.weekly_summary")}
@@ -337,17 +379,16 @@ export default function HomeScreen({ navigation }) {
               <Text
                 style={[
                   styles.summaryValue,
-                  { color: weeklySummary.weekGrowth >= 0 ? CLight.green : CLight.red },
+                  { color: weeklySummary.weekGrowth === null ? CLight.gray500 : weeklySummary.weekGrowth >= 0 ? CLight.green : CLight.red },
                 ]}
               >
-                {weeklySummary.weekGrowth >= 0 ? "+" : ""}
-                {weeklySummary.weekGrowth}%
+                {weeklySummary.weekGrowth === null ? "—" : `${weeklySummary.weekGrowth >= 0 ? "+" : ""}${weeklySummary.weekGrowth}%`}
               </Text>
-              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("home.weekly_growth")}</Text>
+              <Text style={[T.micro, { color: CLight.gray500 }]}>{t("studio.practice_change")}</Text>
             </View>
           </View>
         </View>
-        )}
+        ) : null}
 
         {/* ---- Quick actions ---- */}
         <View style={styles.quickActionsContainer}>
@@ -524,6 +565,15 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  practiceSteps: { flexDirection: "row", gap: 12, marginTop: 24, borderTopWidth: 1, borderColor: STUDIO.line, paddingTop: 18 },
+  practiceStep: { flex: 1, gap: 6 },
+  practiceStepNumber: { color: STUDIO.accent, fontSize: 12, fontWeight: "700" },
+  practiceStepLabel: { color: STUDIO.ink, fontSize: 12, lineHeight: 19, fontWeight: "600" },
+  existingMaterial: { paddingVertical: 15, marginBottom: 4, minHeight: 48 },
+  existingMaterialText: { color: STUDIO.muted, fontSize: 13, lineHeight: 21, textAlign: "center" },
+  nextStepCard: { backgroundColor: STUDIO.paper, borderColor: STUDIO.line, borderWidth: 1, borderRadius: 22, padding: 22, marginBottom: 8 },
+  nextStepTitle: { color: STUDIO.ink, fontSize: 24, lineHeight: 33, fontWeight: "700", marginTop: 12 },
+  nextStepAction: { color: STUDIO.accent, fontSize: 14, lineHeight: 22, fontWeight: "700", marginTop: 18 },
   studioCard: { backgroundColor: STUDIO.paper, borderColor: STUDIO.line, borderWidth: 1, borderRadius: 24, padding: 22, marginBottom: 18 },
   studioTopline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 },
   studioEyebrow: { color: STUDIO.accent, fontSize: 11, fontWeight: "800", letterSpacing: 1.8 },

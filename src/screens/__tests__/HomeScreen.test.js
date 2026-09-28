@@ -297,8 +297,9 @@ describe("HomeScreen — 한국어 첫 화면", () => {
   it("한국어 + 노트 0개 + 분야 미설정(게스트)이면 입시·오디션 문구와 2인 대사 카드가 보인다", async () => {
     useApp.mockReturnValue({ ...buildCtx([]), isKoreanLocale: true, userProfile: { name: "손님", fields: [] } });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.hero_title_ko_acting")).toBeTruthy();
-    expect(queryByText("home.hero_cta_ko_acting")).toBeTruthy();
+    expect(queryByText("home.hero_title_ko_acting")).toBeNull();
+    expect(queryByText("home.hero_cta_ko_acting")).toBeNull();
+    expect(queryByText("studio.step_practice")).toBeTruthy();
     expect(queryByText("home.hero_title")).toBeNull();
     expect(queryByText("studio.title")).toBeTruthy();
   });
@@ -310,7 +311,8 @@ describe("HomeScreen — 한국어 첫 화면", () => {
       userProfile: { name: "배우", fields: ["acting"] },
     });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.hero_title_ko_acting")).toBeTruthy();
+    expect(queryByText("home.hero_title_ko_acting")).toBeNull();
+    expect(queryByText("studio.step_feedback")).toBeTruthy();
     expect(queryByText("studio.title")).toBeTruthy();
   });
 
@@ -429,5 +431,50 @@ describe("global studio entry", () => {
     fireEvent.press(screen.getByText("studio.opportunities"));
     expect(navigation.navigate).toHaveBeenCalledWith("Matching");
     expect(screen.getByText("studio.creator")).toBeTruthy();
+  });
+});
+
+describe("growth home — one useful next action", () => {
+  beforeEach(() => jest.clearAllMocks());
+  const reviewed = { id: "feedback-note", title: "오늘의 장면", aiComment: "상대에게 원하는 것을 정해 보세요", focusOptions: ["기다리기"], field: "acting", createdAt: new Date().toISOString() };
+
+  it("takes an unfinished feedback review straight to the AI tab, without another competing hero", async () => {
+    useApp.mockReturnValue({ ...buildCtx([reviewed]), userProfile: { fields: ["acting"] } });
+    const screen = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    expect(screen.queryByTestId("studio-home-card")).toBeNull();
+    fireEvent.press(screen.getByTestId("home-review-feedback"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteDetail", { noteId: "feedback-note", initialTab: "ai" });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("home_feedback_tapped", "ko");
+  });
+
+  it("prioritizes an already chosen retake over another feedback review", async () => {
+    useApp.mockReturnValue({ ...buildCtx([reviewed, { ...reviewed, id: "retake", chosenFocus: "기다리기" }]), userProfile: { fields: ["acting"] } });
+    const screen = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    expect(screen.queryByTestId("home-review-feedback")).toBeNull();
+    expect(screen.queryByTestId("studio-home-card")).toBeNull();
+    fireEvent.press(screen.getByTestId("retake-resume-card"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({ prefill: expect.objectContaining({ parentNoteId: "retake" }) }));
+  });
+
+  it("lets a newcomer bring existing material without pretending that tapping completed a practice", async () => {
+    useApp.mockReturnValue({ ...buildCtx([]), userProfile: { fields: ["film"] } });
+    const screen = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    fireEvent.press(screen.getByTestId("home-existing-material"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: { field: "film" } });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("home_material_tapped", "ko");
+    expect(startPractice).not.toHaveBeenCalled();
+    expect(completePractice).not.toHaveBeenCalled();
+  });
+
+  it("does not invent 100% growth without a previous-week denominator", async () => {
+    useApp.mockReturnValue(buildCtx([{ id: "new", createdAt: new Date().toISOString(), field: "music" }]));
+    const screen = render(<HomeScreen navigation={navigation} />);
+    await act(async () => {});
+    expect(screen.queryByText("+100%")).toBeNull();
+    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("studio.practice_change")).toBeTruthy();
   });
 });
