@@ -87,6 +87,8 @@ export default function HomeScreen({ navigation }) {
 
   const [expandedField, setExpandedField] = useState(null);
   const [checkinMemo, setCheckinMemo] = useState("");
+  // 방금 저장한 체크인 — 저장만 하고 AI 피드백으로 가지 않는다(1.11.8 실측: 완료 3대, 피드백 0)
+  const [savedCheckinNoteId, setSavedCheckinNoteId] = useState(null);
 
   // ---- 연습 기록(2인 대사 등, 노트를 안 남기는 연습) ----
   // 노트 저장만 세면 2인 대사 연습이 대시보드에 안 잡힌다 — 기기 기록을 합쳐서 쓴다.
@@ -224,10 +226,11 @@ export default function HomeScreen({ navigation }) {
     checkinSavingRef.current = true;
     try {
       checkinSessionRef.current = ensureCheckinSession(checkinSessionRef.current, field);
-      await saveCheckinNote({ field, memo: checkinMemo, session: checkinSessionRef.current, saveNote: handleSaveNote });
+      const noteId = await saveCheckinNote({ field, memo: checkinMemo, session: checkinSessionRef.current, saveNote: handleSaveNote });
       checkinSessionRef.current = null;
       setExpandedField(null);
       setCheckinMemo("");
+      setSavedCheckinNoteId(noteId);
     } catch (_) {
       showToast(t("common.save_failed_msg"), "error");
     } finally {
@@ -472,6 +475,20 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           )}
+          {savedCheckinNoteId != null && !expandedField && (
+            <TouchableOpacity
+              style={styles.checkinAiRow}
+              onPress={() => {
+                const noteId = savedCheckinNoteId;
+                setSavedCheckinNoteId(null);
+                navigation.navigate("NoteDetail", { noteId, initialTab: "ai" });
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[T.caption, { color: CLight.gray500, flex: 1 }]}>{t("first_checkin.done_desc")}</Text>
+              <Text style={[T.captionBold, { color: CLight.pink, marginLeft: 10 }]}>{t("first_checkin.ai_cta")} →</Text>
+            </TouchableOpacity>
+          )}
           {/* 위 duetCard(히어로 아래 전폭 카드)가 이미 떠 있으면 중복이라 숨긴다 */}
           {hasFields && !isActingUser && (
             <TouchableOpacity
@@ -710,6 +727,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: "500",
   },
+  checkinAiRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
   checkinInputRow: {
     flexDirection: "row",
     alignItems: "center",

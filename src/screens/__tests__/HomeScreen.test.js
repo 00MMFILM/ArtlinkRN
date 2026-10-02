@@ -78,6 +78,21 @@ describe("HomeScreen — 빠른 체크인 계측", () => {
     expect(trackFunnelEvent).toHaveBeenCalledWith("note_saved", "ko");
   });
 
+  it("체크인을 저장하면 그 노트의 AI 피드백으로 가는 버튼이 뜬다", async () => {
+    const ctx = buildCtx([]);
+    ctx.handleSaveNote.mockResolvedValue("note-checkin-1");
+    useApp.mockReturnValue(ctx);
+    const { getByText, queryByText } = render(<HomeScreen navigation={navigation} />);
+    expect(queryByText("first_checkin.ai_cta →")).toBeNull();
+
+    fireEvent.press(getByText("fields.music"));
+    await act(async () => { fireEvent.press(getByText("common.save")); });
+    fireEvent.press(getByText("first_checkin.ai_cta →"));
+
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteDetail", { noteId: "note-checkin-1", initialTab: "ai" });
+    expect(queryByText("first_checkin.ai_cta →")).toBeNull();
+  });
+
   // 체크인 노트에도 세션 id가 실려야 요약·성장 리포트가 연습 기록과 중복 집계하지 않는다
   it("체크인 노트에 체크인 세션의 practiceSessionId가 실린다", async () => {
     const ctx = buildCtx([]);
