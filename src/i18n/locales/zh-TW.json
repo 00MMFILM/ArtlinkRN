@@ -213,6 +213,7 @@
     "duet_row": "雙人台詞練習 — 對手會為你唸台詞"
   },
   "notes": {
+    "guest_local_notice": "訪客記錄僅儲存在此裝置上，刪除應用程式後將遺失。",
     "search_placeholder": "搜尋筆記...",
     "sort_newest": "最新",
     "sort_oldest": "最舊",

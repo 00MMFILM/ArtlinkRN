@@ -213,6 +213,7 @@
     "duet_row": "Latihan dialog dua orang — lawan main akan membacakan dialog"
   },
   "notes": {
+    "guest_local_notice": "Catatan tamu hanya tersimpan di perangkat ini. Akan hilang jika aplikasi dihapus.",
     "search_placeholder": "Cari catatan...",
     "sort_newest": "Terbaru",
     "sort_oldest": "Terlama",

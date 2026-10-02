@@ -213,6 +213,7 @@
     "duet_row": "双人台词练习 — 对手会为你念台词"
   },
   "notes": {
+    "guest_local_notice": "访客记录仅保存在此设备上，删除应用后将丢失。",
     "search_placeholder": "搜索笔记...",
     "sort_newest": "最新",
     "sort_oldest": "最旧",

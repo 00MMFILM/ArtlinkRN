@@ -226,6 +226,7 @@
     "no_notes_yet": "아직 노트가 없어요",
     "no_notes_desc": "오른쪽 아래 + 버튼을 눌러\n첫 번째 연습 노트를 기록해보세요!",
     "today_practice": "오늘의 연습 퀵 노트",
+    "guest_local_notice": "게스트 기록은 이 기기에만 저장돼요. 앱을 지우면 사라집니다.",
     "checkin_placeholder": "뭘 연습했나요? (선택)",
     "checkin_badge": "체크인"
   },

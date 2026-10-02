@@ -29,7 +29,7 @@ const SORT_OPTIONS = [
 
 export default function NotesScreen({ navigation }) {
   const { t } = useTranslation();
-  const { savedNotes, handleDeleteNote, handleToggleStar, fieldOrder, isKoreanLocale, premium } = useApp();
+  const { savedNotes, handleDeleteNote, handleToggleStar, fieldOrder, isKoreanLocale, premium, userProfile, setAuthState } = useApp();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedField, setSelectedField] = useState("all");
@@ -159,6 +159,14 @@ export default function NotesScreen({ navigation }) {
           />
         </View>
       </View>
+
+      {/* 게스트 기록은 기기에만 있다 — 앱을 지우면 사라진다는 걸 기록이 생긴 뒤에 알린다 */}
+      {!userProfile?.authUserId && savedNotes.length > 0 && (
+        <TouchableOpacity style={styles.guestNotice} onPress={() => setAuthState("auth")} activeOpacity={0.7}>
+          <Text style={[T.caption, { color: CLight.gray700, flex: 1 }]}>{t("notes.guest_local_notice")}</Text>
+          <Text style={[T.captionBold, { color: CLight.pink, marginLeft: 10 }]}>{t("premium.guest_trial_cta")} →</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Field Filter Tabs */}
       <View style={styles.filterSection}>
@@ -378,6 +386,7 @@ const styles = StyleSheet.create({
   },
 
   // Field Filter
+  guestNotice: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: CLight.surface },
   filterSection: {
     backgroundColor: CLight.topBarBg,
     paddingBottom: 8,

@@ -213,6 +213,7 @@
     "duet_row": "Luyện tập lời thoại hai người — bạn diễn sẽ đọc lời thoại đối phương"
   },
   "notes": {
+    "guest_local_notice": "Ghi chú của khách chỉ được lưu trên thiết bị này. Xóa ứng dụng sẽ mất dữ liệu.",
     "search_placeholder": "Tìm kiếm ghi chú...",
     "sort_newest": "Mới nhất",
     "sort_oldest": "Cũ nhất",

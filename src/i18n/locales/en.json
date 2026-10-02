@@ -226,6 +226,7 @@
     "no_notes_yet": "No notes yet",
     "no_notes_desc": "Tap the + button at the bottom right\nto record your first practice note!",
     "today_practice": "Today's Quick Note",
+    "guest_local_notice": "Guest notes are saved only on this device. They are lost if you delete the app.",
     "checkin_placeholder": "What did you practice? (optional)",
     "checkin_badge": "Check-in"
   },

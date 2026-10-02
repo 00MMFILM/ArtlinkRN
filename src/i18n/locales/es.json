@@ -213,6 +213,7 @@
     "duet_row": "Práctica de escena a dos — un compañero de escena te da la réplica"
   },
   "notes": {
+    "guest_local_notice": "Las notas de invitado solo se guardan en este dispositivo. Se pierden si eliminas la app.",
     "search_placeholder": "Buscar notas...",
     "sort_newest": "Más recientes",
     "sort_oldest": "Más antiguas",

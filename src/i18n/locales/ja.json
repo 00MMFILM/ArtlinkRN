@@ -213,6 +213,7 @@
     "duet_row": "2人芝居の練習 — 相手役がセリフを返してくれます"
   },
   "notes": {
+    "guest_local_notice": "ゲストの記録はこの端末にのみ保存されます。アプリを削除すると消えます。",
     "search_placeholder": "ノートを検索...",
     "sort_newest": "新しい順",
     "sort_oldest": "古い順",
