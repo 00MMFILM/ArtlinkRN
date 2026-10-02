@@ -600,7 +600,8 @@ export function AppProvider({ children }) {
     await safeStorageSet(STORAGE_KEYS.LANGUAGE, langCode);
   }, []);
 
-  // 가입(isSignup)일 때만 첫 체크인 화면·48시간 넛지를 건다. 로그인·둘러보기는 해당 없음.
+  // 첫 체크인 화면·48시간 넛지는 가입 직후와 게스트 진입에 건다(로그인은 해당 없음).
+  // 1.11.8은 가입에만 걸었는데 출시 후 가입이 0건이라 아무도 못 봤다 — 신규의 절반은 게스트로 들어온다.
   const handleAuth = useCallback(async (profileData, { isSignup = false } = {}) => {
     const generation = ++accountGenerationRef.current;
     setStorageReady(false); clearVisibleAccount();
@@ -608,6 +609,16 @@ export function AppProvider({ children }) {
       await ensureStorageInitialized();
       const isCurrent = () => generation === accountGenerationRef.current;
       if (!isCurrent()) return;
+      const armFirstCheckin = async (scope) => {
+        const [done, state] = await Promise.all([
+          rawStorageForScope(scope).getItem(FIRST_CHECKIN_DONE_KEY), readNoteState(scope),
+        ]);
+        if (!isCurrent()) return;
+        setFirstCheckinPending(!done && state.notes.length === 0);
+        if (state.notes.length === 0) {
+          scheduleFirstNoteNudge(i18n.t("practice_nudge.title"), i18n.t("practice_nudge.body"));
+        }
+      };
       const previousScope = getStorageScope();
       if (profileData) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -624,16 +635,7 @@ export function AppProvider({ children }) {
         if (_mergeExisting) finalProfile.name = existing?.name || user.user_metadata?.name || loginData.email?.split("@")[0] || "";
         if (!await safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile, scope)) throw new Error("LOCAL_STORAGE_WRITE_FAILED");
         await hydrateAccount(scope, generation);
-        if (isSignup) {
-          const [done, state] = await Promise.all([
-            rawStorageForScope(scope).getItem(FIRST_CHECKIN_DONE_KEY), readNoteState(scope),
-          ]);
-          if (generation !== accountGenerationRef.current) return;
-          setFirstCheckinPending(!done && state.notes.length === 0);
-          if (state.notes.length === 0) {
-            scheduleFirstNoteNudge(i18n.t("practice_nudge.title"), i18n.t("practice_nudge.body"));
-          }
-        }
+        if (isSignup) await armFirstCheckin(scope);
       } else {
         const scope = await guestStorageScope();
         await setStorageScope(scope, { isCurrent });
@@ -641,6 +643,7 @@ export function AppProvider({ children }) {
         await hydrateAccount(scope, generation);
         if (!isCurrent()) return;
         await AsyncStorage.setItem(GUEST_ENTERED_KEY, "true");
+        await armFirstCheckin(scope);
       }
       if (generation === accountGenerationRef.current) setAuthState("app");
     } catch (error) {

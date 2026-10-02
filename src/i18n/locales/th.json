@@ -139,6 +139,8 @@
     "usertype_fan_desc": "คอยเชียร์ศิลปินที่ชื่นชอบ",
     "step_fields": "สาขาศิลปะ",
     "step_fields_desc": "เลือกทุกสาขาที่คุณสนใจ",
+    "pick_type_hint": "เลือกประเภทศิลปินของคุณ",
+    "pick_field_hint": "เลือกอย่างน้อยหนึ่งสาขาด้านล่าง",
     "field_acting": "การแสดง",
     "field_music": "ดนตรี",
     "field_art": "ศิลปะ",

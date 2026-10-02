@@ -80,6 +80,7 @@ export default function AuthScreen({ navigation }) {
   const [selectedFields, setSelectedFields] = useState([]);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const signupScrollRef = useRef(null);
 
   const animateTransition = (callback) => {
     Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
@@ -363,7 +364,11 @@ export default function AuthScreen({ navigation }) {
       <Text style={styles.stepSubtitle}>{t("auth.step_usertype_desc")}</Text>
       <View style={styles.optionGrid}>
         {userTypes.map((type) => (
-          <TouchableOpacity key={type.id} style={[styles.optionCard, selectedUserType === type.id && styles.optionCardActive]} onPress={() => setSelectedUserType(type.id)} activeOpacity={0.7}>
+          <TouchableOpacity key={type.id} style={[styles.optionCard, selectedUserType === type.id && styles.optionCardActive]} onPress={() => {
+            setSelectedUserType(type.id);
+            // 분야 선택이 하단 버튼 밑에 가려 있어, 유형만 고르고 "시작"이 안 눌리는 줄 알고 나간다 — 바로 보여준다.
+            if (selectedFields.length === 0) signupScrollRef.current?.scrollToEnd?.({ animated: true });
+          }} activeOpacity={0.7}>
             <Text style={styles.optionEmoji}>{type.emoji}</Text>
             <Text style={[styles.optionLabel, selectedUserType === type.id && styles.optionLabelActive]}>{t(type.labelKey)}</Text>
             <Text style={[styles.optionDesc, selectedUserType === type.id && styles.optionDescActive]}>{t(type.descKey)}</Text>
@@ -406,11 +411,14 @@ export default function AuthScreen({ navigation }) {
       </View>
       {renderProgressBar()}
       <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-        <ScrollView style={styles.signupScroll} contentContainerStyle={styles.signupScrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={signupScrollRef} style={styles.signupScroll} contentContainerStyle={styles.signupScrollContent} keyboardShouldPersistTaps="handled">
           {renderSignupStep()}
         </ScrollView>
       </Animated.View>
       <View style={styles.signupActions}>
+        {signupStep === 1 && !canProceed() && (
+          <Text style={styles.stepHint}>{t(selectedUserType ? "auth.pick_field_hint" : "auth.pick_type_hint")}</Text>
+        )}
         <TouchableOpacity style={[styles.primaryButton, (!canProceed() || loading) && styles.disabledButton]} onPress={handleNext} disabled={!canProceed() || loading}>
           {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{signupStep === TOTAL_STEPS - 1 ? t("auth.start") : t("common.next")}</Text>}
         </TouchableOpacity>
@@ -478,6 +486,7 @@ const styles = StyleSheet.create({
   backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: CLight.gray100, justifyContent: "center", alignItems: "center" },
   backButtonText: { fontSize: 20, color: CLight.gray700, fontWeight: "600" },
   signupScroll: { flex: 1 },
+  stepHint: { ...T.caption, color: CLight.pink, textAlign: "center", marginBottom: 8 },
   signupScrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
   signupActions: { paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 36 : 24, paddingTop: 12, backgroundColor: CLight.bg, borderTopWidth: 1, borderTopColor: CLight.gray200 },
   skipStepButton: { alignItems: "center", paddingVertical: 12 },

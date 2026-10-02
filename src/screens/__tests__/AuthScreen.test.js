@@ -82,8 +82,12 @@ describe("AuthScreen — 가입 우선 + 2단계", () => {
     expect(queryByText("auth.step_usertype")).toBeTruthy();
     expect(queryByText("auth.step_fields")).toBeTruthy();
 
+    // 버튼이 왜 안 눌리는지 알려준다: 유형 → 분야 순으로 남은 것 하나만
+    expect(queryByText("auth.pick_type_hint")).toBeTruthy();
     fireEvent.press(getByText("auth.usertype_aspiring"));
+    expect(queryByText("auth.pick_field_hint")).toBeTruthy();
     fireEvent.press(getByText("auth.field_acting"));
+    expect(queryByText("auth.pick_field_hint")).toBeNull();
 
     // 마지막 단계 → 버튼이 '시작'이고 누르면 가입 완료
     fireEvent.press(getByText("auth.start"));

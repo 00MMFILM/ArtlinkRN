@@ -139,6 +139,8 @@
     "usertype_fan_desc": "为喜爱的艺术家加油打气",
     "step_fields": "艺术领域",
     "step_fields_desc": "请选择所有感兴趣的领域",
+    "pick_type_hint": "请选择您的类型",
+    "pick_field_hint": "请在下方至少选择一个领域",
     "field_acting": "表演",
     "field_music": "音乐",
     "field_art": "美术",

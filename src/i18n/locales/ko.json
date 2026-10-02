@@ -139,6 +139,8 @@
     "usertype_fan_desc": "좋아하는 아티스트를 응원해요",
     "step_fields": "예술 분야",
     "step_fields_desc": "관심 있는 분야를 모두 선택해주세요",
+    "pick_type_hint": "유형을 골라 주세요",
+    "pick_field_hint": "아래에서 분야를 하나 이상 골라 주세요",
     "field_acting": "연기",
     "field_music": "음악",
     "field_art": "미술",

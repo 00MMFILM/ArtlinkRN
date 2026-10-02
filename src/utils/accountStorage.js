@@ -161,7 +161,9 @@ async function copyScopeData(sourceScope, targetScope) {
     }));
   const transferable = ["artlink-goals", "artlink-feedbacks",
     "artlink-portfolio-items", "artlink-portfolio-summary", "artlink-matching-posts", "artlink-matching-deleted",
-    "artlink-note-draft", "artlink-practice-log"];
+    "artlink-note-draft", "artlink-practice-log",
+    // 게스트로 이미 한 일을 가입 직후 다시 묻지 않는다: 약관 동의, 첫 체크인 닫음.
+    "artlink-eula-accepted", FIRST_CHECKIN_DONE_KEY];
   for (const key of transferable) {
     const sourceRaw = await AsyncStorage.getItem(scopedKey(key, sourceScope));
     if (sourceRaw === null) continue;

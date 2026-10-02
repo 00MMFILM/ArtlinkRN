@@ -9,7 +9,7 @@ import { ensureCheckinSession, saveCheckinNote } from "../services/checkinNote";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { FIELDS } from "../utils/helpers";
 
-// 가입 직후 한 번만 — 가입자의 63%가 노트 0건으로 끝난다(2026-09 실측). 홈의 여러 선택지 대신
+// 가입 직후·게스트 첫 진입에 한 번만 — 가입자의 63%가 노트 0건으로 끝난다(2026-09 실측). 홈의 여러 선택지 대신
 // "한 줄 남기기" 하나만 남겨 첫 기록을 끝내게 한다. 저장하거나 "나중에"를 누르면 다시 뜨지 않는다.
 export default function FirstCheckinScreen({ navigation }) {
   const { t, i18n } = useTranslation();

@@ -165,10 +165,40 @@ describe("가입 직후 첫 체크인 게이트", () => {
     await mount();
     await act(async () => { await current.handleAuth(null); await settle(); });
     await act(async () => { await current.handleSaveNote({ title: "guest work" }); await settle(); });
+    reminder.scheduleFirstNoteNudge.mockClear(); // 게스트 진입 때 건 예약은 별개 — 가입 시점만 본다
     mockUser = { id: "with-notes", user_metadata: { name: "member" } };
     await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
     expect(current.firstCheckinPending).toBe(false);
     expect(reminder.scheduleFirstNoteNudge).not.toHaveBeenCalled();
+  });
+
+  test("게스트로 처음 들어와도 첫 체크인이 걸린다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    expect(current.firstCheckinPending).toBe(true);
+    expect(reminder.scheduleFirstNoteNudge).toHaveBeenCalled();
+  });
+
+  test("게스트가 닫은 뒤 가입하면 다시 뜨지 않고, 약관도 다시 묻지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    await act(async () => { current.handleAcceptEula(); current.dismissFirstCheckin(); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
+    mockUser = { id: "from-guest", user_metadata: { name: "member" } };
+    await act(async () => { await current.handleAuth({ name: "member" }, { isSignup: true }); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
+    expect(current.eulaAccepted).toBe(true);
+  });
+
+  test("노트가 있는 게스트가 다시 들어오면 띄우지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    await act(async () => { await current.handleSaveNote({ title: "guest work" }); await settle(); });
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    expect(current.firstCheckinPending).toBe(false);
   });
 
   test("닫으면 계정 스코프 키로 기록돼 다시 뜨지 않는다", async () => {
