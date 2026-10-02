@@ -38,6 +38,9 @@ import FeedbackShareCard from "../components/FeedbackShareCard";
 import { buildCardProps, shareCardImage } from "../utils/shareCard";
 import { useTranslation } from "react-i18next";
 
+// 편집 모드에서 항목을 하나씩 뺄 수 있는 목록들
+const EDITABLE_LISTS = ["tags", "images", "voiceRecordings", "audioFiles", "pdfFiles"];
+
 export default function NoteDetailScreen({ route, navigation }) {
   const { t } = useTranslation();
   const { noteId } = route.params;
@@ -144,6 +147,8 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(note?.title || "");
   const [editContent, setEditContent] = useState(note?.content || "");
+  // 편집 중 태그·첨부 사본 — ×로 뺀 것은 "저장"을 눌러야 반영되고 "취소"하면 그대로다.
+  const [editMedia, setEditMedia] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [videoAiLoading, setVideoAiLoading] = useState(false);
@@ -419,17 +424,36 @@ export default function NoteDetailScreen({ route, navigation }) {
       return;
     }
     try {
-      await handleUpdateNote({ ...note, title: editTitle.trim(), content: editContent.trim() });
+      await handleUpdateNote({ ...note, ...editMedia, title: editTitle.trim(), content: editContent.trim() });
       setIsEditing(false);
     } catch (_) { showToast(t("common.save_failed_msg"), "error"); }
-  }, [editTitle, editContent, note, handleUpdateNote, showToast, t]);
+  }, [editTitle, editContent, editMedia, note, handleUpdateNote, showToast, t]);
 
   const handleStartEdit = useCallback(() => {
     if (pendingSaveBusyRef.current) return;
     setEditTitle(note?.title || "");
     setEditContent(note?.content || "");
+    setEditMedia(Object.fromEntries(EDITABLE_LISTS.map((key) => [key, note?.[key] || []])));
     setIsEditing(true);
   }, [note]);
+
+  const removeFromEdit = useCallback((key, index) => {
+    setExpandedImage(null);
+    setEditMedia((prev) => ({ ...prev, [key]: prev[key].filter((_, i) => i !== index) }));
+  }, []);
+  // 편집 중에만 보이는 × — 저장한 뒤에도 태그·첨부를 하나씩 뺄 수 있게 한다
+  const removeButton = (key, index, style) => isEditing && (
+    <TouchableOpacity
+      testID={`remove-${key}-${index}`}
+      accessibilityRole="button"
+      accessibilityLabel={t("common.delete")}
+      style={[styles.removeBtn, style]}
+      hitSlop={hitSlop}
+      onPress={() => removeFromEdit(key, index)}
+    >
+      <Text style={styles.removeBtnText}>×</Text>
+    </TouchableOpacity>
+  );
 
   const handleCancelEdit = useCallback(() => {
     setEditTitle(note?.title || "");
@@ -657,6 +681,9 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── Render ───
 
+  // 편집 중에는 사본을, 아니면 저장된 노트를 보여준다
+  const shown = isEditing && editMedia ? editMedia : note;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Top Bar */}
@@ -730,11 +757,12 @@ export default function NoteDetailScreen({ route, navigation }) {
           </Text>
 
           {/* Tags */}
-          {note.tags && note.tags.length > 0 && (
+          {shown.tags && shown.tags.length > 0 && (
             <View style={styles.tagsRow}>
-              {note.tags.map((tag) => (
-                <View key={tag} style={styles.tag}>
+              {shown.tags.map((tag, idx) => (
+                <View key={tag} style={[styles.tag, isEditing && styles.tagEditing]}>
                   <Text style={[T.micro, { color: CLight.pink }]}>#{tag}</Text>
+                  {removeButton("tags", idx, styles.removeBtnInline)}
                 </View>
               ))}
             </View>
@@ -856,10 +884,10 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // ─── Content Tab ───
   function renderContentTab() {
-    const noteImages = note.images || [];
-    const noteVoices = note.voiceRecordings || [];
-    const noteAudioFiles = note.audioFiles || [];
-    const notePdfFiles = note.pdfFiles || [];
+    const noteImages = shown.images || [];
+    const noteVoices = shown.voiceRecordings || [];
+    const noteAudioFiles = shown.audioFiles || [];
+    const notePdfFiles = shown.pdfFiles || [];
     const screenWidth = Dimensions.get("window").width;
 
     return (
@@ -916,6 +944,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                     ) : (
                       <Image source={{ uri: item.uri }} style={styles.detailThumbnail} />
                     )}
+                    {removeButton("images", idx, styles.removeBtnCorner)}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -937,6 +966,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                 <Text style={[T.small, { color: CLight.gray700, flex: 1 }]}>
                   {t("noteDetail.voice_label", { index: idx + 1 })} · {formatDuration(rec.duration)}
                 </Text>
+                {removeButton("voiceRecordings", idx)}
               </View>
             ))}
           </View>
@@ -956,6 +986,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                 <Text style={[T.small, { color: CLight.gray700, flex: 1 }]} numberOfLines={1}>
                   🎵 {file.name}
                 </Text>
+                {removeButton("audioFiles", idx)}
               </View>
             ))}
           </View>
@@ -975,6 +1006,7 @@ export default function NoteDetailScreen({ route, navigation }) {
                 <Text style={[T.small, { color: CLight.gray700, flex: 1 }]} numberOfLines={1}>
                   {file.name}
                 </Text>
+                {removeButton("pdfFiles", idx)}
               </View>
             ))}
           </View>
@@ -1371,6 +1403,11 @@ const styles = StyleSheet.create({
     borderBottomColor: CLight.pink,
     paddingBottom: 4,
   },
+  tagEditing: { flexDirection: "row", alignItems: "center" },
+  removeBtn: { width: 22, height: 22, borderRadius: 11, backgroundColor: CLight.gray700, alignItems: "center", justifyContent: "center" },
+  removeBtnInline: { width: 16, height: 16, borderRadius: 8, marginLeft: 6 },
+  removeBtnCorner: { position: "absolute", top: 4, right: 4 },
+  removeBtnText: { color: CLight.white, fontSize: 13, lineHeight: 15, fontWeight: "700" },
   tagsRow: {
     flexDirection: "row",
     flexWrap: "wrap",

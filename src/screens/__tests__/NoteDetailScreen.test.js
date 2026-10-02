@@ -675,3 +675,51 @@ describe("영상 재분석 소유자와 이전 영상", () => {
     expect(buildPreviousContext).toHaveBeenCalledWith(expect.objectContaining({ videoAnalysis: "영상의 분석", aiComment: undefined, aiScores: undefined }));
   });
 });
+
+// 1.11.9 — 저장한 노트에서도 태그·첨부를 하나씩 뺄 수 있다 (전엔 노트를 통째로 지워야 했다)
+describe("편집 중 태그·첨부 개별 삭제", () => {
+  const note = {
+    ...baseNote,
+    tags: ["호흡", "시선"],
+    images: [{ uri: "file:///a.jpg", type: "image" }, { uri: "file:///b.jpg", type: "image" }],
+    voiceRecordings: [{ uri: "file:///r.m4a", duration: 3 }],
+    pdfFiles: [{ uri: "file:///s.pdf", name: "대본.pdf" }],
+  };
+  const open = () => {
+    const ctx = buildCtx([note]);
+    useApp.mockReturnValue(ctx);
+    const view = render(<NoteDetailScreen route={{ params: { noteId: note.id } }} navigation={navigation} />);
+    return { ctx, ...view };
+  };
+
+  it("편집 전에는 삭제 버튼이 없다", () => {
+    const { queryByTestId } = open();
+    expect(queryByTestId("remove-tags-0")).toBeNull();
+    expect(queryByTestId("remove-images-0")).toBeNull();
+  });
+
+  it("×로 뺀 뒤 저장하면 남은 것만 저장된다", async () => {
+    const { ctx, getByText, getByTestId } = open();
+    fireEvent.press(getByText("\u270F\uFE0F"));
+    fireEvent.press(getByTestId("remove-tags-0"));
+    fireEvent.press(getByTestId("remove-images-0"));
+    fireEvent.press(getByTestId("remove-voiceRecordings-0"));
+    await act(async () => { fireEvent.press(getByText("common.save")); });
+    expect(ctx.handleUpdateNote).toHaveBeenCalledWith(expect.objectContaining({
+      tags: ["시선"],
+      images: [{ uri: "file:///b.jpg", type: "image" }],
+      voiceRecordings: [],
+      pdfFiles: [{ uri: "file:///s.pdf", name: "대본.pdf" }],
+    }));
+  });
+
+  it("취소하면 아무것도 지워지지 않는다", () => {
+    const { ctx, getByText, getByTestId, queryByText } = open();
+    fireEvent.press(getByText("\u270F\uFE0F"));
+    fireEvent.press(getByTestId("remove-tags-0"));
+    expect(queryByText("#호흡")).toBeNull();
+    fireEvent.press(getByText("common.cancel"));
+    expect(queryByText("#호흡")).toBeTruthy();
+    expect(ctx.handleUpdateNote).not.toHaveBeenCalled();
+  });
+});
