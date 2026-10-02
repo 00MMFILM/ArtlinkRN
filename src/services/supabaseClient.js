@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
 
 export const SUPABASE_URL = "https://ayvfdomoghppgrleugnk.supabase.co";
 export const SUPABASE_ANON_KEY =
@@ -25,6 +26,15 @@ supabase.auth.getSession().then(({ data }) => {
 supabase.auth.onAuthStateChange((_event, session) => {
   _accessToken = session?.access_token || null;
 });
+
+// RN에서는 앱이 백그라운드에 있으면 갱신 타이머가 돌지 않는다. 오래 뒀다 돌아오면 만료된 토큰을
+// 그대로 보내 서버가 로그인 사용자를 게스트로 취급한다(프리미엄인데 게스트 한도에 걸림).
+// 화면에 돌아올 때 갱신을 다시 켜면 만료 여부를 바로 확인해 새 토큰을 받는다.
+const syncAutoRefresh = (state) => {
+  if (state === "active") supabase.auth.startAutoRefresh();
+  else supabase.auth.stopAutoRefresh();
+};
+AppState.addEventListener("change", syncAutoRefresh);
 
 /** 현재 로그인 유저의 Supabase 액세스 토큰 (비로그인/게스트면 null) */
 export function getAuthToken() {

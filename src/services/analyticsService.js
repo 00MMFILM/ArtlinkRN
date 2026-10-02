@@ -183,6 +183,8 @@ export function computeArtistProfile(savedNotes, userProfile = {}) {
     featuredNotes, radarValues, radarLabels,
     fieldLabels: FIELD_LABELS, fieldEmojis: FIELD_EMOJIS,
     displayName: userProfile.name || "아티스트",
+    // 화면에서 현재 언어로 번역해 쓰는 분야 키(displayFields는 한국어 라벨 고정)
+    displayFieldKeys: topFields.length > 0 ? topFields.slice(0, 3).map(([f]) => f) : (userProfile.fields || []),
     displayFields: topFields.length > 0
       ? topFields.slice(0, 3).map(([f]) => FIELD_LABELS[f] || f).join(" · ")
       : (userProfile.fields || []).map((f) => FIELD_LABELS[f] || f).join(" · ") || "예술",

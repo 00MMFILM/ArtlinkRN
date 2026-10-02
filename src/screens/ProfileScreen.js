@@ -123,8 +123,7 @@ export default function ProfileScreen({ navigation }) {
 
   const {
     primaryField,
-    displayName,
-    displayFields,
+    displayFieldKeys,
     noteScore,
     aiScore,
     diversityScore,
@@ -266,12 +265,13 @@ export default function ProfileScreen({ navigation }) {
             </View>
           )}
           <Text style={[T.h2, { color: CLight.gray900, marginTop: 14 }]}>
-            {displayName}
+            {userProfile.name || t("common.artist")}
             {premium?.active ? <Text>{" "}<PremiumBadge size={18} label /></Text> : null}
           </Text>
-          {displayFields ? (
-            <Text style={[T.caption, { color: CLight.gray500, marginTop: 4 }]}>{displayFields}</Text>
-          ) : null}
+          {/* 이름·분야 기본값이 한국어로 고정돼 외국어 화면에도 "아티스트 / 예술"로 나오던 것 */}
+          <Text style={[T.caption, { color: CLight.gray500, marginTop: 4 }]}>
+            {(displayFieldKeys || []).map((f) => t("fields." + f, { defaultValue: f })).join(" · ") || t("fields.general")}
+          </Text>
           {/* Body info badges */}
           {(userProfile.gender || userProfile.birthDate || userProfile.height) ? (
             <View style={styles.bodyBadgeRow}>

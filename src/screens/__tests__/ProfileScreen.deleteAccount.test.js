@@ -80,3 +80,17 @@ it("소유자 불명 기록 안내는 복구 화면으로 들어간다", () => {
   fireEvent.press(utils.getByText("profile.legacy_records_open"));
   expect(navigation.navigate).toHaveBeenCalledWith("LegacyRecovery");
 });
+
+// 1.11.9 — 이름·분야 기본값이 한국어로 고정돼 외국어 화면에도 "아티스트 / 예술"로 나오던 문제
+it("이름·분야는 현재 언어의 문구로 표시한다", () => {
+  const base = useApp();
+  useApp.mockReturnValue({ ...base, userProfile: {}, artistProfile: { ...base.artistProfile, displayName: "아티스트", displayFields: "예술", displayFieldKeys: [] } });
+  const guest = render(<ProfileScreen navigation={buildNavigation()} />);
+  expect(guest.queryByText("common.artist")).toBeTruthy();
+  expect(guest.queryByText("fields.general")).toBeTruthy();
+  expect(guest.queryByText("아티스트")).toBeNull();
+
+  useApp.mockReturnValue({ ...base, artistProfile: { ...base.artistProfile, displayFields: "연기 · 음악", displayFieldKeys: ["acting", "music"] } });
+  const member = render(<ProfileScreen navigation={buildNavigation()} />);
+  expect(member.queryByText("fields.acting · fields.music")).toBeTruthy();
+});
