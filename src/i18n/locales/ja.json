@@ -140,7 +140,7 @@
     "step_fields": "芸術分野",
     "step_fields_desc": "興味のある分野をすべて選択してください",
     "pick_type_hint": "タイプを選んでください",
-    "pick_field_hint": "下から分野を1つ以上選んでください",
+    "pick_field_hint": "分野を1つ以上選んでください",
     "field_acting": "演技",
     "field_music": "音楽",
     "field_art": "美術",

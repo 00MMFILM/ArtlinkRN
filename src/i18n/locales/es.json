@@ -140,7 +140,7 @@
     "step_fields": "Disciplina artística",
     "step_fields_desc": "Selecciona todas las disciplinas que te interesen",
     "pick_type_hint": "Elige qué tipo de artista eres",
-    "pick_field_hint": "Elige al menos una disciplina abajo",
+    "pick_field_hint": "Elige al menos una disciplina",
     "field_acting": "Actuación",
     "field_music": "Música",
     "field_art": "Artes visuales",

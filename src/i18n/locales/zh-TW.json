@@ -140,7 +140,7 @@
     "step_fields": "藝術領域",
     "step_fields_desc": "請選擇所有您感興趣的領域",
     "pick_type_hint": "請選擇您的類型",
-    "pick_field_hint": "請在下方至少選擇一個領域",
+    "pick_field_hint": "請至少選擇一個領域",
     "field_acting": "表演",
     "field_music": "音樂",
     "field_art": "美術",

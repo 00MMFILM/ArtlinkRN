@@ -140,7 +140,7 @@
     "step_fields": "Art fields",
     "step_fields_desc": "Select all fields you are interested in",
     "pick_type_hint": "Pick what kind of artist you are",
-    "pick_field_hint": "Pick at least one field below",
+    "pick_field_hint": "Pick at least one field",
     "field_acting": "Acting",
     "field_music": "Music",
     "field_art": "Visual art",
