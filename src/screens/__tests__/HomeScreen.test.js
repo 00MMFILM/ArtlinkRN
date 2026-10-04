@@ -478,7 +478,7 @@ describe("growth home — one useful next action", () => {
     const screen = render(<HomeScreen navigation={navigation} />);
     await act(async () => {});
     fireEvent.press(screen.getByTestId("home-existing-material"));
-    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: { field: "film" } });
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: { field: "film", intent: "material" } });
     expect(trackFunnelEvent).toHaveBeenCalledWith("home_material_tapped", "ko");
     expect(startPractice).not.toHaveBeenCalled();
     expect(completePractice).not.toHaveBeenCalled();

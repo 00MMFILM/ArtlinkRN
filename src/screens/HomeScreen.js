@@ -72,7 +72,7 @@ export default function HomeScreen({ navigation }) {
         style={styles.existingMaterial}
         onPress={() => {
           trackFunnelEvent("home_material_tapped", i18n.language);
-          navigation.navigate("NoteCreate", { prefill: { field: userProfile?.fields?.find(f => f === "acting" || f === "film") || "acting" } });
+          navigation.navigate("NoteCreate", { prefill: { field: userProfile?.fields?.find(f => f === "acting" || f === "film") || "acting", intent: "material" } });
         }}
       >
         <Text style={styles.existingMaterialText}>{t("studio.existing_material")} →</Text>

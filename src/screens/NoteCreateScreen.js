@@ -1100,6 +1100,21 @@ export default function NoteCreateScreen({ navigation, route }) {
           </View>
         ) : focus ? <View style={styles.focusBanner}><Text style={T.small}>{t("focus.current")}: {focus}</Text></View> : null}
 
+        {/* 홈의 "이미 연습한 영상·녹음이 있어요"로 들어왔다 — 빈 양식 대신 올릴 곳부터 보여준다.
+            (1.11.9 실화면: 안내 없는 빈 노트가 열리고, AI 분석을 누르면 "내용을 먼저 작성"이라고만 했다) */}
+        {prefill?.intent === "material" && !hasAttachments ? (
+          <View style={styles.materialCard}>
+            <Text style={[T.title, { color: CLight.gray900 }]}>{t("noteCreate.material_title")}</Text>
+            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>{t("noteCreate.material_desc")}</Text>
+            <TouchableOpacity style={styles.materialBtn} onPress={handlePickVideo} disabled={aiBusy || saving} activeOpacity={0.8}>
+              <Text style={styles.materialBtnText}>{t("noteCreate.material_pick_video")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.materialBtn, styles.materialBtnAlt]} onPress={handlePickAudio} disabled={aiBusy || saving} activeOpacity={0.8}>
+              <Text style={[styles.materialBtnText, { color: CLight.pink }]}>{t("noteCreate.material_pick_audio")}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* Title Input */}
         <TextInput
           style={styles.titleInput}
@@ -1475,6 +1490,10 @@ const styles = StyleSheet.create({
   },
 
   // Title
+  materialCard: { backgroundColor: CLight.surface, borderRadius: 16, padding: 18, marginBottom: 18 },
+  materialBtn: { height: 48, borderRadius: 12, backgroundColor: CLight.pink, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  materialBtnAlt: { backgroundColor: CLight.surface, borderWidth: 1, borderColor: CLight.pink },
+  materialBtnText: { fontSize: 15, fontWeight: "700", color: CLight.white },
   titleInput: {
     ...T.h2,
     color: CLight.gray900,

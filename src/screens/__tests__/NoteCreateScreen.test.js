@@ -1366,3 +1366,28 @@ describe("녹음 중 앱이 백그라운드로 가면", () => {
     expect(utils.getByText("noteCreate.record")).toBeTruthy();
   });
 });
+
+// 1.11.10 — 홈의 "이미 연습한 영상·녹음이 있어요"로 들어오면 빈 양식 대신 올릴 곳부터 보여준다
+describe("자료 올리기 안내", () => {
+  beforeEach(resetAll);
+  const material = { params: { prefill: { field: "acting", intent: "material" } } };
+
+  it("자료를 들고 온 사람에게 안내와 고르기 버튼이 보이고, 영상을 고르면 사라진다", async () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={material} />);
+    expect(utils.queryByText("noteCreate.material_title")).toBeTruthy();
+    expect(utils.queryByText("noteCreate.material_pick_audio")).toBeTruthy();
+
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.material_pick_video")); });
+    await waitFor(() => expect(utils.queryByText("noteCreate.material_title")).toBeNull());
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalled();
+    // 영상이 붙었으니 다음 할 일(영상 AI 분석)이 보인다
+    expect(utils.queryByText("noteCreate.video_ai_analyze")).toBeTruthy();
+  });
+
+  it("일반 새 노트에는 안내가 없다", () => {
+    useApp.mockReturnValue(buildCtx("u1"));
+    const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    expect(utils.queryByText("noteCreate.material_title")).toBeNull();
+  });
+});
