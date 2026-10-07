@@ -55,14 +55,38 @@ export const CAREER_TYPES = [
   { key: "other", labelKey: "careerTypes.other" },
 ];
 
+// 생년월일을 "YYYY-MM-DD"로 맞춘다. 못 읽으면 null.
+// 입력 칸이 자유 입력이라 실제 저장값이 20010119·2009.04.12·2009/06/21·010611·14-05-1997처럼 제각각이었고,
+// 그러면 나이가 빈칸("세")으로 나오고 대시보드 나이 필터에서도 빠졌다(2026-10-07 실측: 형식이 다른 프로필 29건).
+export function normalizeBirthDate(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return null;
+  let y, m, d;
+  if (/^\d{8}$/.test(raw)) [y, m, d] = [raw.slice(0, 4), raw.slice(4, 6), raw.slice(6, 8)];
+  else if (/^\d{6}$/.test(raw)) {
+    const yy = Number(raw.slice(0, 2));
+    y = String((yy > new Date().getFullYear() % 100 ? 1900 : 2000) + yy);
+    [m, d] = [raw.slice(2, 4), raw.slice(4, 6)];
+  } else {
+    const parts = raw.split(/[^0-9]+/).filter(Boolean);
+    if (parts.length !== 3) return null;
+    if (parts[0].length === 4) [y, m, d] = parts;
+    else if (parts[2].length === 4) [d, m, y] = parts;
+    else return null;
+  }
+  const [yn, mn, dn] = [Number(y), Number(m), Number(d)];
+  const date = new Date(yn, mn - 1, dn);
+  if (yn < 1900 || date > new Date() || date.getFullYear() !== yn || date.getMonth() !== mn - 1 || date.getDate() !== dn) return null;
+  return `${yn}-${String(mn).padStart(2, "0")}-${String(dn).padStart(2, "0")}`;
+}
+
 export function calculateAge(birthDate) {
-  if (!birthDate) return null;
-  const birth = new Date(birthDate);
-  if (isNaN(birth.getTime())) return null;
+  const iso = normalizeBirthDate(birthDate);
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
   const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  let age = today.getFullYear() - y;
+  if (today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d)) age--;
   return age > 0 ? age : null;
 }
 

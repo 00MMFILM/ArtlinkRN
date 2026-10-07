@@ -448,6 +448,7 @@
     "public_settings": "Visibility settings",
     "profile_public": "Public profile",
     "profile_public_desc": "Industry professionals can view your profile on the B2B dashboard.",
+    "public_guest_notice": "Only signed-up accounts appear on the dashboard. Sign up and the profile you filled in carries over.",
     "ai_training": "Provide AI training data",
     "ai_training_desc": "Practice notes and AI feedback are collected anonymously to improve AI quality.",
     "name_required": "Name required",

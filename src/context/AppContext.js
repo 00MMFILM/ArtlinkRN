@@ -625,13 +625,21 @@ export function AppProvider({ children }) {
         if (!user?.id) throw new Error("AUTH_REQUIRED");
         if (!isCurrent()) return;
         const scope = accountScope(user.id);
-        if (isGuestScope(previousScope)) await transferGuestData(previousScope, scope);
+        // 게스트로 채운 프로필(사진·신체 정보·공개 설정)은 가입할 때만 새 계정으로 가져온다.
+        // 가입 양식은 이름·이메일·유형·분야만 받고 나머지를 빈값으로 보내서, 그대로 두면 채운 프로필이 전부 지워진다.
+        let guestProfile = null;
+        if (isGuestScope(previousScope)) {
+          const claimed = await transferGuestData(previousScope, scope);
+          if (claimed && isSignup) guestProfile = await strictStorageGet(STORAGE_KEYS.PROFILE, previousScope).catch(() => null);
+        }
         if (generation !== accountGenerationRef.current) return;
         await setStorageScope(scope, { isCurrent });
         if (!isCurrent()) return;
         const existing = await strictStorageGet(STORAGE_KEYS.PROFILE, scope);
         const { _mergeExisting, ...loginData } = profileData;
-        const finalProfile = { ...(existing || {}), ...loginData, authUserId: user.id };
+        const SIGNUP_FORM_KEYS = ["name", "email", "userType", "fields"];
+        const carried = guestProfile ? Object.fromEntries(Object.entries(guestProfile).filter(([key]) => !SIGNUP_FORM_KEYS.includes(key) && key !== "authUserId")) : {};
+        const finalProfile = { ...(existing || {}), ...loginData, ...carried, authUserId: user.id };
         if (_mergeExisting) finalProfile.name = existing?.name || user.user_metadata?.name || loginData.email?.split("@")[0] || "";
         if (!await safeStorageSet(STORAGE_KEYS.PROFILE, finalProfile, scope)) throw new Error("LOCAL_STORAGE_WRITE_FAILED");
         await hydrateAccount(scope, generation);

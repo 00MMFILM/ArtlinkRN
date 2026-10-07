@@ -217,3 +217,34 @@ describe("isDeadlineExpired / daysUntilDeadline (만료 필터 · D-day)", () =>
     expect(JSON.parse(result)).toEqual({ fall: [1, 0, false], spring: [1, -1], leap: 2 });
   });
 });
+
+// 1.11.10 — 생년월일이 자유 입력이라 저장된 형식이 제각각이었다 (실제 DB 값들)
+describe("normalizeBirthDate · calculateAge", () => {
+  const { normalizeBirthDate, calculateAge } = require("../helpers");
+
+  it.each([
+    ["20010119", "2001-01-19"],
+    ["2001-01-19", "2001-01-19"],
+    ["2009.04.12", "2009-04-12"],
+    ["2009/06/21", "2009-06-21"],
+    ["2010 -7-23", "2010-07-23"],
+    ["14-05-1997", "1997-05-14"],
+    ["010611", "2001-06-11"],
+    ["790830", "1979-08-30"],
+  ])("%s → %s", (input, expected) => {
+    expect(normalizeBirthDate(input)).toBe(expected);
+  });
+
+  it.each(["", null, undefined, "22 Januari", "20011340", "2001-02-30", "29991231", "abc"])("읽을 수 없는 값 %p는 null", (input) => {
+    expect(normalizeBirthDate(input)).toBeNull();
+    expect(calculateAge(input)).toBeNull();
+  });
+
+  it("형식이 달라도 같은 나이를 낸다", () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 9, 7));
+    expect(calculateAge("20010119")).toBe(25);
+    expect(calculateAge("2001-01-19")).toBe(25);
+    expect(calculateAge("2001.10.08")).toBe(24); // 생일 하루 전
+    jest.useRealTimers();
+  });
+});

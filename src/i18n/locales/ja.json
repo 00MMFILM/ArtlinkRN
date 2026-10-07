@@ -448,6 +448,7 @@
     "public_settings": "公開設定",
     "profile_public": "プロフィール公開",
     "profile_public_desc": "業界関係者がB2Bダッシュボードでプロフィールを閲覧できます。",
+    "public_guest_notice": "ダッシュボードには登録済みアカウントのみ表示されます。登録すると、入力したプロフィールはそのまま引き継がれます。",
     "ai_training": "AI学習データの提供",
     "ai_training_desc": "練習ノートとAIフィードバックを匿名で収集し、AI品質の改善に活用します。",
     "name_required": "名前が必要です",

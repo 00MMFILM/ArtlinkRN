@@ -448,6 +448,7 @@
     "public_settings": "公开设置",
     "profile_public": "公开个人资料",
     "profile_public_desc": "业内人士可在B2B仪表板上查看资料。",
+    "public_guest_notice": "只有已注册的账号会显示在仪表板上。注册后，你填写的资料会原样保留。",
     "ai_training": "提供AI训练数据",
     "ai_training_desc": "将匿名收集练习笔记和AI反馈，用于改善AI质量。",
     "name_required": "需要姓名",

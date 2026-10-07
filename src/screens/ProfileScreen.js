@@ -290,7 +290,7 @@ export default function ProfileScreen({ navigation }) {
                   </Text>
                 </View>
               ) : null}
-              {userProfile.birthDate ? (
+              {calculateAge(userProfile.birthDate) ? (
                 <View style={styles.bodyBadge}>
                   <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}{t("common.years_old")}</Text>
                 </View>

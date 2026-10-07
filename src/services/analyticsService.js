@@ -1,5 +1,5 @@
 import { FIELD_LABELS, FIELD_EMOJIS } from "../constants/theme";
-import { toLocalDateKey } from "../utils/helpers";
+import { toLocalDateKey, calculateAge } from "../utils/helpers";
 
 // 마일리지 레벨 임계값(서버 artlink-server와 반드시 동일한 공식 — 임의 변경 금지)
 export function thresholdForLevel(level) {
@@ -265,16 +265,8 @@ export function computeMatchPercent(project, artistProfile, userProfile, portfol
   return Math.min(100, score);
 }
 
-function _calculateAge(birthDate) {
-  if (!birthDate) return null;
-  const birth = new Date(birthDate);
-  if (isNaN(birth.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age > 0 ? age : null;
-}
+// 나이 계산은 한 곳(helpers.calculateAge)에서만 한다 — 생년월일 형식이 제각각이라 따로 두면 또 어긋난다
+const _calculateAge = calculateAge;
 
 // Recommend postings for a user (forward matching)
 export function getRecommendedPostings(userProfile, artistProfile, portfolioItems, allPostings) {

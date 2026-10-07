@@ -241,7 +241,7 @@ export default function PortfolioScreen({ navigation }) {
                   <Text style={styles.bodyBadgeText}>{t("gender." + userProfile.gender)}</Text>
                 </View>
               ) : null}
-              {userProfile.birthDate ? (
+              {calculateAge(userProfile.birthDate) ? (
                 <View style={styles.bodyBadge}>
                   <Text style={styles.bodyBadgeText}>{calculateAge(userProfile.birthDate)}{t("common.years_old")}</Text>
                 </View>

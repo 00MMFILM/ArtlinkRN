@@ -25,6 +25,7 @@ import { CLight, T, FIELD_EMOJIS } from "../constants/theme";
 import {
   FIELDS, GENDER_OPTIONS, SPECIALTY_SUGGESTIONS, CAREER_TYPES,
   calculateAge,
+  normalizeBirthDate,
 } from "../utils/helpers";
 import TopBar from "../components/TopBar";
 
@@ -32,7 +33,7 @@ const GENDER_EMOJIS = { male: "\uD83D\uDC68", female: "\uD83D\uDC69", other: "\u
 
 export default function ProfileEditScreen({ navigation }) {
   const { t } = useTranslation();
-  const { userProfile, handleUpdateProfile, dataConsent, handleSetDataConsent } = useApp();
+  const { userProfile, handleUpdateProfile, dataConsent, handleSetDataConsent, setAuthState } = useApp();
 
   const [name, setName] = useState(userProfile.name || "");
   const [gender, setGender] = useState(userProfile.gender || "");
@@ -170,7 +171,7 @@ export default function ProfileEditScreen({ navigation }) {
       const saved = await handleUpdateProfile({
         name: name.trim(),
         gender,
-        birthDate: birthDate.trim(),
+        birthDate: normalizeBirthDate(birthDate) || birthDate.trim(),
         height: height ? Number(height) : null,
         weight: weight ? Number(weight) : null,
         heightPrivate,
@@ -190,6 +191,13 @@ export default function ProfileEditScreen({ navigation }) {
       if (saved === false) return;
       hasChangesRef.current = false;
       navigation.goBack();
+      // 대시보드는 가입한 계정만 보여준다. 게스트가 공개를 켜도 안 보이는데 화면은 그 사실을 말해 주지 않았다.
+      if (!userProfile.authUserId && profilePublic) {
+        Alert.alert(t("profileEdit.profile_public"), t("profileEdit.public_guest_notice"), [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("premium.guest_trial_cta"), onPress: () => setAuthState("auth") },
+        ]);
+      }
     } catch (e) {
       Alert.alert(
         t(mediaReady ? "common.save_failed_title" : "common.media_save_failed_title"),
@@ -199,7 +207,7 @@ export default function ProfileEditScreen({ navigation }) {
       photoBusyRef.current = false;
       setPhotoBusy(false);
     }
-  }, [name, gender, birthDate, height, weight, heightPrivate, weightPrivate, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation, t]);
+  }, [name, gender, birthDate, height, weight, heightPrivate, weightPrivate, specialties, school, location, agency, bio, career, selectedFields, profilePublic, photos, handleUpdateProfile, navigation, userProfile.authUserId, setAuthState, t]);
 
   const handleAddCareer = () => {
     if (!careerTitle.trim()) return;
@@ -438,6 +446,9 @@ export default function ProfileEditScreen({ navigation }) {
               <Text style={[T.micro, { color: CLight.gray500, lineHeight: 18 }]}>
                 {t("profileEdit.profile_public_desc")}
               </Text>
+              {!userProfile.authUserId ? (
+                <Text style={[T.micro, { color: CLight.pink, lineHeight: 18, marginTop: 4 }]}>{t("profileEdit.public_guest_notice")}</Text>
+              ) : null}
               {/* 서버가 받아들이기 전까지는 적용됐다고 단정하지 않는다 */}
               {userProfile.visibilityPending ? (
                 <Text style={[T.micro, { color: CLight.pink, lineHeight: 18, marginTop: 4 }]}>

@@ -448,6 +448,7 @@
     "public_settings": "Configuración de visibilidad",
     "profile_public": "Perfil público",
     "profile_public_desc": "Los profesionales del sector podrán ver tu perfil en el panel B2B.",
+    "public_guest_notice": "Solo las cuentas registradas aparecen en el panel. Al registrarte, el perfil que completaste se conserva.",
     "ai_training": "Contribuir a los datos de entrenamiento de IA",
     "ai_training_desc": "Las notas de práctica y los comentarios de IA se recopilarán de forma anónima para mejorar la calidad de la IA.",
     "name_required": "Nombre requerido",

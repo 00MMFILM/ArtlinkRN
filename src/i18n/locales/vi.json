@@ -448,6 +448,7 @@
     "public_settings": "Cài đặt công khai",
     "profile_public": "Công khai hồ sơ",
     "profile_public_desc": "Người trong ngành có thể xem hồ sơ của bạn trên bảng điều khiển B2B.",
+    "public_guest_notice": "Chỉ tài khoản đã đăng ký mới hiển thị trên bảng điều khiển. Đăng ký xong, hồ sơ bạn đã điền sẽ được giữ nguyên.",
     "ai_training": "Cung cấp dữ liệu học AI",
     "ai_training_desc": "Ghi chú luyện tập và phản hồi AI được thu thập ẩn danh để cải thiện chất lượng AI.",
     "name_required": "Cần tên",

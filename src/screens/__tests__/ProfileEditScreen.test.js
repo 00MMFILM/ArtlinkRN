@@ -222,3 +222,41 @@ describe("ProfileEditScreen — 공개 여부를 직접 선택했을 때만 저�
     await waitFor(() => expect(ctx.handleUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({ profilePublic: false })));
   });
 });
+
+// 1.11.10 — 게스트가 공개를 켜도 대시보드에 안 보이는데 화면이 말해 주지 않던 문제 + 생년월일 형식
+describe("ProfileEditScreen — 게스트 공개 안내 · 생년월일 정규화", () => {
+  const ctxFor = (profile) => ({
+    userProfile: { name: "안지민", fields: ["acting"], photos: [], specialties: [], career: [], ...profile },
+    handleUpdateProfile: jest.fn(async () => true),
+    dataConsent: false, handleSetDataConsent: jest.fn(), setAuthState: jest.fn(),
+  });
+  const navigation = { goBack: jest.fn(), addListener: jest.fn(() => jest.fn()) };
+  beforeEach(() => { jest.clearAllMocks(); jest.spyOn(Alert, "alert").mockImplementation(() => {}); });
+
+  it("게스트에게는 가입해야 보인다는 안내가 보이고, 가입한 사용자에게는 없다", () => {
+    useApp.mockReturnValue(ctxFor({}));
+    expect(render(<ProfileEditScreen navigation={navigation} />).queryByText("profileEdit.public_guest_notice")).toBeTruthy();
+    useApp.mockReturnValue(ctxFor({ authUserId: "u1" }));
+    expect(render(<ProfileEditScreen navigation={navigation} />).queryByText("profileEdit.public_guest_notice")).toBeNull();
+  });
+
+  it("게스트가 공개를 켠 채 저장하면 가입을 안내하고, 누르면 가입 화면으로 간다", async () => {
+    const ctx = ctxFor({ profilePublic: true });
+    useApp.mockReturnValue(ctx);
+    const utils = render(<ProfileEditScreen navigation={navigation} />);
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    const call = Alert.alert.mock.calls.find((c) => c[1] === "profileEdit.public_guest_notice");
+    expect(call).toBeTruthy();
+    call[2].find((b) => b.text === "premium.guest_trial_cta").onPress();
+    expect(ctx.setAuthState).toHaveBeenCalledWith("auth");
+  });
+
+  it("생년월일을 20010119로 적어도 2001-01-19로 저장한다", async () => {
+    const ctx = ctxFor({ authUserId: "u1", birthDate: "20010119" });
+    useApp.mockReturnValue(ctx);
+    const utils = render(<ProfileEditScreen navigation={navigation} />);
+    await act(async () => { fireEvent.press(utils.getByText("common.save")); });
+    expect(ctx.handleUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({ birthDate: "2001-01-19" }));
+    expect(Alert.alert.mock.calls.some((c) => c[1] === "profileEdit.public_guest_notice")).toBe(false);
+  });
+});

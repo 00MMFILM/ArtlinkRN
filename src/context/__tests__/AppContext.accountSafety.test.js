@@ -201,6 +201,38 @@ describe("가입 직후 첫 체크인 게이트", () => {
     expect(current.firstCheckinPending).toBe(false);
   });
 
+  // 1.11.10 — 게스트로 프로필(사진·키·공개 설정)을 채운 뒤 가입하면 가입 양식의 빈값이 전부 덮어썼다.
+  // 서버에도 빈 프로필이 올라가 대시보드에서 사라진다(2026-10-07 제보: 공개했는데 B2B에 안 뜸).
+  test("게스트가 채운 프로필은 가입해도 남고, 가입 양식에 적은 값만 바뀐다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    await act(async () => {
+      await current.handleUpdateProfile({ name: "게스트이름", gender: "male", birthDate: "2001-01-19", height: 170, photos: ["file://me.jpg"], profilePublic: true });
+      await settle();
+    });
+    mockUser = { id: "guest-to-member", user_metadata: { name: "안지민" } };
+    const signupForm = { name: "안지민", email: "a@example.test", userType: "aspiring", fields: ["acting"], gender: "", birthDate: "", height: null, photos: [], profilePublic: false };
+    await act(async () => { await current.handleAuth(signupForm, { isSignup: true }); await settle(); });
+    await act(settle);
+    expect(current.userProfile).toEqual(expect.objectContaining({
+      authUserId: "guest-to-member", name: "안지민", email: "a@example.test", fields: ["acting"],
+      gender: "male", birthDate: "2001-01-19", height: 170, photos: ["file://me.jpg"], profilePublic: true,
+    }));
+  });
+
+  test("로그인은 게스트 프로필을 기존 계정에 섞지 않는다", async () => {
+    await disk.clear(); mockUser = null;
+    await mount();
+    await act(async () => { await current.handleAuth(null); await settle(); });
+    await act(async () => { await current.handleUpdateProfile({ height: 170, photos: ["file://guest.jpg"] }); await settle(); });
+    mockUser = { id: "returning-2", user_metadata: { name: "기존회원" } };
+    await act(async () => { await current.handleAuth({ email: "r@example.test", _mergeExisting: true }); await settle(); });
+    await act(settle);
+    expect(current.userProfile.height).toBeUndefined();
+    expect(current.userProfile.photos).toBeUndefined();
+  });
+
   test("닫으면 계정 스코프 키로 기록돼 다시 뜨지 않는다", async () => {
     await disk.clear(); mockUser = null;
     await mount();

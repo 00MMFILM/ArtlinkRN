@@ -448,6 +448,7 @@
     "public_settings": "Pengaturan Privasi",
     "profile_public": "Profil Publik",
     "profile_public_desc": "Pelaku industri dapat melihat profil Anda di dasbor B2B.",
+    "public_guest_notice": "Hanya akun terdaftar yang tampil di dasbor. Setelah mendaftar, profil yang sudah Anda isi tetap tersimpan.",
     "ai_training": "Berikan Data Pelatihan AI",
     "ai_training_desc": "Catatan latihan dan umpan balik AI dikumpulkan secara anonim untuk meningkatkan kualitas AI.",
     "name_required": "Nama Diperlukan",
