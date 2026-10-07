@@ -1,10 +1,10 @@
 {
   "ko": "- 첫 기록을 남기면 내일 같은 시간에 연습 알림을 받을지 고를 수 있습니다. 알림은 프로필에서 언제든 끌 수 있습니다.\n- 홈에서 「이미 연습한 영상·녹음이 있어요」를 누르면 영상이나 녹음을 바로 올릴 수 있게 안내합니다.",
   "en-US": "- After your first entry, you can choose to get a practice reminder at the same time tomorrow. You can turn it off anytime in Profile.\n- Tapping \"I already have a video or recording\" on Home now takes you straight to adding your video or recording.",
-  "ja": "- 最初の記録を残すと、明日の同じ時間に練習リマインダーを受け取るか選べます。リマインダーはプロフィールでいつでもオフにできます。\n- ホームの「練習した動画・録音があります」をタップすると、動画や録音をすぐにアップできるよう案内します。",
-  "zh-Hans": "- 留下第一条记录后，可以选择是否在明天同一时间收到练习提醒。提醒可随时在个人资料中关闭。\n- 在首页点击“我已有练习视频或录音”，会直接引导你上传视频或录音。",
-  "zh-Hant": "- 留下第一筆記錄後，可以選擇是否在明天同一時間收到練習提醒。提醒可隨時在個人檔案中關閉。\n- 在首頁點選「我已有練習影片或錄音」，會直接引導你上傳影片或錄音。",
-  "th": "- หลังบันทึกครั้งแรก คุณเลือกรับการเตือนฝึกซ้อมเวลาเดียวกันในวันพรุ่งนี้ได้ และปิดได้ทุกเมื่อในโปรไฟล์\n- แตะ \"ฉันมีวิดีโอหรือเสียงบันทึกแล้ว\" ที่หน้าแรก เพื่อไปอัปโหลดวิดีโอหรือเสียงบันทึกได้ทันที",
-  "vi": "- Sau ghi chú đầu tiên, bạn có thể chọn nhận nhắc luyện tập vào cùng giờ ngày mai. Có thể tắt bất cứ lúc nào trong Hồ sơ.\n- Chạm \"Tôi đã có video hoặc bản ghi âm\" ở Trang chủ để tải video hoặc bản ghi âm lên ngay.",
-  "id": "- Setelah catatan pertama, Anda bisa memilih menerima pengingat latihan pada jam yang sama besok. Pengingat bisa dimatikan kapan saja di Profil.\n- Mengetuk \"Saya sudah punya video atau rekaman\" di Beranda kini langsung mengarahkan Anda untuk mengunggah video atau rekaman."
+  "ja": "- 最初の記録を残すと、明日の同じ時間に練習リマインダーを受け取るか選べます。リマインダーはプロフィールでいつでもオフにできます。\n- ホームから練習済みの動画や録音を持ち込むとき、すぐにアップできるよう案内します。",
+  "zh-Hans": "- 留下第一条记录后，可以选择是否在明天同一时间收到练习提醒。提醒可随时在个人资料中关闭。\n- 从首页带入已有的练习视频或录音时，会直接引导你上传。",
+  "zh-Hant": "- 留下第一筆記錄後，可以選擇是否在明天同一時間收到練習提醒。提醒可隨時在個人檔案中關閉。\n- 從首頁帶入已有的練習影片或錄音時，會直接引導你上傳。",
+  "th": "- หลังบันทึกครั้งแรก คุณเลือกรับการเตือนฝึกซ้อมเวลาเดียวกันในวันพรุ่งนี้ได้ และปิดได้ทุกเมื่อในโปรไฟล์\n- เมื่อนำวิดีโอหรือเสียงบันทึกที่มีอยู่แล้วเข้ามาจากหน้าแรก แอปจะพาไปอัปโหลดได้ทันที",
+  "vi": "- Sau ghi chú đầu tiên, bạn có thể chọn nhận nhắc luyện tập vào cùng giờ ngày mai. Có thể tắt bất cứ lúc nào trong Hồ sơ.\n- Khi mang video hoặc bản ghi âm có sẵn vào từ Trang chủ, ứng dụng sẽ dẫn bạn tải lên ngay.",
+  "id": "- Setelah catatan pertama, Anda bisa memilih menerima pengingat latihan pada jam yang sama besok. Pengingat bisa dimatikan kapan saja di Profil.\n- Saat membawa video atau rekaman yang sudah ada dari Beranda, aplikasi langsung mengarahkan Anda untuk mengunggahnya."
 }
