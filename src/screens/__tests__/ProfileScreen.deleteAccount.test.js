@@ -2,10 +2,15 @@
 // 서버가 지우지 못한 항목은 안내에 그대로 노출.
 import React from "react";
 import { Alert } from "react-native";
-import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import ProfileScreen from "../ProfileScreen";
 import { useApp } from "../../context/AppContext";
 
+jest.mock("../../services/reminderService", () => ({
+  offerPracticeReminder: jest.fn(async () => true),
+  isDailyReminderOn: jest.fn(async () => false),
+  cancelDailyPracticeReminder: jest.fn(async () => true),
+}));
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k) => k, i18n: { language: "ko" } }) }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => {
@@ -93,4 +98,19 @@ it("이름·분야는 현재 언어의 문구로 표시한다", () => {
   useApp.mockReturnValue({ ...base, artistProfile: { ...base.artistProfile, displayFields: "연기 · 음악", displayFieldKeys: ["acting", "music"] } });
   const member = render(<ProfileScreen navigation={buildNavigation()} />);
   expect(member.queryByText("fields.acting · fields.music")).toBeTruthy();
+});
+
+// 1.11.10 — 매일 연습 알림을 앱 안에서 끌 수 있다 (전에는 OS 설정에서만)
+it("알림이 켜져 있을 때만 끄기 줄이 보이고, 누르면 꺼진다", async () => {
+  const reminder = require("../../services/reminderService");
+  const off = render(<ProfileScreen navigation={buildNavigation()} />);
+  await act(async () => {});
+  expect(off.queryByText("profile.reminder_label")).toBeNull();
+
+  reminder.isDailyReminderOn.mockResolvedValue(true);
+  const on = render(<ProfileScreen navigation={buildNavigation()} />);
+  await waitFor(() => expect(on.queryByText("profile.reminder_label")).toBeTruthy());
+  await act(async () => { fireEvent.press(on.getByText("profile.reminder_label")); });
+  expect(reminder.cancelDailyPracticeReminder).toHaveBeenCalled();
+  expect(on.queryByText("profile.reminder_label")).toBeNull();
 });

@@ -2,7 +2,7 @@
 // 수락 시 "그 시각"에 매일 로컬 알림. (Calm 패턴: 첫 성공 경험 직후가 설정률 최고 시점)
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 
 const ASKED_KEY = "artlink-reminder-asked";
 const REMINDER_ID = "daily-practice-reminder";
@@ -76,6 +76,48 @@ export async function scheduleDailyPracticeReminder(hour, minute, title, body) {
     return true;
   } catch (e) {
     console.log("[reminder] schedule failed:", e?.message);
+    return false;
+  }
+}
+
+// 첫 기록 직후 한 번만 묻는다 (1.11.10). 알림 권한을 묻는 곳이 "새 노트 화면의 첫 AI 피드백 직후" 하나뿐이라
+// 체크인으로 시작한 신규 사용자는 권한을 받을 기회가 없었고, 다시 부를 수단이 없었다.
+// 수락하면 지금 이 시각에 매일 알린다. 이미 물어본 기기에는 다시 묻지 않는다.
+export async function offerPracticeReminder(t, onSet) {
+  if (await hasAskedReminder()) return false;
+  await markReminderAsked();
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  Alert.alert(t("reminder.offer_title"), t("reminder.offer_msg", { time }), [
+    { text: t("reminder.offer_no"), style: "cancel" },
+    {
+      text: t("reminder.offer_yes"),
+      onPress: async () => {
+        const ok = await scheduleDailyPracticeReminder(hour, minute, t("reminder.push_title"), t("reminder.push_body"));
+        if (ok && onSet) onSet();
+      },
+    },
+  ]);
+  return true;
+}
+
+// 프로필에서 끌 수 있게 — 켜져 있는지 확인하고 끈다. (전에는 OS 설정에서만 끌 수 있었다)
+export async function isDailyReminderOn() {
+  try {
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    return all.some((n) => n.identifier === REMINDER_ID);
+  } catch {
+    return false;
+  }
+}
+
+export async function cancelDailyPracticeReminder() {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(REMINDER_ID);
+    return true;
+  } catch {
     return false;
   }
 }

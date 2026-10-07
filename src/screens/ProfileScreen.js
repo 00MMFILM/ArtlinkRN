@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { isDailyReminderOn, cancelDailyPracticeReminder } from "../services/reminderService";
 import {
   View,
   Text,
@@ -120,6 +121,13 @@ export default function ProfileScreen({ navigation }) {
     premium, legacyRecordsPending,
   } = useApp();
   const [showLangPicker, setShowLangPicker] = useState(false);
+  // 매일 연습 알림 — 켜져 있을 때만 끄는 줄을 보여준다
+  const [reminderOn, setReminderOn] = useState(false);
+  useEffect(() => {
+    const check = () => { isDailyReminderOn().then(setReminderOn).catch(() => {}); };
+    check();
+    return navigation?.addListener?.("focus", check);
+  }, [navigation]);
 
   const {
     primaryField,
@@ -392,6 +400,24 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
 
           {/* \uACC4\uC815: \uAC8C\uC2A4\uD2B8\uBA74 \uB85C\uADF8\uC778/\uAC00\uC785, \uB85C\uADF8\uC778 \uC0C1\uD0DC\uBA74 \uB85C\uADF8\uC544\uC6C3 */}
+          {reminderOn ? (
+            <>
+              <View style={styles.menuDivider} />
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={async () => {
+                  if (await cancelDailyPracticeReminder()) { setReminderOn(false); showToast(t("profile.reminder_off_done"), "success"); }
+                }}
+                activeOpacity={0.6}
+              >
+                <View style={styles.menuLeft}>
+                  <Text style={styles.menuIcon}>{"\uD83D\uDD14"}</Text>
+                  <Text style={[T.body, { color: CLight.gray900 }]}>{t("profile.reminder_label")}</Text>
+                </View>
+                <Text style={[T.caption, { color: CLight.pink }]}>{t("profile.reminder_turn_off")}</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
           <View style={styles.menuDivider} />
           {userProfile.authUserId ? (
             <TouchableOpacity

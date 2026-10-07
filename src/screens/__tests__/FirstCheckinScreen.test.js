@@ -16,6 +16,11 @@ jest.mock("../../services/practiceService", () => ({
   completePractice: jest.fn(),
   abandonPractice: jest.fn(),
 }));
+jest.mock("../../services/reminderService", () => ({
+  offerPracticeReminder: jest.fn(async () => true),
+  isDailyReminderOn: jest.fn(async () => false),
+  cancelDailyPracticeReminder: jest.fn(async () => true),
+}));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -141,5 +146,27 @@ describe("FirstCheckinScreen — 첫 체크인", () => {
     expect(ctx.showToast).toHaveBeenCalledWith("common.save_failed_msg", "error");
     expect(queryByText("first_checkin.done_title")).toBeNull();
     expect(ctx.dismissFirstCheckin).not.toHaveBeenCalled();
+  });
+});
+
+// 1.11.10 — 첫 기록을 남긴 직후에만 "내일도 알려드릴까요"를 묻는다
+describe("첫 기록 직후 연습 알림 제안", () => {
+  const { offerPracticeReminder } = require("../../services/reminderService");
+  beforeEach(() => jest.clearAllMocks());
+
+  it("저장하면 제안하고, 수락 콜백은 reminder_set을 남긴다", async () => {
+    useApp.mockReturnValue(buildCtx());
+    const { getByText } = render(<FirstCheckinScreen navigation={{ reset: jest.fn() }} />);
+    await act(async () => { fireEvent.press(getByText("first_checkin.save")); });
+    expect(offerPracticeReminder).toHaveBeenCalledTimes(1);
+    offerPracticeReminder.mock.calls[0][1]();
+    expect(trackFunnelEvent).toHaveBeenCalledWith("reminder_set", "ko");
+  });
+
+  it("건너뛰면 묻지 않는다", async () => {
+    useApp.mockReturnValue(buildCtx());
+    const { getByText } = render(<FirstCheckinScreen navigation={{ reset: jest.fn() }} />);
+    await act(async () => { fireEvent.press(getByText("first_checkin.later")); });
+    expect(offerPracticeReminder).not.toHaveBeenCalled();
   });
 });

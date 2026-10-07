@@ -6,6 +6,7 @@ import { useApp } from "../context/AppContext";
 import { trackFunnelEvent } from "../services/mauService";
 import { abandonPractice } from "../services/practiceService";
 import { ensureCheckinSession, saveCheckinNote } from "../services/checkinNote";
+import { offerPracticeReminder } from "../services/reminderService";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { FIELDS } from "../utils/helpers";
 
@@ -39,6 +40,8 @@ export default function FirstCheckinScreen({ navigation }) {
       sessionRef.current = null;
       trackFunnelEvent("first_checkin_saved", i18n.language);
       setSaved({ noteId });
+      // 첫 기록을 남긴 직후가 "내일도 알려드릴까요"를 묻기 가장 좋은 때다
+      offerPracticeReminder(t, () => trackFunnelEvent("reminder_set", i18n.language)).catch(() => {});
     } catch (_) {
       showToast(t("common.save_failed_msg"), "error");
     } finally {

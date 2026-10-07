@@ -10,6 +10,11 @@ jest.mock("react-i18next", () => ({
 }));
 jest.mock("i18next", () => ({ t: (k) => k, language: "ko" }));
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
+jest.mock("../../services/reminderService", () => ({
+  offerPracticeReminder: jest.fn(async () => true),
+  isDailyReminderOn: jest.fn(async () => false),
+  cancelDailyPracticeReminder: jest.fn(async () => true),
+}));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
 jest.mock("../../services/practiceService", () => ({
   startPractice: jest.fn(() => ({ sessionId: "sess-home", kind: "checkin" })),
@@ -90,6 +95,7 @@ describe("HomeScreen — 빠른 체크인 계측", () => {
     fireEvent.press(getByText("first_checkin.ai_cta →"));
 
     expect(navigation.navigate).toHaveBeenCalledWith("NoteDetail", { noteId: "note-checkin-1", initialTab: "ai" });
+    expect(require("../../services/reminderService").offerPracticeReminder).toHaveBeenCalledTimes(1);
     expect(queryByText("first_checkin.ai_cta →")).toBeNull();
   });
 

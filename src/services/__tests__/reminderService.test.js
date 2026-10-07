@@ -1,5 +1,7 @@
 import * as Notifications from "expo-notifications";
-import { scheduleFirstNoteNudge, cancelFirstNoteNudge } from "../reminderService";
+import { Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { scheduleFirstNoteNudge, cancelFirstNoteNudge, offerPracticeReminder, isDailyReminderOn, cancelDailyPracticeReminder } from "../reminderService";
 
 jest.mock("expo-notifications", () => ({
   setNotificationHandler: jest.fn(),
@@ -7,6 +9,7 @@ jest.mock("expo-notifications", () => ({
   requestPermissionsAsync: jest.fn(async () => ({ status: "granted" })),
   scheduleNotificationAsync: jest.fn(async () => "scheduled"),
   cancelScheduledNotificationAsync: jest.fn(async () => {}),
+  getAllScheduledNotificationsAsync: jest.fn(async () => []),
   setNotificationChannelAsync: jest.fn(async () => {}),
   SchedulableTriggerInputTypes: { DAILY: "daily", TIME_INTERVAL: "timeInterval" },
   AndroidImportance: { DEFAULT: 3 },
@@ -111,5 +114,50 @@ describe("reminderService — 가입 48시간 노트 0건 넛지", () => {
 
     await expect(Promise.all([oldSchedule, cancelling, newSchedule])).resolves.toEqual([false, true, true]);
     expect(activeTitle).toBe("새 계정");
+  });
+});
+
+describe("reminderService — 첫 기록 직후 제안 · 끄기", () => {
+  const t = (k) => k;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    AsyncStorage.getItem.mockResolvedValue(null);
+    Notifications.requestPermissionsAsync.mockResolvedValue({ status: "granted" });
+  });
+
+  it("처음이면 물어보고, 수락하면 지금 시각에 매일 알림을 건다", async () => {
+    const onSet = jest.fn();
+    await expect(offerPracticeReminder(t, onSet)).resolves.toBe(true);
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("artlink-reminder-asked", "true");
+    const buttons = Alert.alert.mock.calls[0][2];
+    await buttons.find((b) => b.text === "reminder.offer_yes").onPress();
+    const arg = Notifications.scheduleNotificationAsync.mock.calls[0][0];
+    expect(arg.identifier).toBe("daily-practice-reminder");
+    expect(arg.trigger.type).toBe("daily");
+    expect(onSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("이미 물어본 기기에는 다시 묻지 않는다", async () => {
+    AsyncStorage.getItem.mockResolvedValue("true");
+    await expect(offerPracticeReminder(t)).resolves.toBe(false);
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("권한을 거절하면 예약하지 않고 수락 기록도 남기지 않는다", async () => {
+    Notifications.requestPermissionsAsync.mockResolvedValue({ status: "denied" });
+    const onSet = jest.fn();
+    await offerPracticeReminder(t, onSet);
+    await Alert.alert.mock.calls[0][2].find((b) => b.text === "reminder.offer_yes").onPress();
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(onSet).not.toHaveBeenCalled();
+  });
+
+  it("켜짐 여부를 예약 목록에서 확인하고, 끄면 그 예약을 지운다", async () => {
+    await expect(isDailyReminderOn()).resolves.toBe(false);
+    Notifications.getAllScheduledNotificationsAsync.mockResolvedValue([{ identifier: "daily-practice-reminder" }]);
+    await expect(isDailyReminderOn()).resolves.toBe(true);
+    await expect(cancelDailyPracticeReminder()).resolves.toBe(true);
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith("daily-practice-reminder");
   });
 });

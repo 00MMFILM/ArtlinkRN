@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 import { abandonPractice, getPracticeLog } from "../services/practiceService";
 import { ensureCheckinSession, saveCheckinNote } from "../services/checkinNote";
+import { offerPracticeReminder } from "../services/reminderService";
 import { buildPracticeActivities } from "../utils/practiceStats";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
@@ -231,6 +232,7 @@ export default function HomeScreen({ navigation }) {
       setExpandedField(null);
       setCheckinMemo("");
       setSavedCheckinNoteId(noteId);
+      offerPracticeReminder(t, () => trackFunnelEvent("reminder_set", i18n.language)).catch(() => {});
     } catch (_) {
       showToast(t("common.save_failed_msg"), "error");
     } finally {
