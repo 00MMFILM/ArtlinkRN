@@ -18,6 +18,10 @@ function pick(source, limits) {
 export function sanitizeStudioMetadata(source = {}) {
   if (!object(source)) return {};
   const result = {};
+  if (source.practiceMode === "standard_speech") {
+    result.practiceMode = "standard_speech";
+    result.speechLineIndex = Number.isInteger(source.speechLineIndex) && source.speechLineIndex >= 0 && source.speechLineIndex < 100 ? source.speechLineIndex : 0;
+  }
   for (const key of ["feedbackLanguage", "scriptLanguage"]) {
     const language = studioLanguage(source[key]);
     if (language) result[key] = language;
@@ -66,11 +70,12 @@ export function sanitizeStudioMetadata(source = {}) {
 
 export function studioFeedbackContext(source) {
   const meta = sanitizeStudioMetadata(source);
-  if (!meta.rehearsalContext) return "";
+  const speechNotice = meta.practiceMode === "standard_speech" ? "\n[Standard Korean dialogue practice] The user chose a target speaking style, not correction of an inferior dialect. This mode does not provide accent scores. A transcript is not acoustic evidence: do not claim to hear dialect, pronunciation or intonation. State this limitation when asked and suggest one next practice. Device TTS is only a reference, not a certified model of delivery.\n" : "";
+  if (!meta.rehearsalContext) return speechNotice;
   const { script, ...context } = meta.rehearsalContext;
   const role = context.role ? `"${context.role}"` : "the selected role";
   const scriptBlock = script
     ? `\n[Scene script — "ROLE: line", one per line]\n${script}\nOnly lines labelled ${role} in this script are the user's. The transcript is one unlabelled recording and may also contain the partner's lines read by the app; match it against the script and never quote, praise, or correct a partner line as the user's. Do not add props, places, or backstory that are not in this script or the note.`
     : `\nNo script text is provided. The transcript may also contain the partner's lines; when you cannot tell who said a line, do not attribute it to the user. Do not invent props, places, or backstory that are not in the note.`;
-  return `\n\n[Rehearsal context — metadata, not performance evidence]\n${JSON.stringify(context)}${scriptBlock}\nFocus only on the user's selected role. A transcript provides words, not acoustic evidence: do not infer pronunciation accuracy, accent quality, vocal tone, pitch, or timing from text. If a partner voice is present, do not evaluate it as the user's performance. Respect the intended character and do not penalize a non-native accent. Distinguish observed evidence from an interpretation and offer one practical next attempt.`;
+  return speechNotice + `\n\n[Rehearsal context — metadata, not performance evidence]\n${JSON.stringify(context)}${scriptBlock}\nFocus only on the user's selected role. A transcript provides words, not acoustic evidence: do not infer pronunciation accuracy, accent quality, vocal tone, pitch, or timing from text. If a partner voice is present, do not evaluate it as the user's performance. Respect the intended character and do not penalize a non-native accent. Distinguish observed evidence from an interpretation and offer one practical next attempt.`;
 }

@@ -154,3 +154,30 @@ test("장면 정보가 없던 bium 링크는 제목/본문과 기존 source를 �
   expect(mockDispatch.mock.calls[0][0].payload.params.prefill).toEqual({ title: "기존 제목", content: "기존 내용", field: "music" });
   expect(trackFunnelEvent).toHaveBeenCalledWith("deeplink_bium");
 });
+
+test("표준어 연습 링크는 30초 넘는 가입 대기 후에도 별도 노트로 열린다", async () => {
+  jest.useFakeTimers();
+  try {
+    context = { ...context, authState: "auth" };
+    ExpoLinking.getInitialURL.mockResolvedValueOnce("artlink://practice?source=actraw&m=test&mode=standard_speech");
+    ExpoLinking.parse.mockReturnValue({ hostname: "practice", queryParams: { source: "actraw", m: "test", mode: "standard_speech", content: "원본 대사" } });
+    const ui = render(<AppNavigator />);
+    await act(async () => {});
+    await act(async () => jest.advanceTimersByTime(45000));
+    expect(mockDispatch).not.toHaveBeenCalled();
+    context = { ...context, authState: "app" };
+    ui.rerender(<AppNavigator />);
+    await act(async () => {});
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ params: expect.objectContaining({prefill: expect.objectContaining({practiceMode:"standard_speech", content:"원본 대사"})})})}));
+  } finally { jest.useRealTimers(); }
+});
+
+test("외부 표준어 링크는 저장된 다른 초안을 먼저 복원한 후 별도로 push한다", async () => {
+  loadDraft.mockResolvedValueOnce({ title: "내가 쓰던 노트", content: "원래 본문" });
+  ExpoLinking.getInitialURL.mockResolvedValueOnce("artlink://practice?source=actraw&m=test&mode=standard_speech");
+  ExpoLinking.parse.mockReturnValue({ hostname:"practice", queryParams:{source:"actraw",m:"test",mode:"standard_speech",content:"새 대사"} });
+  render(<AppNavigator />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalled());
+  expect(mockNavigate).toHaveBeenCalledWith("NoteCreate", {prefill:{title:"내가 쓰던 노트",content:"원래 본문"},restoredDraft:true});
+  expect(mockNavigate.mock.invocationCallOrder[0]).toBeLessThan(mockDispatch.mock.invocationCallOrder[0]);
+});

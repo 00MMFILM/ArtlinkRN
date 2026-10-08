@@ -19,7 +19,7 @@ const serverRow = (localId, { title = "server", updatedAt, createdAt } = {}) => 
 describe("mergeNotes", () => {
   it("round-trips only whitelisted studio metadata through practice_meta on another device", async () => {
     const meta = {
-      feedbackLanguage: "ko", scriptLanguage: "en",
+      feedbackLanguage: "ko", scriptLanguage: "en", practiceMode: "standard_speech", speechLineIndex: 2,
       rehearsalContext: { sceneTitle: "Original scene", role: "Lear", scriptLanguage: "en", feedbackLanguage: "ko" },
       applicationContext: { postId: 12, country: "UK", submissions: ["Self-tape"] },
     };

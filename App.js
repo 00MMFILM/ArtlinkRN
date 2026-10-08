@@ -16,7 +16,7 @@ import { supabase } from "./src/services/supabaseClient";
 import { trackFunnelEvent } from "./src/services/mauService";
 import { loadDraft } from "./src/services/noteDraft";
 import { flushPracticeQueue } from "./src/services/practiceService";
-import { normalizeDeeplinkSource, normalizePracticeSceneId } from "./src/utils/deeplinkSource";
+import { normalizeDeeplinkSource } from "./src/utils/deeplinkSource";
 import Toast from "./src/components/Toast";
 
 // Screens
@@ -28,6 +28,7 @@ import NoteDetailScreen from "./src/screens/NoteDetailScreen";
 import CommunityScreen from "./src/screens/CommunityScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import GrowthScreen from "./src/screens/GrowthScreen";
+import { practicePrefill } from "./src/utils/standardSpeech";
 import DuetPracticeScreen from "./src/screens/DuetPracticeScreen";
 import MatchingScreen from "./src/screens/MatchingScreen";
 import ShareCardScreen from "./src/screens/ShareCardScreen";
@@ -283,6 +284,8 @@ export function AppNavigator() {
   const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady, firstCheckinPending, refreshPremium } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [pendingPractice, setPendingPractice] = useState(null);
+  const [draftChecked, setDraftChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
 
   // RevenueCat 초기화 — authUserId 있으면 app_user_id로 연결 (웹훅 → premium_members 매칭 기준)
@@ -315,15 +318,9 @@ export function AppNavigator() {
         const path = (parsed.hostname || parsed.path || "").replace(/^\//, "");
         if (path === "practice") {
           const qp = parsed.queryParams || {};
-          const prefill = {
-            title: typeof qp.title === "string" ? qp.title.slice(0, 120) : "",
-            content: typeof qp.content === "string" ? qp.content.slice(0, 2000) : "",
-            field: typeof qp.field === "string" ? qp.field : "acting",
-          };
-          const sceneId = normalizePracticeSceneId(qp);
-          if (sceneId) prefill.sceneId = sceneId;
+          const prefill = practicePrefill(qp);
           trackFunnelEvent(`deeplink_${normalizeDeeplinkSource(qp.source)}`);
-          openNoteCreateWhenReady(prefill, 0, false, () => true, true);
+          setPendingPractice(prefill);
           return;
         }
       } catch (e) {
@@ -357,6 +354,7 @@ export function AppNavigator() {
   useEffect(() => {
     if (authState !== "app" || !storageReady) {
       draftRestoredRef.current = false;
+      setDraftChecked(false);
       return;
     }
     if (draftRestoredRef.current) return;
@@ -364,9 +362,25 @@ export function AppNavigator() {
     let cancelled = false;
     loadDraft().then((draft) => {
       if (draft && !cancelled) openNoteCreateWhenReady(draft, 0, true, () => !cancelled);
+      if (!cancelled) setDraftChecked(true);
     });
     return () => { cancelled = true; draftRestoredRef.current = false; };
   }, [authState, storageReady, userProfile?.authUserId]);
+
+  // Keep the external intent while onboarding/auth is visible, without a 30-second expiry.
+  // Restore an existing draft first, then push a separate practice route above it.
+  useEffect(() => {
+    if (!pendingPractice || authState !== "app" || !storageReady || showOnboarding !== false || !draftChecked) return;
+    const open = () => {
+      if (!navigationRef.isReady() || !navigationRef.getRootState()?.routeNames?.includes("NoteCreate")) return false;
+      navigationRef.dispatch(StackActions.push("NoteCreate", { prefill: pendingPractice, restoredDraft: false }));
+      setPendingPractice(null);
+      return true;
+    };
+    if (open()) return;
+    const timer = setInterval(() => { if (open()) clearInterval(timer); }, 500);
+    return () => clearInterval(timer);
+  }, [pendingPractice, authState, storageReady, showOnboarding, draftChecked]);
 
   // 쌓인 연습 이벤트 전송 — 앱 진입 시 1회, 백그라운드에서 돌아올 때 1회
   useEffect(() => {

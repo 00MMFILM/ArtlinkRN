@@ -1,3 +1,4 @@
+jest.mock("expo-speech", () => ({speak:jest.fn(),stop:jest.fn(async () => {}),getAvailableVoicesAsync:jest.fn(async () => [{language:"ko-KR",identifier:"korean"}])}));
 import React from "react";
 import { Alert } from "react-native";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
@@ -1390,4 +1391,58 @@ describe("자료 올리기 안내", () => {
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
     expect(utils.queryByText("noteCreate.material_title")).toBeNull();
   });
+});
+
+describe("ACT RAW 표준어 연습 노트", () => {
+  it("줄 선택 후에도 원문을 바꾸지 않고 연습 모드를 노트에 저장한다", async () => {
+    const ctx = buildCtx("u1"); ctx.handleSaveNote.mockResolvedValue(44); useApp.mockReturnValue(ctx);
+    const prefill = {title:"독백",content:"첫 줄\n다음 줄",field:"acting",sceneId:"actraw:test",practiceMode:"standard_speech"};
+    const ui = render(<NoteCreateScreen navigation={navigation} route={{params:{prefill}}} />);
+    expect(ui.getByTestId("standard-speech-practice")).toBeTruthy();
+    await act(async () => fireEvent.press(ui.getByTestId("speech-next")));
+    expect(ui.getByPlaceholderText("noteCreate.content_placeholder").props.value).toBe("첫 줄\n다음 줄");
+    await act(async () => fireEvent.press(ui.getByText("common.save")));
+    expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({...prefill,speechLineIndex:1}));
+  });
+});
+
+test("표준어 녹음 준비·진행·정리 중 저장을 막고 완료된 테이크만 저장한다", async () => {
+  resetAll();
+  const { Audio } = require("expo-av");
+  Audio.RecordingOptionsPresets = { HIGH_QUALITY: {} };
+  let grant, finishStop;
+  Audio.requestPermissionsAsync.mockImplementation(() => new Promise(resolve => { grant = resolve; }));
+  const rec = { prepareToRecordAsync: jest.fn(async () => {}), startAsync: jest.fn(async () => {}),
+    stopAndUnloadAsync: jest.fn(() => new Promise(resolve => { finishStop = resolve; })),
+    getURI: jest.fn(() => "file:///cache/Audio/speech.m4a") };
+  Audio.Recording.mockImplementation(() => rec);
+  const ctx = buildCtx("u1"); ctx.handleSaveNote.mockResolvedValue(55); useApp.mockReturnValue(ctx);
+  const ui = render(<NoteCreateScreen navigation={navigation} route={{params:{prefill:{title:"대사",content:"원래 대사",practiceMode:"standard_speech"}}}} />);
+  await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+  fireEvent.press(ui.getByText("common.save")); expect(ctx.handleSaveNote).not.toHaveBeenCalled();
+  await act(async () => grant({status:"granted"}));
+  expect(rec.startAsync).toHaveBeenCalledTimes(1);
+  fireEvent.press(ui.getByText("common.save")); expect(ctx.handleSaveNote).not.toHaveBeenCalled();
+  await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+  fireEvent.press(ui.getByText("common.save")); expect(ctx.handleSaveNote).not.toHaveBeenCalled();
+  await act(async () => finishStop());
+  await act(async () => fireEvent.press(ui.getByText("common.save")));
+  expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({practiceMode:"standard_speech",content:"원래 대사",voiceRecordings:expect.arrayContaining([expect.objectContaining({uri:expect.stringContaining("file:///doc/media/")})])}));
+});
+
+test.each(["speech-record", "speech-listen"])("늦게 준비된 이전 테이크는 %s 시작 뒤 재생되지 않는다", async (target) => {
+  resetAll();
+  const { Audio } = require("expo-av");
+  let resolveSound;
+  Audio.Sound.createAsync.mockImplementation(() => new Promise(resolve => { resolveSound = resolve; }));
+  Audio.requestPermissionsAsync.mockResolvedValue({status:"denied"});
+  const sound = {unloadAsync:jest.fn(async () => {}),playAsync:jest.fn(),setOnPlaybackStatusUpdate:jest.fn()};
+  useApp.mockReturnValue(buildCtx("u1"));
+  const ui=render(<NoteCreateScreen navigation={navigation} route={{params:{prefill:{title:"대사",content:"원문",practiceMode:"standard_speech",voiceRecordings:[{uri:"file:///take"}]}}}} />);
+  await waitFor(() => expect(ui.getByTestId("speech-listen").props.accessibilityState.disabled).toBe(false));
+  await act(async () => { fireEvent.press(ui.getByTestId("speech-take-0")); });
+  expect(Audio.Sound.createAsync).toHaveBeenCalled();
+  await act(async () => { fireEvent.press(ui.getByTestId(target)); });
+  await act(async () => resolveSound({sound}));
+  expect(sound.playAsync).not.toHaveBeenCalled(); expect(sound.unloadAsync).toHaveBeenCalledTimes(1);
 });

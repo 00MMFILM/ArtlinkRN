@@ -35,6 +35,7 @@ import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
 import { startPractice, resumePractice, completePractice, abandonPractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
 import FocusPicker from "../components/FocusPicker";
+import StandardSpeechPractice from "../components/StandardSpeechPractice";
 import StudioContextCard from "../components/StudioContextCard";
 import { useTranslation } from "react-i18next";
 
@@ -146,7 +147,9 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [prefill, setPrefill] = useState(route?.params?.prefill || null);
   // Derive only from the accepted prefill: cancelling a replacement must keep
   // the current script language, role, and application context unchanged.
-  const studioMetadata = useMemo(() => sanitizeStudioMetadata(prefill), [prefill]);
+  const [speechLineIndex, setSpeechLineIndex] = useState(prefill?.speechLineIndex || 0);
+  const speechPracticeRef = useRef(null);
+  const studioMetadata = useMemo(() => sanitizeStudioMetadata({ ...prefill, speechLineIndex }), [prefill, speechLineIndex]);
   // 가입 왕복 후 복원으로 열린 경우 (App.js가 보관된 초안을 prefill로 넘긴다)
   const restoredDraft = !!route?.params?.restoredDraft;
   const [title, setTitle] = useState(prefill?.title || "");
@@ -197,6 +200,8 @@ export default function NoteCreateScreen({ navigation, route }) {
     abandonPractice(practiceRef.current);
     practiceRef.current = null;
     mediaRevisionRef.current += 1;
+    speechPracticeRef.current?.stop();
+    setSpeechLineIndex(p.speechLineIndex || 0);
     setPrefill(p);
     setTitle(p.title || "");
     setContent(p.content || "");
@@ -243,6 +248,8 @@ export default function NoteCreateScreen({ navigation, route }) {
     );
   }, [route?.params?.prefill, aiLoading, videoAiLoading, mediaBusy, saving]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isRecording, setIsRecording] = useState(false);
+  const [speechRecordingBusy, setSpeechRecordingBusy] = useState(false);
+  const recordingBusyRef = useRef(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
   const recordingTimerRef = useRef(null);
@@ -252,6 +259,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   // 언마운트 cleanup은 []로 걸려 있어 최초 렌더의 playingSound(null)만 본다 →
   // ref로 최신 재생 객체를 따라가야 화면을 나갈 때 소리가 실제로 멈춘다.
   const playingSoundRef = useRef(null);
+  const playbackGenerationRef = useRef(0);
   useEffect(() => {
     playingSoundRef.current = playingSound;
   }, [playingSound]);
@@ -298,6 +306,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         playingSoundRef.current.unloadAsync?.();
         playingSoundRef.current = null;
       }
+      playbackGenerationRef.current += 1;
       recordingStartTokenRef.current += 1;
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
@@ -728,6 +737,10 @@ export default function NoteCreateScreen({ navigation, route }) {
   }, [images, aiLoading]);
 
   const handleStartRecording = useCallback(async () => {
+    if (recordingBusyRef.current || recordingRef.current) return;
+    recordingBusyRef.current = true;
+    playbackGenerationRef.current += 1;
+    setSpeechRecordingBusy(true);
     const token = ++recordingStartTokenRef.current;
     const cancelled = () => token !== recordingStartTokenRef.current;
     let recording = null;
@@ -737,6 +750,9 @@ export default function NoteCreateScreen({ navigation, route }) {
       try { await Audio.setAudioModeAsync({ allowsRecordingIOS: false }); } catch (e) {}
     };
     try {
+      if (speechPracticeRef.current) await speechPracticeRef.current.stop();
+      if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); }
+      if (cancelled()) return;
       const { status } = await Audio.requestPermissionsAsync();
       if (cancelled()) return;
       if (status !== "granted") {
@@ -761,13 +777,15 @@ export default function NoteCreateScreen({ navigation, route }) {
       }, 1000);
     } catch (e) {
       if (cancelled()) { await releaseCancelled(); return; }
+      await releaseCancelled();
       Alert.alert(t("noteCreate.recording_error"), t("noteCreate.recording_error_msg"));
-    }
+    } finally { recordingBusyRef.current = false; setSpeechRecordingBusy(false); }
   }, [t]);
 
   const handleStopRecording = useCallback(async () => {
     const recording = recordingRef.current;
     if (!recording) return;
+    recordingBusyRef.current = true; setSpeechRecordingBusy(true);
     recordingRef.current = null; // a second stop (inactive → background) must not attach the take twice
     try {
       clearInterval(recordingTimerRef.current);
@@ -782,7 +800,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       }
     } catch (e) {
       setIsRecording(false);
-    }
+    } finally { recordingBusyRef.current = false; setSpeechRecordingBusy(false); }
   }, [recordingDuration, ensurePracticeSession]);
 
   // Leaving the app ends the take: keep what was recorded, never keep recording in the background.
@@ -797,11 +815,29 @@ export default function NoteCreateScreen({ navigation, route }) {
     return () => sub?.remove?.();
   }, []);
 
+  useEffect(() => {
+    if (studioMetadata.practiceMode !== "standard_speech") return;
+    return navigation.addListener?.("blur", () => {
+      playbackGenerationRef.current += 1;
+      recordingStartTokenRef.current += 1;
+      if (recordingRef.current) stopRecordingRef.current();
+      playingSoundRef.current?.unloadAsync?.().catch?.(() => {});
+      playingSoundRef.current = null;
+      setPlayingSound(null); setPlayingIdx(null);
+    });
+  }, [navigation, studioMetadata.practiceMode]);
+
   const handleRemoveRecording = useCallback((index) => {
     setVoiceRecordings((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const handlePlayRecording = useCallback(async (uri, index) => {
+    if (recordingRef.current || recordingBusyRef.current) return;
+    const generation = ++playbackGenerationRef.current;
+    const owner = accountRef.current;
+    const stale = () => generation !== playbackGenerationRef.current || owner !== accountRef.current || !!recordingRef.current || recordingBusyRef.current;
+    await speechPracticeRef.current?.stop();
+    if (stale()) return;
     try {
       if (playingSound) {
         await playingSound.unloadAsync();
@@ -812,6 +848,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         }
       }
       const { sound } = await Audio.Sound.createAsync({ uri });
+      if (stale()) { await sound.unloadAsync(); return; }
       setPlayingSound(sound);
       setPlayingIdx(index);
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -862,6 +899,12 @@ export default function NoteCreateScreen({ navigation, route }) {
   }, [t, ensurePracticeSession]);
 
   const handlePlayAudio = useCallback(async (uri, index) => {
+    if (recordingRef.current || recordingBusyRef.current) return;
+    const generation = ++playbackGenerationRef.current;
+    const owner = accountRef.current;
+    const stale = () => generation !== playbackGenerationRef.current || owner !== accountRef.current || !!recordingRef.current || recordingBusyRef.current;
+    await speechPracticeRef.current?.stop();
+    if (stale()) return;
     try {
       if (playingSound) {
         await playingSound.unloadAsync();
@@ -872,6 +915,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         }
       }
       const { sound } = await Audio.Sound.createAsync({ uri });
+      if (stale()) { await sound.unloadAsync(); return; }
       setPlayingSound(sound);
       setPlayingIdx(index);
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -944,6 +988,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   const savedNoteRef = useRef(false);
   const savingRef = useRef(false); // 녹음 복사 중 저장 버튼 연타로 노트가 두 번 생기지 않게
   const handleSave = useCallback(async (destination = "default") => {
+    if (recordingRef.current || recordingBusyRef.current) return;
     if (savedNoteRef.current || aiBusy || textWorkRef.current || videoWorkRef.current || mediaWorkRef.current || savingRef.current) return;
     if (destination === "retake" && (!videoAnalysis || !chosenFocus)) return;
     const owner = captureOwner();
@@ -1065,8 +1110,8 @@ export default function NoteCreateScreen({ navigation, route }) {
           </TouchableOpacity>
         }
         right={
-          <TouchableOpacity onPress={() => handleSave()} activeOpacity={0.7} disabled={aiBusy || saving}>
-            <Text style={[styles.topBarSave, aiBusy && styles.topBarSaveDisabled]}>{t("common.save")}</Text>
+          <TouchableOpacity onPress={() => handleSave()} activeOpacity={0.7} disabled={aiBusy || saving || isRecording || speechRecordingBusy}>
+            <Text style={[styles.topBarSave, (aiBusy || isRecording || speechRecordingBusy) && styles.topBarSaveDisabled]}>{t("common.save")}</Text>
           </TouchableOpacity>
         }
       />
@@ -1078,6 +1123,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         <StudioContextCard note={studioMetadata} />
+        {studioMetadata.practiceMode === "standard_speech" && <StandardSpeechPractice
+          ref={speechPracticeRef} content={content} language={i18n.language} lineIndex={speechLineIndex} onLineChange={setSpeechLineIndex}
+          recording={isRecording} busy={aiBusy || saving || speechRecordingBusy} takes={voiceRecordings} owner={userProfile?.authUserId || "guest"} navigation={navigation}
+          onRecord={handleStartRecording} onStop={handleStopRecording} onPlay={handlePlayRecording}
+          beforeListen={async () => { playbackGenerationRef.current += 1; if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); } }}
+        />}
         {isVideoRetake ? (
           <View style={styles.focusBanner}>
             <Text style={[T.bodyBold, { color: CLight.pink }]}>{t("retake.current_focus", { focus: focus || "" })}</Text>
