@@ -312,12 +312,12 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // 고른 초점으로 같은 장면 다시 연습 — 새 노트가 체인(rootNoteId·parentNoteId)을 들고 열린다
   const handleRepractice = useCallback(() => {
-    if (!note) return;
+    if (!note || isEditing || pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || pendingSaveBusyRef.current) return;
     trackFunnelEvent("repractice_started");
     navigation.navigate("NoteCreate", {
       prefill: buildRepracticePrefill({ ...note, chosenFocus: note.chosenFocus || note.focus }),
     });
-  }, [note, navigation]);
+  }, [note, navigation, isEditing]);
 
   const fieldEmoji = FIELD_EMOJIS[note?.field] || "\uD83D\uDCDD";
   const fieldLabel = t("fields." + (note?.field || "etc"));
@@ -892,6 +892,19 @@ export default function NoteDetailScreen({ route, navigation }) {
 
     return (
       <View style={styles.tabContent}>
+        {note.practiceMode === "standard_speech" && !isEditing && !pendingAi && (
+          <TouchableOpacity
+            style={[styles.repracticeBtn, (aiLoading || videoAiLoading || pendingSaving) && { opacity: 0.5 }]}
+            onPress={handleRepractice}
+            disabled={aiLoading || videoAiLoading || pendingSaving}
+            accessibilityRole="button"
+            activeOpacity={0.85}
+          >
+            <Text style={[T.smallBold, { color: CLight.white }]}>
+              {isKoreanLocale ? "같은 대사 다시 연습" : "Practice the same dialogue again"}
+            </Text>
+          </TouchableOpacity>
+        )}
         {isEditing ? (
           <TextInput
             style={[T.body, styles.contentInput]}

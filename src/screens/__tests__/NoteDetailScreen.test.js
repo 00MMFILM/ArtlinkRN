@@ -723,3 +723,66 @@ describe("편집 중 태그·첨부 개별 삭제", () => {
     expect(ctx.handleUpdateNote).not.toHaveBeenCalled();
   });
 });
+
+
+describe("표준어 노트 — AI 없이 같은 대사 다시 연습", () => {
+  beforeEach(resetDetail);
+  const speechNote = {
+    id: 410, title: "표준어 대사", field: "acting",
+    content: "오늘은 내가 먼저 이야기할게요.",
+    practiceMode: "standard_speech", speechLineIndex: 1,
+    sceneId: "actraw:ss-001", rootNoteId: 400, parentNoteId: 405,
+    scriptLanguage: "ko", feedbackLanguage: "ko",
+    createdAt: new Date().toISOString(),
+    voiceRecordings: [{ uri: "file:///old-take.m4a", duration: 3000 }],
+  };
+
+  it("게스트가 AI 결과·초점 없이 눌러도 대사와 체인을 보존하고 녹음·결과를 가져오지 않는다", () => {
+    useApp.mockReturnValue(buildCtx([speechNote], { userProfile: {} }));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 410 } }} navigation={navigation} />);
+    fireEvent.press(utils.getByText("같은 대사 다시 연습"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
+      prefill: {
+        title: speechNote.title, field: "acting", seriesName: speechNote.title,
+        content: speechNote.content, practiceMode: "standard_speech", speechLineIndex: 1,
+        sceneId: "actraw:ss-001", rootNoteId: 400, parentNoteId: 410,
+        scriptLanguage: "ko", feedbackLanguage: "ko", focus: null,
+      },
+    });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("repractice_started");
+    expect(analyzeNote).not.toHaveBeenCalled();
+  });
+
+  it("일반 노트 내용 탭에는 새 버튼을 표시하지 않는다", () => {
+    useApp.mockReturnValue(buildCtx([baseNote]));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    expect(utils.queryByText("같은 대사 다시 연습")).toBeNull();
+  });
+
+  it("표준어 노트 편집 중에는 재연습 버튼을 숨긴다", () => {
+    useApp.mockReturnValue(buildCtx([speechNote]));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 410 } }} navigation={navigation} />);
+    fireEvent.press(utils.getByText("✏️"));
+    expect(utils.queryByText("같은 대사 다시 연습")).toBeNull();
+  });
+
+  it("영문 사용자는 영어 버튼으로 같은 흐름에 진입한다", () => {
+    useApp.mockReturnValue(buildCtx([speechNote], { isKoreanLocale: false }));
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 410 } }} navigation={navigation} />);
+    fireEvent.press(utils.getByText("Practice the same dialogue again"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({ prefill: expect.objectContaining({ practiceMode: "standard_speech" }) }));
+  });
+
+  it("AI 결과 저장이 실패해 대기 중이면 내용 탭에서도 재연습을 숨긴다", async () => {
+    const ctx = buildCtx([{ ...speechNote, aiComment: "이전 결과" }]);
+    ctx.handleUpdateNote.mockRejectedValue(new Error("disk full"));
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 410 } }} navigation={navigation} />);
+    openAiTab(utils);
+    await act(async () => fireEvent.press(utils.getByText("noteDetail.ai_reanalyze")));
+    expect(utils.getByText("noteDetail.ai_save_pending")).toBeTruthy();
+    fireEvent.press(utils.getByText("noteDetail.tab_content"));
+    expect(utils.queryByText("같은 대사 다시 연습")).toBeNull();
+    expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+});
