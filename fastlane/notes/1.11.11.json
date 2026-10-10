@@ -1,0 +1,10 @@
+{
+  "ko": "- ACT RAW 공개 대사를 가져와 표준어 대사 연습을 이어갈 수 있습니다.\n- 한국어 기기 음성을 참고하고 직접 녹음·재녹음한 뒤 노트로 남길 수 있습니다.\n- 대사 연결과 연습 기록 보존의 안정성을 개선했습니다.\n기기 음성은 참고용이며 자동 발음·억양 채점은 제공하지 않습니다. 웹 녹음은 자동으로 옮겨지지 않습니다.",
+  "en-US": "- Continue standard Korean dialogue practice with public scripts from ACT RAW.\n- Listen to a Korean device voice, record and re-record yourself, then save a note.\n- Improved script handoff and practice record reliability.\nDevice speech is a reference only. There is no automatic pronunciation or intonation scoring. Web recordings are not transferred automatically.",
+  "ja": "- ACT RAWの公開台詞を取り込み、韓国語の標準語の台詞練習を続けられます。\n- 端末の韓国語音声を参考に、自分の声を録音・再録音してノートに保存できます。\n- 台詞の連携と練習記録の保存の安定性を改善しました。\n端末音声は参考用です。発音・イントネーションの自動採点はありません。ウェブの録音は自動転送されません。",
+  "zh-Hans": "- 导入 ACT RAW 公开台词，继续练习标准韩语台词。\n- 参考设备的韩语语音，录音、重新录音并保存为笔记。\n- 改善了台词衔接和练习记录保存的稳定性。\n设备语音仅供参考，不提供发音或语调自动评分。网页录音不会自动传入应用。",
+  "zh-Hant": "- 匯入 ACT RAW 公開台詞，繼續練習標準韓語台詞。\n- 參考裝置的韓語語音，錄音、重新錄音並儲存為筆記。\n- 改善了台詞銜接和練習記錄儲存的穩定性。\n裝置語音僅供參考，不提供發音或語調自動評分。網頁錄音不會自動傳入應用程式。",
+  "th": "- นำบทพูดสาธารณะจาก ACT RAW มาฝึกพูดภาษาเกาหลีมาตรฐานต่อได้\n- ฟังเสียงภาษาเกาหลีจากอุปกรณ์ อัดเสียง อัดใหม่ แล้วเก็บเป็นบันทึก\n- ปรับปรุงการส่งต่อบทพูดและการเก็บบันทึกการฝึก\nเสียงจากอุปกรณ์ใช้เพื่ออ้างอิงเท่านั้น ไม่มีการให้คะแนนการออกเสียงหรือน้ำเสียงอัตโนมัติ ไฟล์เสียงที่อัดบนเว็บจะไม่ถูกโอนเข้าแอปอัตโนมัติ",
+  "vi": "- Tiếp tục luyện lời thoại tiếng Hàn chuẩn với kịch bản công khai từ ACT RAW.\n- Nghe giọng tiếng Hàn của thiết bị, tự thu âm, thu lại và lưu ghi chú.\n- Cải thiện độ ổn định khi chuyển lời thoại và lưu buổi luyện tập.\nGiọng thiết bị chỉ để tham khảo. Không tự động chấm phát âm hoặc ngữ điệu. Bản ghi âm trên web không tự chuyển vào ứng dụng.",
+  "id": "- Lanjutkan latihan dialog bahasa Korea standar dengan naskah publik ACT RAW.\n- Dengarkan suara Korea perangkat, rekam dan rekam ulang suara Anda, lalu simpan catatan.\n- Peningkatan keandalan pengiriman dialog dan penyimpanan latihan.\nSuara perangkat hanya sebagai referensi. Tidak ada penilaian pelafalan atau intonasi otomatis. Rekaman web tidak dipindahkan secara otomatis."
+}
