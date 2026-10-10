@@ -13,6 +13,7 @@ import {
   Platform,
   Image,
   AppState,
+  Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
@@ -780,14 +781,23 @@ export default function NoteCreateScreen({ navigation, route }) {
       }
       let permission = await Audio.getPermissionsAsync();
       if (!canRecord()) return;
-      if (permission.status !== "granted") {
+      if (permission.status !== "granted" && permission.canAskAgain !== false) {
         permissionPromptRef.current = true;
         try { permission = await Audio.requestPermissionsAsync(); }
         finally { permissionPromptRef.current = false; }
         if (!(await waitForForeground()) || !canRecord()) return;
       }
       if (permission.status !== "granted") {
-        Alert.alert(t("common.permission_required"), t("common.mic_permission"));
+        if (permission.canAskAgain === false) {
+          Alert.alert(t("common.permission_required"), t("common.mic_permission"), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("common.open_settings"), onPress: async () => {
+              if (!canRecord()) return;
+              try { await Linking.openSettings(); }
+              catch (_) { if (canRecord()) safeAlert(t("common.error"), t("common.mic_permission")); }
+            } },
+          ]);
+        } else Alert.alert(t("common.permission_required"), t("common.mic_permission"));
         return;
       }
       await Audio.setAudioModeAsync({

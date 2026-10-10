@@ -13,6 +13,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { usePreventRemove } from "@react-navigation/native";
@@ -238,51 +239,71 @@ export default function NoteDetailScreen({ route, navigation }) {
     [note]
   );
 
-  // Media playback state
-  const [playingSound, setPlayingSound] = useState(null);
+  // Each sound belongs to one visible screen/account and one playback request.
   const [playingIdx, setPlayingIdx] = useState(null);
   const [expandedImage, setExpandedImage] = useState(null);
-
-  // 언마운트 cleanup은 []로 걸려 있어 최초 렌더의 playingSound(null)만 본다 →
-  // ref로 최신 재생 객체를 따라가야 화면을 나갈 때 소리가 실제로 멈춘다.
   const playingSoundRef = useRef(null);
-  useEffect(() => {
-    playingSoundRef.current = playingSound;
-  }, [playingSound]);
-
-  useEffect(() => {
-    return () => {
-      if (playingSoundRef.current) {
-        playingSoundRef.current.unloadAsync?.();
-        playingSoundRef.current = null;
-      }
-    };
+  const playingIdxRef = useRef(null);
+  const playbackGenerationRef = useRef(0);
+  const playbackFocusedRef = useRef(navigation.isFocused?.() ?? true);
+  const playbackAppStateRef = useRef(AppState.currentState);
+  const releaseSound = async (sound) => {
+    if (!sound) return;
+    try { sound.setOnPlaybackStatusUpdate?.(null); } catch (_) {}
+    try { await sound.unloadAsync(); } catch (_) {}
+  };
+  const stopDetailPlayback = useCallback(() => {
+    playbackGenerationRef.current += 1;
+    const sound = playingSoundRef.current;
+    playingSoundRef.current = null;
+    playingIdxRef.current = null;
+    if (mountedRef.current) setPlayingIdx(null);
+    return releaseSound(sound);
   }, []);
 
+  useEffect(() => {
+    const focus = navigation.addListener?.("focus", () => { playbackFocusedRef.current = true; });
+    const blur = navigation.addListener?.("blur", () => {
+      playbackFocusedRef.current = false;
+      stopDetailPlayback();
+    });
+    const sub = AppState.addEventListener("change", (state) => {
+      playbackAppStateRef.current = state;
+      if (state !== "active") stopDetailPlayback();
+    });
+    return () => { focus?.(); blur?.(); sub?.remove?.(); stopDetailPlayback(); };
+  }, [navigation, stopDetailPlayback]);
+  useEffect(() => { stopDetailPlayback(); }, [noteId, userProfile?.authUserId, stopDetailPlayback]);
+
   const handlePlayVoice = useCallback(async (uri, index) => {
+    if (!playbackFocusedRef.current || playbackAppStateRef.current !== "active") return;
+    const owner = captureOwner();
+    const sameTake = playingIdxRef.current === index;
+    const stopping = stopDetailPlayback();
+    const generation = playbackGenerationRef.current;
+    const stale = () => generation !== playbackGenerationRef.current || !ownerIsCurrent(owner) ||
+      !playbackFocusedRef.current || playbackAppStateRef.current !== "active";
+    let sound = null;
     try {
-      if (playingSound) {
-        await playingSound.unloadAsync();
-        if (playingIdx === index) {
-          setPlayingSound(null);
-          setPlayingIdx(null);
-          return;
-        }
-      }
-      const { sound } = await Audio.Sound.createAsync({ uri });
-      setPlayingSound(sound);
+      await stopping;
+      if (sameTake || stale()) return;
+      ({ sound } = await Audio.Sound.createAsync({ uri }));
+      if (stale()) { await releaseSound(sound); return; }
+      playingSoundRef.current = sound;
+      playingIdxRef.current = index;
       setPlayingIdx(index);
       sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          setPlayingSound(null);
-          setPlayingIdx(null);
+        if (!stale() && playingSoundRef.current === sound && (status.didJustFinish || status.error)) {
+          stopDetailPlayback();
         }
       });
       await sound.playAsync();
-    } catch (e) {
-      // silent fail
+      if (stale()) await releaseSound(sound);
+    } catch (_) {
+      if (playingSoundRef.current === sound && !stale()) await stopDetailPlayback();
+      else await releaseSound(sound);
     }
-  }, [playingSound, playingIdx]);
+  }, [stopDetailPlayback]);
 
   const formatDuration = (sec) => {
     const m = Math.floor((sec || 0) / 60);
@@ -311,13 +332,18 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [note, handleUpdateNote, showToast, t]);
 
   // 고른 초점으로 같은 장면 다시 연습 — 새 노트가 체인(rootNoteId·parentNoteId)을 들고 열린다
-  const handleRepractice = useCallback(() => {
+  const handleRepractice = useCallback(async () => {
     if (!note || isEditing || pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || pendingSaveBusyRef.current) return;
+    const owner = captureOwner();
+    const stopping = stopDetailPlayback();
+    const generation = playbackGenerationRef.current;
+    await stopping;
+    if (!ownerIsCurrent(owner) || generation !== playbackGenerationRef.current || !playbackFocusedRef.current) return;
     trackFunnelEvent("repractice_started");
     navigation.navigate("NoteCreate", {
       prefill: buildRepracticePrefill({ ...note, chosenFocus: note.chosenFocus || note.focus }),
     });
-  }, [note, navigation, isEditing]);
+  }, [note, navigation, isEditing, stopDetailPlayback]);
 
   const fieldEmoji = FIELD_EMOJIS[note?.field] || "\uD83D\uDCDD";
   const fieldLabel = t("fields." + (note?.field || "etc"));

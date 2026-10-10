@@ -1,5 +1,6 @@
 {
   "common": {
+    "open_settings": "開啟設定",
     "cancel": "取消",
     "save": "儲存",
     "delete": "刪除",

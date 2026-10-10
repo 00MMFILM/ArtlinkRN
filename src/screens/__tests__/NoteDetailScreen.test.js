@@ -108,7 +108,7 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
 
-    fireEvent.press(utils.getByText("focus.repractice_cta"));
+    await act(async () => { fireEvent.press(utils.getByText("focus.repractice_cta")); });
     expect(trackFunnelEvent).toHaveBeenCalledWith("repractice_started");
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
       prefill: {
@@ -129,7 +129,7 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 300 } }} navigation={navigation} />);
     openAiTab(utils);
 
-    fireEvent.press(utils.getByText("focus.repractice_cta"));
+    await act(async () => { fireEvent.press(utils.getByText("focus.repractice_cta")); });
     const { prefill } = navigation.navigate.mock.calls[0][1];
     expect(prefill.rootNoteId).toBe(100);
     expect(prefill.parentNoteId).toBe(300);
@@ -195,6 +195,7 @@ const { Audio } = require("expo-av");
 
 const resetDetail = () => {
   jest.clearAllMocks();
+  require("react-native").AppState.currentState = "active";
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
   submitAnonymousMetadata.mockResolvedValue(undefined);
   analyzeNote.mockResolvedValue({ analysis: "새 피드백", scores: null, focusOptions: [] });
@@ -230,7 +231,7 @@ describe("studio context after saving a note", () => {
     openAiTab(utils);
     await act(async () => fireEvent.press(utils.getByText("noteDetail.video_ai_request")));
     expect(analyzeVideoFrames.mock.calls[0][6]).toEqual(expect.objectContaining(meta));
-    fireEvent.press(utils.getByText("focus.repractice_cta"));
+    await act(async () => { fireEvent.press(utils.getByText("focus.repractice_cta")); });
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: expect.objectContaining(meta) });
   });
 });
@@ -270,7 +271,7 @@ describe("항목2 — 영상 AI만 있는 노트에도 고칠 점·재연습이 
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 400 } }} navigation={navigation} />);
     openAiTab(utils);
 
-    fireEvent.press(utils.getByText("focus.repractice_cta"));
+    await act(async () => { fireEvent.press(utils.getByText("focus.repractice_cta")); });
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({
       prefill: expect.objectContaining({ focus: "시선 고정", parentNoteId: 400 }),
     }));
@@ -584,7 +585,7 @@ describe("1.11.9 — 영상 비교와 재분석 확인", () => {
     await act(async () => {});
     expect(utils.getByTestId("retake-compare-card")).toBeTruthy();
     expect(trackFunnelEvent).toHaveBeenCalledWith("compare_viewed");
-    fireEvent.press(utils.getByText("retake.again"));
+    await act(async () => { fireEvent.press(utils.getByText("retake.again")); });
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({
       prefill: expect.objectContaining({ parentNoteId: 200, focus: "호흡" }),
     }));
@@ -737,10 +738,10 @@ describe("표준어 노트 — AI 없이 같은 대사 다시 연습", () => {
     voiceRecordings: [{ uri: "file:///old-take.m4a", duration: 3000 }],
   };
 
-  it("게스트가 AI 결과·초점 없이 눌러도 대사와 체인을 보존하고 녹음·결과를 가져오지 않는다", () => {
+  it("게스트가 AI 결과·초점 없이 눌러도 대사와 체인을 보존하고 녹음·결과를 가져오지 않는다", async () => {
     useApp.mockReturnValue(buildCtx([speechNote], { userProfile: {} }));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 410 } }} navigation={navigation} />);
-    fireEvent.press(utils.getByText("같은 대사 다시 연습"));
+    await act(async () => { fireEvent.press(utils.getByText("같은 대사 다시 연습")); });
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
       prefill: {
         title: speechNote.title, field: "acting", seriesName: speechNote.title,
@@ -766,10 +767,10 @@ describe("표준어 노트 — AI 없이 같은 대사 다시 연습", () => {
     expect(utils.queryByText("같은 대사 다시 연습")).toBeNull();
   });
 
-  it("영문 사용자는 영어 버튼으로 같은 흐름에 진입한다", () => {
+  it("영문 사용자는 영어 버튼으로 같은 흐름에 진입한다", async () => {
     useApp.mockReturnValue(buildCtx([speechNote], { isKoreanLocale: false }));
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 410 } }} navigation={navigation} />);
-    fireEvent.press(utils.getByText("Practice the same dialogue again"));
+    await act(async () => { fireEvent.press(utils.getByText("Practice the same dialogue again")); });
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({ prefill: expect.objectContaining({ practiceMode: "standard_speech" }) }));
   });
 
@@ -784,5 +785,90 @@ describe("표준어 노트 — AI 없이 같은 대사 다시 연습", () => {
     fireEvent.press(utils.getByText("noteDetail.tab_content"));
     expect(utils.queryByText("같은 대사 다시 연습")).toBeNull();
     expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("상세 노트 음성 재생 소유권", () => {
+  const { AppState } = require("react-native");
+  let emitState, listeners, nav;
+  const note = { ...baseNote, practiceMode: "standard_speech", voiceRecordings: [{ uri: "file:///a.m4a" }, { uri: "file:///b.m4a" }] };
+  const deferredSound = () => { let resolve; return { promise: new Promise(r => { resolve = r; }), resolve: v => resolve(v) }; };
+  const makeSound = () => ({ playAsync: jest.fn(async () => {}), unloadAsync: jest.fn(async () => {}), setOnPlaybackStatusUpdate: jest.fn() });
+  beforeEach(() => {
+    resetDetail(); listeners = {};
+    nav = { ...navigation, isFocused: () => true, addListener: (name, fn) => { (listeners[name] ||= []).push(fn); return jest.fn(); } };
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_, fn) => { emitState = fn; return { remove: jest.fn() }; });
+    useApp.mockReturnValue(buildCtx([note]));
+  });
+  afterEach(() => AppState.addEventListener.mockRestore());
+  const renderNote = () => render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={nav} />);
+  const playFirst = async ui => { await act(async () => { fireEvent.press(ui.getAllByText("▶️")[0]); }); };
+  const leave = (kind, ui) => {
+    if (kind === "blur") listeners.blur.forEach(fn => fn());
+    else if (kind === "account") { useApp.mockReturnValue(buildCtx([note], { userProfile: { authUserId: "other" } })); ui.rerender(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={nav} />); }
+    else if (kind === "unmount") ui.unmount();
+    else emitState(kind);
+  };
+  it.each(["blur", "background", "inactive", "account", "unmount"])("재생 중 %s일 때 현재 소리를 해제한다", async kind => {
+    const sound = makeSound(); Audio.Sound.createAsync.mockResolvedValue({ sound });
+    const ui = renderNote(); await playFirst(ui);
+    await act(async () => leave(kind, ui));
+    expect(sound.unloadAsync).toHaveBeenCalled();
+  });
+  it.each(["blur", "background", "account", "unmount"])("create 완료 전 %s이면 늦은 음원을 재생하지 않고 해제한다", async kind => {
+    const pending = deferredSound(), sound = makeSound(); Audio.Sound.createAsync.mockReturnValue(pending.promise);
+    const ui = renderNote(); await playFirst(ui);
+    await act(async () => leave(kind, ui));
+    await act(async () => pending.resolve({ sound }));
+    expect(sound.playAsync).not.toHaveBeenCalled();
+    expect(sound.unloadAsync).toHaveBeenCalled();
+  });
+  it("두번째 음원 준비가 먼저 끝나도 늦은 첫 음원이 덮어쓰지 않는다", async () => {
+    const pending = deferredSound(), first = makeSound(), second = makeSound();
+    Audio.Sound.createAsync.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ sound: second });
+    const ui = renderNote(); await playFirst(ui);
+    await act(async () => { fireEvent.press(ui.getAllByText("▶️")[1]); });
+    await act(async () => pending.resolve({ sound: first }));
+    expect(first.playAsync).not.toHaveBeenCalled(); expect(first.unloadAsync).toHaveBeenCalled();
+    expect(second.playAsync).toHaveBeenCalledTimes(1); expect(second.unloadAsync).not.toHaveBeenCalled();
+  });
+  it("이전 종료 콜백이 새 음원을 정지시키지 않고 같은 음원을 누르면 멈춘다", async () => {
+    const first = makeSound(), second = makeSound();
+    Audio.Sound.createAsync.mockResolvedValueOnce({ sound: first }).mockResolvedValueOnce({ sound: second });
+    const ui = renderNote(); await playFirst(ui);
+    const lateFinish = first.setOnPlaybackStatusUpdate.mock.calls[0][0];
+    await act(async () => { fireEvent.press(ui.getAllByText("▶️")[0]); });
+    await act(async () => lateFinish({ didJustFinish: true }));
+    expect(second.unloadAsync).not.toHaveBeenCalled(); expect(ui.getByText("⏸")).toBeTruthy();
+    await act(async () => { fireEvent.press(ui.getByText("⏸")); });
+    expect(second.unloadAsync).toHaveBeenCalled(); expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(2);
+  });
+  it("재생 완료 또는 실패한 음원을 해제해 재시도할 수 있다", async () => {
+    const first = makeSound(), failed = makeSound(); failed.playAsync.mockRejectedValue(new Error("audio error"));
+    Audio.Sound.createAsync.mockResolvedValueOnce({ sound: first }).mockResolvedValueOnce({ sound: failed });
+    const ui = renderNote(); await playFirst(ui);
+    const finish = first.setOnPlaybackStatusUpdate.mock.calls[0][0];
+    await act(async () => finish({ didJustFinish: true }));
+    expect(first.unloadAsync).toHaveBeenCalled();
+    await playFirst(ui);
+    expect(failed.unloadAsync).toHaveBeenCalled(); expect(ui.queryByText("⏸")).toBeNull();
+  });
+  it("play 완료가 늦어도 blur 이후 새 소리 상태를 복구하지 않는다", async () => {
+    const sound = makeSound(), playing = deferredSound(); sound.playAsync.mockReturnValue(playing.promise);
+    Audio.Sound.createAsync.mockResolvedValue({ sound });
+    const ui = renderNote(); await playFirst(ui);
+    await act(async () => leave("blur", ui));
+    await act(async () => playing.resolve());
+    expect(sound.unloadAsync).toHaveBeenCalled(); expect(ui.queryByText("⏸")).toBeNull();
+  });
+  it("재연습 화면은 상세 음원 해제를 마친 다음 연다", async () => {
+    const sound = makeSound(), unload = deferredSound(); sound.unloadAsync.mockReturnValue(unload.promise);
+    Audio.Sound.createAsync.mockResolvedValue({ sound });
+    const ui = renderNote(); await playFirst(ui);
+    await act(async () => { fireEvent.press(ui.getByText("같은 대사 다시 연습")); });
+    expect(nav.navigate).not.toHaveBeenCalled();
+    await act(async () => unload.resolve());
+    expect(nav.navigate).toHaveBeenCalledWith("NoteCreate", expect.anything());
   });
 });

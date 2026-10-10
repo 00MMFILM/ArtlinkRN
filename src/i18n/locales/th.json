@@ -1,5 +1,6 @@
 {
   "common": {
+    "open_settings": "เปิดการตั้งค่า",
     "cancel": "ยกเลิก",
     "save": "บันทึก",
     "delete": "ลบ",

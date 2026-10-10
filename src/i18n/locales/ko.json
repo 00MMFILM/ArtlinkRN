@@ -1,5 +1,6 @@
 {
   "common": {
+    "open_settings": "설정 열기",
     "cancel": "취소",
     "save": "저장",
     "delete": "삭제",

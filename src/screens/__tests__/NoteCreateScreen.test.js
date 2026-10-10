@@ -1388,6 +1388,22 @@ describe("녹음 중 앱이 백그라운드로 가면", () => {
     }
   });
 
+  it("영구 거절은 OS 재요청 없이 설정 열기와 취소로 복구한다", async () => {
+    const { Linking } = require("react-native");
+    const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue();
+    Audio.getPermissionsAsync.mockResolvedValue({ status: "denied", canAskAgain: false });
+    const ui = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await act(async () => { fireEvent.press(ui.getByText("noteCreate.record")); });
+    expect(Audio.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(rec.startAsync).not.toHaveBeenCalled();
+    const buttons = Alert.alert.mock.calls.at(-1)[2];
+    expect(buttons[0]).toMatchObject({ text: "common.cancel", style: "cancel" });
+    expect(openSettings).not.toHaveBeenCalled();
+    await act(async () => { await buttons[1].onPress(); });
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    openSettings.mockRestore();
+  });
+
   it("이미 허용된 권한은 다시 요청하지 않고 중지 후 재녹음할 수 있다", async () => {
     Audio.getPermissionsAsync.mockResolvedValue({ status: "granted" });
     const ui = render(<NoteCreateScreen navigation={navigation} route={{}} />);
