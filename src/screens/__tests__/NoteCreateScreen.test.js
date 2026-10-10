@@ -1,6 +1,6 @@
 jest.mock("expo-speech", () => ({speak:jest.fn(),stop:jest.fn(async () => {}),getAvailableVoicesAsync:jest.fn(async () => [{language:"ko-KR",identifier:"korean"}])}));
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, AppState } from "react-native";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import NoteCreateScreen from "../NoteCreateScreen";
 import { useApp } from "../../context/AppContext";
@@ -60,6 +60,7 @@ jest.mock("expo-av", () => ({
     Sound: { createAsync: jest.fn() },
     setAudioModeAsync: jest.fn(),
     requestPermissionsAsync: jest.fn(),
+    getPermissionsAsync: jest.fn(),
   },
 }));
 jest.mock("expo-video-thumbnails", () => ({ getThumbnailAsync: jest.fn() }));
@@ -129,6 +130,8 @@ const attachVideo = async (utils) => {
 
 const resetAll = () => {
   jest.clearAllMocks();
+  AppState.currentState = "active";
+  Audio.getPermissionsAsync.mockResolvedValue({ status: "undetermined" });
   Object.keys(AsyncStorage.__store).forEach((k) => delete AsyncStorage.__store[k]);
   jest.spyOn(Alert, "alert").mockImplementation(() => {});
   analyzeNote.mockResolvedValue({ analysis: "좋아요", scores: null });
@@ -1347,7 +1350,7 @@ describe("녹음 중 앱이 백그라운드로 가면", () => {
     let grant;
     Audio.requestPermissionsAsync.mockImplementation(() => new Promise((resolve) => { grant = resolve; }));
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
-    fireEvent.press(utils.getByText("noteCreate.record"));
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.record")); });
     await act(async () => { emit("inactive"); });
     await act(async () => { emit("active"); });
     await act(async () => { grant({ status: "granted" }); });
@@ -1360,11 +1363,84 @@ describe("녹음 중 앱이 백그라운드로 가면", () => {
     let grant;
     Audio.requestPermissionsAsync.mockImplementation(() => new Promise((resolve) => { grant = resolve; }));
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
-    fireEvent.press(utils.getByText("noteCreate.record"));
+    await act(async () => { fireEvent.press(utils.getByText("noteCreate.record")); });
     await act(async () => { emit("background"); });
     await act(async () => { grant({ status: "granted" }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1050)); });
     expect(Audio.Recording).not.toHaveBeenCalled();
     expect(utils.getByText("noteCreate.record")).toBeTruthy();
+  });
+
+  it.each(["granted", "denied"])("Android 권한 창 background → %s 응답 → active 순서를 기다린다", async (status) => {
+    const permission = deferred();
+    Audio.requestPermissionsAsync.mockReturnValue(permission.promise);
+    const ui = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await act(async () => { fireEvent.press(ui.getByText("noteCreate.record")); });
+    await act(async () => emit("background"));
+    await act(async () => permission.resolve({ status }));
+    expect(rec.startAsync).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+    await act(async () => emit("active"));
+    if (status === "granted") expect(rec.startAsync).toHaveBeenCalledTimes(1);
+    else {
+      expect(rec.startAsync).not.toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith("common.permission_required", "common.mic_permission");
+    }
+  });
+
+  it("이미 허용된 권한은 다시 요청하지 않고 중지 후 재녹음할 수 있다", async () => {
+    Audio.getPermissionsAsync.mockResolvedValue({ status: "granted" });
+    const ui = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await act(async () => { fireEvent.press(ui.getByText("noteCreate.record")); });
+    expect(rec.startAsync).toHaveBeenCalledTimes(1);
+    await act(async () => emit("background"));
+    await act(async () => emit("active"));
+    await act(async () => { fireEvent.press(ui.getByText("noteCreate.record")); });
+    expect(rec.startAsync).toHaveBeenCalledTimes(2);
+    expect(Audio.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it("허용 여부 조회 중 홈으로 갔다 돌아와도 이전 시작 요청을 재개하지 않는다", async () => {
+    const check = deferred();
+    Audio.getPermissionsAsync.mockReturnValue(check.promise);
+    const ui = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await act(async () => { fireEvent.press(ui.getByText("noteCreate.record")); });
+    await act(async () => { emit("background"); emit("active"); });
+    await act(async () => check.resolve({ status: "granted" }));
+    expect(rec.startAsync).not.toHaveBeenCalled();
+    expect(Audio.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(["unmount", "blur", "account"])("권한 창 대기 중 %s 후 늦은 허용은 녹음하지 않는다", async (leave) => {
+    const permission = deferred();
+    Audio.requestPermissionsAsync.mockReturnValue(permission.promise);
+    let blur;
+    const nav = { ...navigation, addListener: jest.fn((event, fn) => { if (event === "blur") blur = fn; return jest.fn(); }) };
+    const route = { params: { prefill: { practiceMode: "standard_speech", content: "연습 대사" } } };
+    const ui = render(<NoteCreateScreen navigation={nav} route={route} />);
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+    await act(async () => emit("background"));
+    if (leave === "unmount") ui.unmount();
+    else if (leave === "blur") act(() => blur());
+    else {
+      useApp.mockReturnValue(buildCtx("another-account"));
+      ui.rerender(<NoteCreateScreen navigation={nav} route={route} />);
+    }
+    await act(async () => { permission.resolve({ status: "granted" }); emit("active"); });
+    expect(rec.startAsync).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("녹음 준비 중 background 전환은 준비된 마이크를 정리한다", async () => {
+    Audio.getPermissionsAsync.mockResolvedValue({ status: "granted" });
+    const prepare = deferred();
+    rec.prepareToRecordAsync.mockReturnValue(prepare.promise);
+    const ui = render(<NoteCreateScreen navigation={navigation} route={{}} />);
+    await act(async () => { fireEvent.press(ui.getByText("noteCreate.record")); });
+    await act(async () => emit("background"));
+    await act(async () => prepare.resolve());
+    expect(rec.startAsync).not.toHaveBeenCalled();
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -1399,9 +1475,9 @@ describe("ACT RAW 표준어 연습 노트", () => {
     const prefill = {title:"독백",content:"첫 줄\n다음 줄",field:"acting",sceneId:"actraw:test",practiceMode:"standard_speech"};
     const ui = render(<NoteCreateScreen navigation={navigation} route={{params:{prefill}}} />);
     expect(ui.getByTestId("standard-speech-practice")).toBeTruthy();
-    await act(async () => fireEvent.press(ui.getByTestId("speech-next")));
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-next")); });
     expect(ui.getByPlaceholderText("noteCreate.content_placeholder").props.value).toBe("첫 줄\n다음 줄");
-    await act(async () => fireEvent.press(ui.getByText("common.save")));
+    await act(async () => { fireEvent.press(ui.getByText("common.save")); });
     expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({...prefill,speechLineIndex:1}));
   });
 });
@@ -1426,7 +1502,7 @@ test("표준어 녹음 준비·진행·정리 중 저장을 막고 완료된 테
   await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
   fireEvent.press(ui.getByText("common.save")); expect(ctx.handleSaveNote).not.toHaveBeenCalled();
   await act(async () => finishStop());
-  await act(async () => fireEvent.press(ui.getByText("common.save")));
+  await act(async () => { fireEvent.press(ui.getByText("common.save")); });
   expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({practiceMode:"standard_speech",content:"원래 대사",voiceRecordings:expect.arrayContaining([expect.objectContaining({uri:expect.stringContaining("file:///doc/media/")})])}));
 });
 

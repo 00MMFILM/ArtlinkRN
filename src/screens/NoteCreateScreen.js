@@ -253,6 +253,9 @@ export default function NoteCreateScreen({ navigation, route }) {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
   const recordingTimerRef = useRef(null);
+  const appStateRef = useRef(AppState.currentState);
+  const permissionPromptRef = useRef(false);
+  const foregroundWaitRef = useRef(null);
   const recordingStartTokenRef = useRef(0); // bumped to cancel a start that is still waiting on permission/prepare
   const [playingSound, setPlayingSound] = useState(null);
   const [playingIdx, setPlayingIdx] = useState(null);
@@ -308,6 +311,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       }
       playbackGenerationRef.current += 1;
       recordingStartTokenRef.current += 1;
+      foregroundWaitRef.current?.(false);
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
@@ -737,12 +741,29 @@ export default function NoteCreateScreen({ navigation, route }) {
   }, [images, aiLoading]);
 
   const handleStartRecording = useCallback(async () => {
-    if (recordingBusyRef.current || recordingRef.current) return;
+    if (recordingBusyRef.current || recordingRef.current || appStateRef.current !== "active") return;
+    const owner = captureOwner();
     recordingBusyRef.current = true;
     playbackGenerationRef.current += 1;
     setSpeechRecordingBusy(true);
     const token = ++recordingStartTokenRef.current;
-    const cancelled = () => token !== recordingStartTokenRef.current;
+    const cancelled = () => token !== recordingStartTokenRef.current || !ownerIsCurrent(owner);
+    const canRecord = () => !cancelled() && appStateRef.current === "active";
+    // Android permission activities may resolve before onHostResume. Wait briefly,
+    // but never start a recording if the user stays outside the app.
+    const waitForForeground = () => {
+      if (cancelled()) return Promise.resolve(false);
+      if (appStateRef.current === "active") return Promise.resolve(true);
+      return new Promise((resolve) => {
+        const finish = (active) => {
+          clearTimeout(timer);
+          if (foregroundWaitRef.current === finish) foregroundWaitRef.current = null;
+          resolve(active && canRecord());
+        };
+        const timer = setTimeout(() => finish(false), 1000);
+        foregroundWaitRef.current = finish;
+      });
+    };
     let recording = null;
     // The app went to the background (or the screen closed) mid-start: release the recorder instead of recording unseen.
     const releaseCancelled = async () => {
@@ -751,11 +772,21 @@ export default function NoteCreateScreen({ navigation, route }) {
     };
     try {
       if (speechPracticeRef.current) await speechPracticeRef.current.stop();
-      if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); }
-      if (cancelled()) return;
-      const { status } = await Audio.requestPermissionsAsync();
-      if (cancelled()) return;
-      if (status !== "granted") {
+      if (!canRecord()) return;
+      if (playingSoundRef.current) {
+        await playingSoundRef.current.unloadAsync();
+        if (!canRecord()) return;
+        playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null);
+      }
+      let permission = await Audio.getPermissionsAsync();
+      if (!canRecord()) return;
+      if (permission.status !== "granted") {
+        permissionPromptRef.current = true;
+        try { permission = await Audio.requestPermissionsAsync(); }
+        finally { permissionPromptRef.current = false; }
+        if (!(await waitForForeground()) || !canRecord()) return;
+      }
+      if (permission.status !== "granted") {
         Alert.alert(t("common.permission_required"), t("common.mic_permission"));
         return;
       }
@@ -763,12 +794,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-      if (cancelled()) { await releaseCancelled(); return; }
+      if (!canRecord()) { await releaseCancelled(); return; }
       recording = new Audio.Recording();
       await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      if (cancelled()) { await releaseCancelled(); return; }
+      if (!canRecord()) { await releaseCancelled(); return; }
       await recording.startAsync();
-      if (cancelled()) { await releaseCancelled(); return; }
+      if (!canRecord()) { await releaseCancelled(); return; }
       recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
@@ -776,10 +807,15 @@ export default function NoteCreateScreen({ navigation, route }) {
         setRecordingDuration((d) => d + 1);
       }, 1000);
     } catch (e) {
-      if (cancelled()) { await releaseCancelled(); return; }
+      if (!canRecord()) { await releaseCancelled(); return; }
       await releaseCancelled();
+      if (!canRecord()) return;
       Alert.alert(t("noteCreate.recording_error"), t("noteCreate.recording_error_msg"));
-    } finally { recordingBusyRef.current = false; setSpeechRecordingBusy(false); }
+    } finally {
+      permissionPromptRef.current = false;
+      recordingBusyRef.current = false;
+      if (isMountedRef.current) setSpeechRecordingBusy(false);
+    }
   }, [t]);
 
   const handleStopRecording = useCallback(async () => {
@@ -804,12 +840,18 @@ export default function NoteCreateScreen({ navigation, route }) {
   }, [recordingDuration, ensurePracticeSession]);
 
   // Leaving the app ends the take: keep what was recorded, never keep recording in the background.
-  // "inactive" also fires for the first permission dialog, so only "background" cancels a pending start.
+  // Android's permission activity may emit background; exempt only the actual
+  // permission request, then require a bounded return to active before recording.
   const stopRecordingRef = useRef(handleStopRecording);
   stopRecordingRef.current = handleStopRecording;
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "background") recordingStartTokenRef.current += 1;
+      appStateRef.current = state;
+      if (state === "active") foregroundWaitRef.current?.(true);
+      if (state === "background" && !permissionPromptRef.current) {
+        recordingStartTokenRef.current += 1;
+        foregroundWaitRef.current?.(false);
+      }
       if ((state === "background" || state === "inactive") && recordingRef.current) stopRecordingRef.current();
     });
     return () => sub?.remove?.();
@@ -820,6 +862,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     return navigation.addListener?.("blur", () => {
       playbackGenerationRef.current += 1;
       recordingStartTokenRef.current += 1;
+      foregroundWaitRef.current?.(false);
       if (recordingRef.current) stopRecordingRef.current();
       playingSoundRef.current?.unloadAsync?.().catch?.(() => {});
       playingSoundRef.current = null;
