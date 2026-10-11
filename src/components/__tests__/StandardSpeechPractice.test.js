@@ -11,6 +11,8 @@ test('reference listens to only selected line without starting recording or anal
  fireEvent.press(ui.getByTestId('speech-listen'));
  await waitFor(() => expect(Speech.speak).toHaveBeenCalledWith('두 번째 대사', expect.objectContaining({language:'ko-KR'})));
  expect(p.onRecord).not.toHaveBeenCalled();
+ expect(ui.queryByText(/자동 발음/)).toBeNull();
+ fireEvent.press(ui.getByTestId("speech-details"));
  expect(ui.getByText(/자동 발음/)).toBeTruthy();
  fireEvent.press(ui.getByTestId('speech-prev'));
  await waitFor(() => expect(p.onLineChange).toHaveBeenCalledWith(0));
@@ -40,4 +42,18 @@ test("missing Korean voice disables reference but keeps recording available", as
  await waitFor(() => expect(ui.getByText(/사용 가능한 한국어/)).toBeTruthy());
  fireEvent.press(ui.getByTestId("speech-listen")); expect(Speech.speak).not.toHaveBeenCalled();
  fireEvent.press(ui.getByTestId("speech-record")); expect(p.onRecord).toHaveBeenCalled();
+});
+
+test('microphone level distinguishes missing telemetry from low and strong input without scoring', () => {
+ const p=props(); const ui=render(<StandardSpeechPractice {...p} recording inputDb={null} recordingSeconds={65}/>);
+ expect(ui.getByText('입력 소리 확인 중')).toBeTruthy();
+ expect(ui.getByText('녹음 중 · 1:05')).toBeTruthy();
+ expect(ui.getByTestId('speech-input-level').props.accessibilityValue.now).toBeUndefined();
+ ui.rerender(<StandardSpeechPractice {...p} recording inputDb={-160}/>);
+ expect(ui.getByText('입력 소리가 작아요')).toBeTruthy();
+ expect(ui.getByTestId('speech-input-level').props.accessibilityValue.now).toBe(0);
+ ui.rerender(<StandardSpeechPractice {...p} recording inputDb={-20}/>);
+ expect(ui.getByText('소리가 들어오고 있어요')).toBeTruthy();
+ ui.rerender(<StandardSpeechPractice {...p} recording={false} inputDb={-20}/>);
+ expect(ui.queryByTestId('speech-input-monitor')).toBeNull();
 });

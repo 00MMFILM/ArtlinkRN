@@ -253,6 +253,8 @@ export default function NoteCreateScreen({ navigation, route }) {
   const recordingBusyRef = useRef(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef(null);
+  const recordingOwnerRef = useRef(null);
+  const [recordingInputDb, setRecordingInputDb] = useState(null);
   const recordingTimerRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
   const permissionPromptRef = useRef(false);
@@ -745,6 +747,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     if (recordingBusyRef.current || recordingRef.current || appStateRef.current !== "active") return;
     const owner = captureOwner();
     recordingBusyRef.current = true;
+    setRecordingInputDb(null);
     playbackGenerationRef.current += 1;
     setSpeechRecordingBusy(true);
     const token = ++recordingStartTokenRef.current;
@@ -811,6 +814,11 @@ export default function NoteCreateScreen({ navigation, route }) {
       await recording.startAsync();
       if (!canRecord()) { await releaseCancelled(); return; }
       recordingRef.current = recording;
+      recordingOwnerRef.current = owner;
+      recording.setOnRecordingStatusUpdate?.((status) => {
+        if (recordingRef.current !== recording || !ownerIsCurrent(owner) || !status.isRecording) return;
+        setRecordingInputDb(typeof status.metering === "number" && Number.isFinite(status.metering) ? status.metering : null);
+      });
       setIsRecording(true);
       setRecordingDuration(0);
       recordingTimerRef.current = setInterval(() => {
@@ -831,14 +839,19 @@ export default function NoteCreateScreen({ navigation, route }) {
   const handleStopRecording = useCallback(async () => {
     const recording = recordingRef.current;
     if (!recording) return;
+    const owner = recordingOwnerRef.current || captureOwner();
+    recordingOwnerRef.current = null;
     recordingBusyRef.current = true; setSpeechRecordingBusy(true);
+    setRecordingInputDb(null);
+    recording.setOnRecordingStatusUpdate?.(null);
     recordingRef.current = null; // a second stop (inactive → background) must not attach the take twice
     try {
       clearInterval(recordingTimerRef.current);
-      await recording.stopAndUnloadAsync();
+      const status = await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      if (!ownerIsCurrent(owner)) return;
       const uri = recording.getURI();
-      const finalDuration = recordingDuration;
+      const finalDuration = Number.isFinite(status?.durationMillis) ? Math.max(0, Math.floor(status.durationMillis / 1000)) : recordingDuration;
       setIsRecording(false);
       if (uri) {
         ensurePracticeSession(); // 녹음 첨부 = 연습 시작
@@ -846,7 +859,10 @@ export default function NoteCreateScreen({ navigation, route }) {
       }
     } catch (e) {
       setIsRecording(false);
-    } finally { recordingBusyRef.current = false; setSpeechRecordingBusy(false); }
+    } finally {
+      recordingBusyRef.current = false;
+      if (isMountedRef.current) { setSpeechRecordingBusy(false); setIsRecording(false); }
+    }
   }, [recordingDuration, ensurePracticeSession]);
 
   // Leaving the app ends the take: keep what was recorded, never keep recording in the background.
@@ -854,6 +870,9 @@ export default function NoteCreateScreen({ navigation, route }) {
   // permission request, then require a bounded return to active before recording.
   const stopRecordingRef = useRef(handleStopRecording);
   stopRecordingRef.current = handleStopRecording;
+  useEffect(() => {
+    if (recordingOwnerRef.current && !ownerIsCurrent(recordingOwnerRef.current)) stopRecordingRef.current();
+  }, [userProfile?.authUserId]);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       appStateRef.current = state;
@@ -1178,7 +1197,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         <StudioContextCard note={studioMetadata} />
         {studioMetadata.practiceMode === "standard_speech" && <StandardSpeechPractice
           ref={speechPracticeRef} content={content} language={i18n.language} lineIndex={speechLineIndex} onLineChange={setSpeechLineIndex}
-          recording={isRecording} busy={aiBusy || saving || speechRecordingBusy} takes={voiceRecordings} owner={userProfile?.authUserId || "guest"} navigation={navigation}
+          recording={isRecording} inputDb={recordingInputDb} recordingSeconds={recordingDuration} busy={aiBusy || saving || speechRecordingBusy} takes={voiceRecordings} owner={userProfile?.authUserId || "guest"} navigation={navigation}
           onRecord={handleStartRecording} onStop={handleStopRecording} onPlay={handlePlayRecording}
           beforeListen={async () => { playbackGenerationRef.current += 1; if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); } }}
         />}

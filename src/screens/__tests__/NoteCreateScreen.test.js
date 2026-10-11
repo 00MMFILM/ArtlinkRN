@@ -1538,3 +1538,55 @@ test.each(["speech-record", "speech-listen"])("늦게 준비된 이전 테이크
   await act(async () => resolveSound({sound}));
   expect(sound.playAsync).not.toHaveBeenCalled(); expect(sound.unloadAsync).toHaveBeenCalledTimes(1);
 });
+
+describe("입력 소리 표시와 녹음 완료 소유자", () => {
+  const route = { params: { prefill: { title: "녹음 입력 확인", practiceMode: "standard_speech", content: "오늘은 천천히 말해보겠습니다." } } };
+  let rec, ctx;
+  beforeEach(() => {
+    resetAll(); ctx = buildCtx("u1"); ctx.handleSaveNote.mockResolvedValue(101); useApp.mockReturnValue(ctx);
+    Audio.getPermissionsAsync.mockResolvedValue({ status: "granted" });
+    Audio.RecordingOptionsPresets = { HIGH_QUALITY: { isMeteringEnabled: true } };
+    rec = { prepareToRecordAsync: jest.fn(async () => {}), startAsync: jest.fn(async () => {}),
+      stopAndUnloadAsync: jest.fn(async () => ({ durationMillis: 2700 })), getURI: jest.fn(() => "file:///probe.m4a"),
+      setOnRecordingStatusUpdate: jest.fn() };
+    Audio.Recording.mockImplementation(() => rec);
+  });
+  it("기기 상태를 입력 표시에 연결하고 중지 시 해제하며 실제 녹음 길이를 저장한다", async () => {
+    const ui = render(<NoteCreateScreen navigation={navigation} route={route}/>);
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+    const update = rec.setOnRecordingStatusUpdate.mock.calls[0][0];
+    act(() => update({ isRecording: true, metering: -22 }));
+    expect(ui.getByText("소리가 들어오고 있어요")).toBeTruthy();
+    act(() => update({ isRecording: true }));
+    expect(ui.getByText("입력 소리 확인 중")).toBeTruthy();
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+    expect(rec.setOnRecordingStatusUpdate).toHaveBeenLastCalledWith(null);
+    act(() => update({ isRecording: true, metering: -1 }));
+    expect(ui.queryByTestId("speech-input-monitor")).toBeNull();
+    await act(async () => fireEvent.press(ui.getByText("common.save")));
+    expect(ctx.handleSaveNote.mock.calls[0][0].voiceRecordings[0].duration).toBe(2);
+  });
+  it("녹음 종료 대기 중 계정이 바뀌면 이전 녹음물을 새 계정에 붙이지 않는다", async () => {
+    const finished = deferred(); rec.stopAndUnloadAsync.mockReturnValue(finished.promise);
+    const ui = render(<NoteCreateScreen navigation={navigation} route={route}/>);
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+    const next = buildCtx("u2"); next.handleSaveNote.mockResolvedValue(102); useApp.mockReturnValue(next);
+    ui.rerender(<NoteCreateScreen navigation={navigation} route={route}/>);
+    await act(async () => finished.resolve({ durationMillis: 3000 }));
+    expect(ui.queryByTestId("speech-take-0")).toBeNull();
+    await act(async () => fireEvent.press(ui.getByText("common.save")));
+    expect(next.handleSaveNote.mock.calls[0][0].voiceRecordings).toBeUndefined();
+  });
+  it("녹음 중 계정을 바꾸면 마이크를 해제하고 오래된 입력 상태를 버린다", async () => {
+    const ui = render(<NoteCreateScreen navigation={navigation} route={route}/>);
+    await act(async () => { fireEvent.press(ui.getByTestId("speech-record")); });
+    const update = rec.setOnRecordingStatusUpdate.mock.calls[0][0];
+    useApp.mockReturnValue(buildCtx("u2"));
+    await act(async () => ui.rerender(<NoteCreateScreen navigation={navigation} route={route}/>));
+    expect(rec.stopAndUnloadAsync).toHaveBeenCalledTimes(1);
+    act(() => update({ isRecording: true, metering: -22 }));
+    expect(ui.queryByTestId("speech-take-0")).toBeNull();
+    expect(ui.queryByTestId("speech-input-monitor")).toBeNull();
+  });
+});
