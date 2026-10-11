@@ -1085,3 +1085,29 @@ describe("DuetPracticeScreen — cancelling a pending recorder", () => {
     expect(navigation.navigate.mock.calls[0][1].prefill.voiceRecordings).toEqual([{ uri: "file:///cancelled.m4a", duration: 1 }]);
   });
 });
+
+
+describe("English guided study integration", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+    useApp.mockReturnValue({ showToast: jest.fn() });
+  });
+  it("study does not count as completed rehearsal; selected role survives transition", () => {
+    const u = render(<DuetPracticeScreen navigation={navigation} />);
+    fireEvent.press(u.getByTestId("duet-scriptLanguage-en"));
+    fireEvent.press(u.getByTestId("duet-scene-artlink-en-last-train"));
+    fireEvent.press(u.getByTestId("duet-role-1"));
+    fireEvent.press(u.getByTestId("duet-start-study"));
+    fireEvent.press(u.getByTestId("study-listen"));
+    expect(require("expo-speech").speak).toHaveBeenCalledWith("You left this on the kitchen table.", expect.objectContaining({ language: "en-US" }));
+    for(let i=0;i<9;i++) fireEvent.press(u.getByTestId("study-next"));
+    expect(startPractice).not.toHaveBeenCalled();
+    expect(completePractice).not.toHaveBeenCalled();
+    fireEvent.press(u.getByTestId("study-practice"));
+    expect(u.getByTestId("duet-cue-stage")).toBeTruthy();
+    expect(startPractice).toHaveBeenCalledTimes(1);
+    fireEvent.press(u.getByTestId("duet-next"));
+    expect(u.getByTestId("duet-reveal")).toBeTruthy();
+  });
+});

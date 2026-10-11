@@ -1,0 +1,562 @@
+{
+  "artlink-en-last-train": {
+    "lines": [
+      {
+        "text": "You left this on the kitchen table.",
+        "ko": "이거 부엌 식탁에 두고 갔더라."
+      },
+      {
+        "text": "My key. I thought I had everything.",
+        "ko": "내 열쇠네. 다 챙긴 줄 알았는데."
+      },
+      {
+        "text": "I could post it tomorrow.",
+        "ko": "내일 우편으로 보내도 됐겠지."
+      },
+      {
+        "text": "Then why did you run all the way here?",
+        "ko": "그런데 왜 여기까지 뛰어왔어?"
+      },
+      {
+        "text": "I wanted to know you got on the right train.",
+        "ko": "제대로 기차 타는지 보고 싶었어."
+      },
+      {
+        "text": "There is only one train, Maya.",
+        "ko": "기차는 하나뿐이야, 마야."
+      },
+      {
+        "text": "I know. I had a better sentence on the way.",
+        "ko": "알아. 오는 길에는 더 괜찮은 말이 생각났었는데."
+      },
+      {
+        "text": "You still have a minute.",
+        "ko": "아직 일 분은 있어."
+      },
+      {
+        "text": "Call me when the new place starts to feel like home.",
+        "ko": "새집이 네 집처럼 느껴지기 시작하면 전화해."
+      },
+      {
+        "text": "I will. And I am keeping the key.",
+        "ko": "그럴게. 그리고 열쇠는 내가 가지고 있을게."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "all the way here",
+        "ko": "여기까지 먼 길을",
+        "en": "emphasises the whole journey"
+      },
+      {
+        "phrase": "feel like home",
+        "ko": "집처럼 편안하게 느껴지다",
+        "en": "feel familiar and comfortable"
+      }
+    ]
+  },
+  "artlink-en-borrowed-jacket": {
+    "lines": [
+      {
+        "text": "The sleeves are a little long.",
+        "ko": "소매가 좀 길다."
+      },
+      {
+        "text": "Fold them once. Nobody will notice.",
+        "ko": "한 번 접어. 아무도 모를 거야."
+      },
+      {
+        "text": "There is cash in the pocket.",
+        "ko": "주머니에 돈이 있는데."
+      },
+      {
+        "text": "Old jacket. Things get lost in it.",
+        "ko": "오래된 재킷이잖아. 별게 다 들어 있지."
+      },
+      {
+        "text": "Exactly enough for a return ticket?",
+        "ko": "딱 왕복 표 살 만큼?"
+      },
+      {
+        "text": "A very organised jacket.",
+        "ko": "아주 꼼꼼한 재킷이지."
+      },
+      {
+        "text": "I said I could manage.",
+        "ko": "나 혼자 할 수 있다고 했잖아."
+      },
+      {
+        "text": "And I said you could borrow it. All of it.",
+        "ko": "난 빌려도 된다고 했고. 전부 다."
+      },
+      {
+        "text": "I will bring it back tomorrow.",
+        "ko": "내일 돌려줄게."
+      },
+      {
+        "text": "Keep it until they give you the job.",
+        "ko": "취직할 때까지 가지고 있어."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "a return ticket",
+        "ko": "왕복 표",
+        "en": "a ticket for going and coming back"
+      },
+      {
+        "phrase": "I could manage",
+        "ko": "혼자 해낼 수 있었다 / 여기서는 도움 없이 해내겠다는 말",
+        "en": "I could cope without help"
+      }
+    ]
+  },
+  "artlink-en-five-minutes": {
+    "lines": [
+      {
+        "text": "We close in five minutes.",
+        "ko": "오 분 뒤에 문 닫습니다."
+      },
+      {
+        "text": "You said that five minutes ago.",
+        "ko": "오 분 전에도 그러셨잖아요."
+      },
+      {
+        "text": "I was hoping you had a watch.",
+        "ko": "시계가 있으실 줄 알았죠."
+      },
+      {
+        "text": "My mother used to paint windows like that.",
+        "ko": "우리 엄마도 저런 창문을 그리곤 했어요."
+      },
+      {
+        "text": "Is that why you have been standing here?",
+        "ko": "그래서 계속 여기 서 계셨던 거예요?"
+      },
+      {
+        "text": "Her windows always had someone coming home.",
+        "ko": "엄마 그림 속 창문에는 늘 집에 돌아오는 사람이 있었어요."
+      },
+      {
+        "text": "This one is empty.",
+        "ko": "이 그림에는 아무도 없네요."
+      },
+      {
+        "text": "Maybe they are just late.",
+        "ko": "그냥 늦는 걸지도 모르죠."
+      },
+      {
+        "text": "I need to turn the lights off in the other room.",
+        "ko": "옆방 불을 끄러 가야겠어요."
+      },
+      {
+        "text": "Then I have five more minutes.",
+        "ko": "그럼 오 분은 더 있겠네요."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "used to",
+        "ko": "예전에 ~하곤 했다",
+        "en": "a past habit or state"
+      },
+      {
+        "phrase": "turn the lights off",
+        "ko": "불을 끄다",
+        "en": "switch off the lights"
+      }
+    ]
+  },
+  "artlink-en-wrong-take": {
+    "lines": [
+      {
+        "text": "Play it from the beginning.",
+        "ko": "처음부터 틀어봐."
+      },
+      {
+        "text": "I have. Three times.",
+        "ko": "틀었어. 세 번이나."
+      },
+      {
+        "text": "Why is it quiet?",
+        "ko": "왜 소리가 없어?"
+      },
+      {
+        "text": "I checked the camera. I did not check the microphone.",
+        "ko": "카메라는 확인했어. 마이크는 확인 안 했고."
+      },
+      {
+        "text": "That was the take.",
+        "ko": "그 테이크가 제일 좋았는데."
+      },
+      {
+        "text": "I know.",
+        "ko": "알아."
+      },
+      {
+        "text": "We cannot get that light tomorrow.",
+        "ko": "내일은 저 빛을 못 얻어."
+      },
+      {
+        "text": "We have twelve minutes of it left today.",
+        "ko": "오늘 아직 십이 분 남았어."
+      },
+      {
+        "text": "You think we can do it again?",
+        "ko": "다시 할 수 있을 것 같아?"
+      },
+      {
+        "text": "I think I owe you a reason to try.",
+        "ko": "다시 해볼 이유는 내가 만들어줘야 할 것 같아."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "from the beginning",
+        "ko": "처음부터",
+        "en": "from the start"
+      },
+      {
+        "phrase": "owe you a reason to try",
+        "ko": "다시 해볼 이유를 마련해줘야 할 책임이 있다",
+        "en": "feel responsible for giving someone a reason to try"
+      }
+    ]
+  },
+  "artlink-en-empty-chair": {
+    "lines": [
+      {
+        "text": "Is this seat taken?",
+        "ko": "여기 자리 있나요?"
+      },
+      {
+        "text": "It has been waiting for someone.",
+        "ko": "누군가를 기다리고 있었죠."
+      },
+      {
+        "text": "I can find another table.",
+        "ko": "다른 테이블 찾아도 돼."
+      },
+      {
+        "text": "You could also sit down.",
+        "ko": "그냥 앉아도 되고."
+      },
+      {
+        "text": "I was not sure you would want me here.",
+        "ko": "네가 내가 오는 걸 반길지 모르겠더라."
+      },
+      {
+        "text": "I bought the tea you like. It expires on Friday.",
+        "ko": "네가 좋아하는 차 사뒀어. 금요일까지야."
+      },
+      {
+        "text": "That sounds like a deadline.",
+        "ko": "기한을 정해주는 것 같은데."
+      },
+      {
+        "text": "It is a very small box.",
+        "ko": "아주 작은 상자야."
+      },
+      {
+        "text": "Then we should probably start today.",
+        "ko": "그럼 오늘부터 마셔야겠네."
+      },
+      {
+        "text": "I will get a second cup.",
+        "ko": "잔 하나 더 가져올게."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "Is this seat taken?",
+        "ko": "여기 누가 앉나요?",
+        "en": "ask whether a seat is available"
+      },
+      {
+        "phrase": "sounds like a deadline",
+        "ko": "마감 기한처럼 들린다",
+        "en": "seems to set a time limit"
+      }
+    ]
+  },
+  "artlink-en-last-box": {
+    "lines": [
+      {
+        "text": "What is in the last box?",
+        "ko": "마지막 상자에는 뭐가 있어?"
+      },
+      {
+        "text": "Things nobody wanted to label.",
+        "ko": "아무도 이름 붙이기 싫었던 것들."
+      },
+      {
+        "text": "That means you have already looked.",
+        "ko": "벌써 열어봤다는 뜻이네."
+      },
+      {
+        "text": "There is a photo of us in the garden.",
+        "ko": "정원에서 찍은 우리 사진이 있어."
+      },
+      {
+        "text": "Keep it.",
+        "ko": "네가 가져."
+      },
+      {
+        "text": "You say that about everything.",
+        "ko": "넌 뭐든 그렇게 말하더라."
+      },
+      {
+        "text": "It is easier than saying I want it.",
+        "ko": "갖고 싶다고 하는 것보단 쉬우니까."
+      },
+      {
+        "text": "We can make a copy.",
+        "ko": "복사하면 되잖아."
+      },
+      {
+        "text": "A copy will not have the fold in the middle.",
+        "ko": "복사본에는 가운데 접힌 자국이 없잖아."
+      },
+      {
+        "text": "Then you keep this one. I remember the fold.",
+        "ko": "그럼 이건 네가 가져. 난 그 자국 기억하니까."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "make a copy",
+        "ko": "복사본을 만들다",
+        "en": "produce another version"
+      },
+      {
+        "phrase": "the fold in the middle",
+        "ko": "가운데 접힌 자국",
+        "en": "a crease in the centre"
+      }
+    ]
+  },
+  "artlink-en-opening-night": {
+    "lines": [
+      {
+        "text": "I cannot remember the first line.",
+        "ko": "첫 대사가 생각이 안 나."
+      },
+      {
+        "text": "You said it in the lift.",
+        "ko": "엘리베이터에서는 했잖아."
+      },
+      {
+        "text": "That was before there were people outside.",
+        "ko": "그땐 밖에 사람들이 없었잖아."
+      },
+      {
+        "text": "Then say it to me.",
+        "ko": "그럼 나한테 해."
+      },
+      {
+        "text": "What if nothing comes out?",
+        "ko": "아무 말도 안 나오면?"
+      },
+      {
+        "text": "I will still be standing here.",
+        "ko": "난 계속 여기 서 있을 거야."
+      },
+      {
+        "text": "You make it sound very simple.",
+        "ko": "네가 말하니까 되게 간단하게 들린다."
+      },
+      {
+        "text": "It is one line. We can worry about the second after that.",
+        "ko": "딱 한 줄이야. 두 번째는 그다음에 걱정하자."
+      },
+      {
+        "text": "Will you look at me when I come on?",
+        "ko": "나 등장할 때 나 봐줄래?"
+      },
+      {
+        "text": "I was going to ask you the same thing.",
+        "ko": "나도 너한테 그 말 하려던 참이야."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "What if",
+        "ko": "만약 ~하면 어떡하지?",
+        "en": "ask about a possible situation"
+      },
+      {
+        "phrase": "come on",
+        "ko": "여기서는 무대에 등장하다",
+        "en": "here, enter the stage"
+      }
+    ]
+  },
+  "artlink-en-rain-check": {
+    "lines": [
+      {
+        "text": "You are actually here.",
+        "ko": "진짜 왔네."
+      },
+      {
+        "text": "I deserve that.",
+        "ko": "그런 말 들어도 싸지."
+      },
+      {
+        "text": "The film started ten minutes ago.",
+        "ko": "영화 십 분 전에 시작했어."
+      },
+      {
+        "text": "We could catch the next one.",
+        "ko": "다음 회차 보면 되잖아."
+      },
+      {
+        "text": "I do not want another next one.",
+        "ko": "또 다음이라는 말 듣기 싫어."
+      },
+      {
+        "text": "Then tell me what would help.",
+        "ko": "그럼 어떻게 하면 좋을지 말해줘."
+      },
+      {
+        "text": "A message before I leave home. Even a bad one.",
+        "ko": "내가 집 나서기 전에 문자 한 통. 안 좋은 소식이어도."
+      },
+      {
+        "text": "I can do that.",
+        "ko": "그럴 수 있어."
+      },
+      {
+        "text": "And dinner. I skipped dinner for this.",
+        "ko": "그리고 저녁. 이것 때문에 저녁도 안 먹었어."
+      },
+      {
+        "text": "There is a place across the road. We can go now.",
+        "ko": "길 건너에 식당 있어. 지금 가자."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "I deserve that",
+        "ko": "그런 말 들어도 싸",
+        "en": "accept that criticism is fair"
+      },
+      {
+        "phrase": "catch the next one",
+        "ko": "다음 회차를 보다",
+        "en": "make it to the next showing"
+      }
+    ]
+  },
+  "artlink-en-unopened-letter": {
+    "lines": [
+      {
+        "text": "Will you open it?",
+        "ko": "네가 열어줄래?"
+      },
+      {
+        "text": "You put your name on the application.",
+        "ko": "지원서에 이름은 네가 썼잖아."
+      },
+      {
+        "text": "That version of me was very confident.",
+        "ko": "그때의 나는 자신감이 넘쳤지."
+      },
+      {
+        "text": "This version made the same work.",
+        "ko": "지금의 너도 그 작품을 만든 사람이야."
+      },
+      {
+        "text": "If it is a no, do not make that face.",
+        "ko": "탈락이면 그 표정 짓지 마."
+      },
+      {
+        "text": "Which face?",
+        "ko": "어떤 표정?"
+      },
+      {
+        "text": "The one that says you knew it would be.",
+        "ko": "그럴 줄 알았다는 표정."
+      },
+      {
+        "text": "I do not know. That is why the envelope is interesting.",
+        "ko": "난 몰라. 그래서 저 봉투가 궁금한 거고."
+      },
+      {
+        "text": "All right. Open it while I am looking.",
+        "ko": "좋아. 내가 보는 앞에서 열어."
+      },
+      {
+        "text": "Come closer. We can read it together.",
+        "ko": "이리 와. 같이 읽자."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "make that face",
+        "ko": "그런 표정을 짓다",
+        "en": "show that expression"
+      },
+      {
+        "phrase": "while I am looking",
+        "ko": "내가 보고 있는 동안 / 내 앞에서",
+        "en": "while I can see what happens"
+      }
+    ]
+  },
+  "artlink-en-night-shift": {
+    "lines": [
+      {
+        "text": "You are an hour early.",
+        "ko": "한 시간이나 일찍 왔네."
+      },
+      {
+        "text": "The bus was unusually helpful.",
+        "ko": "오늘은 웬일로 버스가 도와줬네요."
+      },
+      {
+        "text": "There is another one every ten minutes.",
+        "ko": "십 분마다 한 대씩 있잖아."
+      },
+      {
+        "text": "I thought you might want to go home.",
+        "ko": "집에 가고 싶으실 것 같아서요."
+      },
+      {
+        "text": "I said I was fine.",
+        "ko": "괜찮다고 했잖아."
+      },
+      {
+        "text": "You have made the same cup of coffee twice.",
+        "ko": "같은 커피를 두 번이나 타셨잖아요."
+      },
+      {
+        "text": "The first one went cold.",
+        "ko": "첫 잔이 식어서."
+      },
+      {
+        "text": "So did the second. Give me the keys.",
+        "ko": "두 번째도 식었어요. 열쇠 주세요."
+      },
+      {
+        "text": "The back door sticks when it rains.",
+        "ko": "뒷문은 비 오면 잘 안 열려."
+      },
+      {
+        "text": "Show me once. Then go get some sleep.",
+        "ko": "한 번만 보여주세요. 그리고 가서 좀 주무세요."
+      }
+    ],
+    "expressions": [
+      {
+        "phrase": "went cold",
+        "ko": "식었다",
+        "en": "became cold"
+      },
+      {
+        "phrase": "sticks when it rains",
+        "ko": "비가 오면 뻑뻑해져 잘 안 열린다",
+        "en": "gets hard to open in rainy weather"
+      }
+    ]
+  }
+}

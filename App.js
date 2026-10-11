@@ -26,6 +26,7 @@ import NotesScreen from "./src/screens/NotesScreen";
 import NoteCreateScreen from "./src/screens/NoteCreateScreen";
 import NoteDetailScreen from "./src/screens/NoteDetailScreen";
 import CommunityScreen from "./src/screens/CommunityScreen";
+import GroupsScreen from "./src/screens/GroupsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import GrowthScreen from "./src/screens/GrowthScreen";
 import { practicePrefill } from "./src/utils/standardSpeech";
@@ -464,6 +465,7 @@ export function AppNavigator() {
               <Stack.Screen name="Inbox" component={InboxScreen} />
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
               <Stack.Screen name="LegacyRecovery" component={LegacyRecoveryScreen} />
+              <Stack.Screen name="Groups" component={GroupsScreen} />
               <Stack.Screen name="CommunityPostDetail" component={CommunityPostDetailScreen} />
               <Stack.Screen
                 name="CommunityPostCreate"

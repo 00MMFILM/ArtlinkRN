@@ -25,7 +25,7 @@ jest.mock("../services/practiceService", () => ({ flushPracticeQueue: jest.fn() 
 jest.mock("../services/purchasesService", () => ({ initPurchases: jest.fn(), logInPurchases: jest.fn() }));
 jest.mock("../components/Toast", () => () => null);
 [
-  "AuthScreen", "HomeScreen", "NotesScreen", "NoteCreateScreen", "NoteDetailScreen", "CommunityScreen", "ProfileScreen",
+  "GroupsScreen", "AuthScreen", "HomeScreen", "NotesScreen", "NoteCreateScreen", "NoteDetailScreen", "CommunityScreen", "ProfileScreen",
   "GrowthScreen", "DuetPracticeScreen", "MatchingScreen", "ShareCardScreen", "PortfolioScreen", "GoalsScreen", "SubscriptionScreen",
   "NotificationsScreen", "B2BDashboardScreen", "DevRoadmapScreen", "OnboardingScreen", "MatchingPostCreateScreen", "ProfileEditScreen",
   "EULAScreen", "CommunityPostDetailScreen", "CommunityPostCreateScreen", "MatchingPostDetailScreen", "InboxScreen",

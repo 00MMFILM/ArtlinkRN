@@ -1,3 +1,4 @@
+import { artworkRegionContext } from "../utils/artworkReview";
 import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { Video as VideoCompressor } from "react-native-compressor";
@@ -1149,7 +1150,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
           const base64 = await FileSystem.readAsStringAsync(resizedUri, {
             encoding: FileSystem.EncodingType.Base64,
           });
-          return base64;
+          return { base64, reviewRegion: img.reviewRegion };
         } catch (e) {
           console.log("[analyzeNote] Image read failed:", e.message);
           return null;
@@ -1157,9 +1158,24 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
       })
     );
     imageFrames = frameResults.filter(Boolean);
+    if (!imageFrames.length) throw new Error("AI_IMAGE_UNAVAILABLE");
   }
 
-  const prompt = buildAIPrompt(field, combinedContent, savedNotes, currentNote, userProfile, context.feedbackLanguage, !!extra?.previous) + studioFeedbackContext(context);
+  let artworkContext = field === "art" ? artworkRegionContext(imageFrames) : "";
+  const currentImageCount = imageFrames.length;
+  if (field === "art" && extra?.previousArtwork?.uri && currentImageCount) {
+    try {
+      const uri = await resizeImageForAI(extra.previousArtwork.uri);
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      imageFrames.push({ base64 });
+      artworkContext += `\nImages 1–${currentImageCount} are CURRENT artwork. Image ${currentImageCount + 1} is the PREVIOUS version for comparison. Compare only visible corresponding areas; differing crops, light, or viewpoints may prevent comparison. Do not assume a change is an improvement without reference to the artist's intent.`;
+    } catch (_) {
+      artworkContext += "\nThe previous artwork image is unavailable. Prior feedback is advice, not visual evidence of change. Do not claim that the artwork improved or that a specific change occurred.";
+    }
+  } else if (field === "art") {
+    artworkContext += "\nNo previous artwork image is supplied. Comment on the current work only; do not invent visual progress from past advice.";
+  }
+  const prompt = buildAIPrompt(field, combinedContent, savedNotes, currentNote, userProfile, context.feedbackLanguage, !!extra?.previous) + studioFeedbackContext(context) + artworkContext;
 
   try {
     const requestBody = withPracticeContext({
@@ -1170,7 +1186,7 @@ export async function analyzeNote(field, content, savedNotes = [], currentNote =
       wantFocus: true, // 서버가 [[SCORES]] 바로 앞에 [[FOCUS]] 붙여줌 (이 플래그가 없으면 안 붙는다 — 구버전 앱 보호)
     }, { ...extra, ...context });
     if (imageFrames.length > 0) {
-      requestBody.frames = imageFrames;
+      requestBody.frames = imageFrames.map(frame => frame.base64);
     }
 
     // onToken 콜백이 있으면 스트리밍 (실시간 표시), 없으면 기존 방식

@@ -5,7 +5,8 @@ export function buildRepracticePrefill(note) {
   if (!note || note.id === undefined || note.id === null) return null;
   return {
     ...sanitizeStudioMetadata(note),
-    ...(note.practiceMode === "standard_speech" ? { content: typeof note.content === "string" ? note.content : "" } : {}),
+    ...((note.practiceMode === "standard_speech" || note.field === "art") ? { content: typeof note.content === "string" ? note.content : "" } : {}),
+    ...(note.field === "art" ? { intent: "material" } : {}),
     title: note.title || "",
     field: note.field,
     seriesName: note.seriesName || note.title || "",

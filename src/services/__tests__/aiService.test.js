@@ -554,3 +554,31 @@ describe("feedback prompt keeps to the available evidence", () => {
     expect(buildPreviousContext({ aiComment: feedback }).summary).toBe("개선할 점");
   });
 });
+
+
+describe("artwork evidence and selected regions", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    require("expo-file-system/legacy").readAsStringAsync.mockImplementation(async uri => uri.includes("before") ? "before-image" : "current-image");
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ analysis: "현재 작품의 명암 대비를 살펴보세요." }) }));
+  });
+  it("sends actual before and current photos with unambiguous version labels", async () => {
+    await analyzeNote("art", "Quiet mood", [], { images: [{ uri: "file:///current.jpg", reviewRegion: "top-left" }] }, {}, null, { previousArtwork: { uri: "file:///before.jpg" } });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.frames).toEqual(["current-image", "before-image"]);
+    expect(body.prompt).toContain("top left");
+    expect(body.prompt).toContain("Image 2 is the PREVIOUS version");
+  });
+  it("does not call missing prior media evidence of improvement", async () => {
+    require("expo-file-system/legacy").readAsStringAsync.mockImplementation(async uri => { if (uri.includes("before")) throw new Error("gone"); return "current-image"; });
+    await analyzeNote("art", "Quiet mood", [], { images: [{ uri: "file:///current.jpg" }] }, {}, null, { previousArtwork: { uri: "file:///before.jpg" } });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.frames).toEqual(["current-image"]);
+    expect(body.prompt).toContain("previous artwork image is unavailable");
+  });
+  it("never spends an AI request when every current photo failed to load", async () => {
+    require("expo-file-system/legacy").readAsStringAsync.mockRejectedValue(new Error("gone"));
+    await expect(analyzeNote("art", "Review", [], { images: [{ uri: "file:///gone.jpg" }] })).rejects.toThrow("AI_IMAGE_UNAVAILABLE");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

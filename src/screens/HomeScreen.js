@@ -17,6 +17,7 @@ import { buildPracticeActivities } from "../utils/practiceStats";
 import { CLight, T, FIELD_EMOJIS, FIELD_COLORS } from "../constants/theme";
 import { timeAgo, truncate, FIELDS, toLocalDateKey } from "../utils/helpers";
 import { STUDIO } from "../constants/studioTheme";
+import PracticeStarter from "../components/PracticeStarter";
 import PremiumBadge from "../components/PremiumBadge";
 import { buildRepracticePrefill, findResumeTarget } from "../utils/repractice";
 import { trackFunnelEvent } from "../services/mauService";
@@ -336,23 +337,9 @@ export default function HomeScreen({ navigation }) {
         ) : null}
 
         {/* ---- Weekly summary (연습 활동이 0이면 첫 기록 히어로 카드) ---- */}
-        {!hasPracticeActivity && hasFields && !isActingUser ? (
-          <View style={[styles.summaryCard, { backgroundColor: CLight.surface, alignItems: "center" }]}>
-            <Text style={[T.h3, { color: CLight.gray900, textAlign: "center" }]}>
-              {t("home.hero_title")}
-            </Text>
-            <Text style={[T.caption, { color: CLight.gray500, marginTop: 8, textAlign: "center" }]}>
-              {t("home.hero_desc")}
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => navigation.navigate("NoteCreate")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.emptyButtonText}>{t("home.hero_cta")}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : hasPracticeActivity ? (
+        <PracticeStarter compact={isActingUser || hasPracticeActivity || !hasFields} key={userProfile?.authUserId || "guest"} fields={userProfile?.fields || []} language={i18n.language}
+          onStart={(prefill) => navigation.navigate("NoteCreate", { prefill })} />
+        {hasPracticeActivity ? (
         <View style={[styles.summaryCard, { backgroundColor: CLight.surface }]}>
           <Text style={[T.captionBold, { color: CLight.gray500, marginBottom: 12 }]}>
             {t("home.weekly_summary")}

@@ -30,6 +30,7 @@ import { aiFeedbackDone, newUuid } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
 import FocusPicker from "../components/FocusPicker";
 import RetakeCompareCard from "../components/RetakeCompareCard";
+import ArtworkCompareCard from "../components/ArtworkReview";
 import StudioContextCard from "../components/StudioContextCard";
 import { buildRepracticePrefill } from "../utils/repractice";
 import { sanitizeStudioMetadata } from "../utils/studioMetadata";
@@ -313,7 +314,7 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // 지난 연습 — 이 노트가 재연습(parentNoteId)이고 그 노트가 기기에 남아 있을 때만
   const previousNote = useMemo(
-    () => (note?.parentNoteId ? savedNotes.find((n) => n.id === note.parentNoteId) || null : null),
+    () => (note?.parentNoteId ? savedNotes.find((n) => String(n.id) === String(note.parentNoteId)) || null : null),
     [note?.parentNoteId, savedNotes]
   );
 
@@ -507,7 +508,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         note,
         userProfile,
         (partial) => setStreamingText(partial),
-        { ...studioMetadata, focus: note.focus, previous: buildPreviousContext(previousNote) }
+        { ...studioMetadata, focus: note.focus, previous: buildPreviousContext(previousNote), previousArtwork: note.field === "art" ? previousNote?.images?.find(image => image.type !== "video") : undefined }
       );
       const analysis = result.analysis || result;
       const scores = result.scores || null;
@@ -918,6 +919,7 @@ export default function NoteDetailScreen({ route, navigation }) {
 
     return (
       <View style={styles.tabContent}>
+        {note.field === "art" && !isEditing && !pendingAi && <ArtworkCompareCard key={note.id} previousNote={previousNote} note={note} language={isKoreanLocale ? "ko" : "en"} onRetake={handleRepractice} disabled={aiLoading || videoAiLoading || pendingSaving} />}
         {note.practiceMode === "standard_speech" && !isEditing && !pendingAi && (
           <TouchableOpacity
             style={[styles.repracticeBtn, (aiLoading || videoAiLoading || pendingSaving) && { opacity: 0.5 }]}

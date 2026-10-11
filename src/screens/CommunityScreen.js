@@ -131,7 +131,7 @@ function PostCard({ post, onReport, onPress, isPremiumAuthor, isOwnPost }) {
 
 // ─── Community Screen ────────────────────────────────────────
 export default function CommunityScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { blockedUsers, handleBlockUser, handleReportContent, deviceUserId, userProfile } = useApp();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState("전체");
@@ -255,6 +255,10 @@ export default function CommunityScreen() {
         <Text style={[T.h2, { color: CLight.gray900 }]}>{t("community.title")}</Text>
       </View>
 
+      <TouchableOpacity testID="community-groups" accessibilityRole="button" onPress={() => navigation.navigate("Groups")} style={{ marginHorizontal: 20, marginBottom: 14, padding: 16, borderRadius: 16, backgroundColor: CLight.pinkSoft }}>
+        <Text style={[T.captionBold, { color: CLight.gray900 }]}>{String(i18n.language).startsWith("ko") ? "학원·극단 공간 →" : "Academy & theatre groups →"}</Text>
+        <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>{String(i18n.language).startsWith("ko") ? "구성원끼리 공지와 연습 이야기를 나누세요." : "Private notices and conversations for your members."}</Text>
+      </TouchableOpacity>
       {/* Tab Filter */}
       <View style={styles.tabContainer}>
         <ScrollView

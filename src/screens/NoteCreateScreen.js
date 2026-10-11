@@ -36,6 +36,7 @@ import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
 import { startPractice, resumePractice, completePractice, abandonPractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
 import FocusPicker from "../components/FocusPicker";
+import { ArtworkRegionPicker } from "../components/ArtworkReview";
 import StandardSpeechPractice from "../components/StandardSpeechPractice";
 import StudioContextCard from "../components/StudioContextCard";
 import { useTranslation } from "react-i18next";
@@ -459,7 +460,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         { ...studioMetadata, title, field, images, voiceRecordings, audioFiles, pdfFiles },
         userProfile,
         (partial) => { if (ownerIsCurrent(owner)) setAiComment(partial); },
-        { ...studioMetadata, focus, previous: buildPreviousContext(parentNote) }
+        { ...studioMetadata, focus, previous: buildPreviousContext(parentNote), previousArtwork: field === "art" ? parentNote?.images?.find(image => image.type !== "video") : undefined }
       );
       if (!ownerIsCurrent(owner)) return; // 계정이나 화면이 바뀌면 결과를 반영하지 않는다
       setAiComment(result.analysis || result);
@@ -1148,8 +1149,8 @@ export default function NoteCreateScreen({ navigation, route }) {
       if (destination === "retake") {
         trackFunnelEvent("repractice_started", i18n.language);
         navigation.replace("NoteCreate", { prefill: buildRepracticePrefill({ ...noteData, id: savedNoteId }) });
-      } else if (videoAnalysis) {
-        navigation.replace("NoteDetail", { noteId: savedNoteId, initialTab: "ai" });
+      } else if (videoAnalysis || (field === "art" && images.some(item => item.type !== "video"))) {
+        navigation.replace("NoteDetail", { noteId: savedNoteId, initialTab: videoAnalysis ? "ai" : "content" });
       } else navigation.goBack();
     } catch (e) {
       if (!ownerIsCurrent(owner)) return;
@@ -1316,6 +1317,12 @@ export default function NoteCreateScreen({ navigation, route }) {
             ))}
           </ScrollView>
         )}
+
+        {field === "art" && <ArtworkRegionPicker images={images} language={i18n.language} disabled={aiBusy || saving || mediaBusy} onChange={(index, region) => {
+          if (textWorkRef.current || videoWorkRef.current || savingRef.current || mediaWorkRef.current) return;
+          setImages(items => items.map((item, i) => i === index ? { ...item, reviewRegion: region } : item));
+          setAiComment(""); setAiScores(null); setFocusOptions([]); setChosenFocus(null);
+        }} />}
 
         {/* Video AI Analysis — right after media preview */}
         {noteVideos.length > 0 && (

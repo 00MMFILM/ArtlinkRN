@@ -45,8 +45,8 @@ describe("HomeScreen — 0노트 히어로 카드", () => {
   it("노트가 0개면 히어로 CTA만 보이고 주간 요약·빈 상태 카드·최근 노트 헤더는 없다", async () => {
     useApp.mockReturnValue(buildCtx([]));
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.hero_title")).toBeTruthy();
-    expect(queryByText("home.hero_cta")).toBeTruthy();
+    expect(queryByText("한 곡보다, 막히는 한 구간부터")).toBeTruthy();
+    expect(queryByText("음악 자료와 목표 남기기 →")).toBeTruthy();
     expect(queryByText("home.weekly_summary")).toBeNull();
     expect(queryByText("home.empty_title")).toBeNull();
     expect(queryByText("home.recent_notes")).toBeNull();
@@ -338,7 +338,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
   });
 
   // 버그: 음악·미술 등 연기가 아닌 분야로 가입해도 "입시·오디션" 연기 문구가 떴다(2026-09-19)
-  it("한국어 + 노트 0개라도 연기가 아닌 분야가 설정돼 있으면 일반 히어로를 보여준다", async () => {
+  it("한국어 + 노트 0개라도 연기가 아닌 분야가 설정돼 있으면 음악 시작 카드를 보여준다", async () => {
     useApp.mockReturnValue({
       ...buildCtx([]),
       isKoreanLocale: true,
@@ -346,7 +346,7 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     });
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
     expect(queryByText("home.hero_title_ko_acting")).toBeNull();
-    expect(queryByText("home.hero_title")).toBeTruthy();
+    expect(queryByText("한 곡보다, 막히는 한 구간부터")).toBeTruthy();
     expect(queryByText("studio.title")).toBeNull();
   });
 
@@ -360,10 +360,10 @@ describe("HomeScreen — 한국어 첫 화면", () => {
     expect(queryByText("studio.title")).toBeNull();
   });
 
-  it("다른 언어는 기존 문구 그대로", async () => {
+  it("분야 선택은 isKoreanLocale 플래그와 독립적으로 동작한다", async () => {
     useApp.mockReturnValue(buildCtx([])); // isKoreanLocale: false
     const { queryByText } = render(<HomeScreen navigation={navigation} />);
-    expect(queryByText("home.hero_title")).toBeTruthy();
+    expect(queryByText("한 곡보다, 막히는 한 구간부터")).toBeTruthy();
     expect(queryByText("home.hero_title_ko_acting")).toBeNull();
     expect(queryByText("studio.title")).toBeNull();
   });
@@ -498,4 +498,14 @@ describe("growth home — one useful next action", () => {
     expect(screen.getByText("—")).toBeTruthy();
     expect(screen.getByText("studio.practice_change")).toBeTruthy();
   });
+});
+
+
+test("홈의 분야 시작 카드가 선택한 분야와 목표를 노트로 전달한다", async () => {
+  useApp.mockReturnValue(buildCtx([]));
+  const u = render(<HomeScreen navigation={navigation} />);
+  fireEvent.press(u.getByTestId("starter-field-art"));
+  fireEvent.press(u.getByTestId("starter-focus-1"));
+  fireEvent.press(u.getByTestId("starter-open"));
+  expect(navigation.navigate).toHaveBeenLastCalledWith("NoteCreate", { prefill: expect.objectContaining({ field: "art", intent: "material", content: expect.stringContaining("색의 관계") }) });
 });

@@ -25,6 +25,7 @@ import { trackFunnelEvent } from "../services/mauService";
 import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
 import { preserveMediaFile } from "../services/persistentMedia";
 import i18n from "i18next";
+import EnglishStudy, { lessonFor } from "../components/EnglishStudy";
 
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
 let Speech = null;
@@ -479,7 +480,7 @@ export default function DuetPracticeScreen({ navigation }) {
   // "inactive" also fires for the first permission dialog, so only "background" cancels a pending start.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "background") cancelRecordingStart();
+      if (state === "background") { cancelRecordingStart(); stopSpeak(); }
       if ((state === "background" || state === "inactive") && recordingRef.current && !noteTransferRef.current) stopRecording(true);
     });
     return () => sub?.remove?.();
@@ -622,6 +623,10 @@ export default function DuetPracticeScreen({ navigation }) {
           <Text style={styles.noteHint}>{ds("voiceHint")}</Text>
           <RecordStatus />
         </View>
+        {lessonFor(scene) && <TouchableOpacity accessibilityRole="button" testID="duet-start-study" style={styles.modeCard} onPress={() => { cancelRecordingStart(); stopSpeak(); stopRecording(true); setMode("study"); }}>
+          <Text style={styles.cardTitle}>{feedbackLanguage === "ko" ? "영어 대사 한 줄씩 공부하기" : "Study English, one line at a time"}</Text>
+          <Text style={styles.body}>{feedbackLanguage === "ko" ? "뜻과 표현을 이해하고, 듣고 따라 말한 뒤 장면으로 이어가세요." : "Explore meanings and expressions, listen and repeat, then rehearse."}</Text>
+        </TouchableOpacity>}
         <TouchableOpacity accessibilityRole="button" testID="duet-start-cue" style={[styles.modeCard, styles.cueCard]} onPress={() => { setMode("cue"); setIdx(0); beginPractice(scene); speakIfPartner(0, myRole); }} activeOpacity={0.8}><Text style={styles.modeTitle}>{ds("cue")}</Text><Text style={styles.modeBody}>{ds("cueBody")}</Text><Text style={styles.modeArrow}>→</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" testID="duet-start-script" style={styles.modeCard} onPress={() => { setMode("script"); beginPractice(scene); }} activeOpacity={0.8}><Text style={styles.cardTitle}>{ds("script")}</Text><Text style={styles.body}>{ds("scriptBody")}</Text></TouchableOpacity>
         <Text style={styles.source}>{ds("source")} · {scene.isPrivate ? ds("privateLabel") : scene.source}</Text>
@@ -629,6 +634,13 @@ export default function DuetPracticeScreen({ navigation }) {
       </ScrollView>
     </View>
   );
+
+  if (mode === "study") return <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <Header title={scene.play} onBack={leaveMode} />
+    <EnglishStudy key={scene.id} scene={scene} language={feedbackLanguage} canSpeak={canSpeak}
+      onStop={stopSpeak} onListen={(text) => { if (!recordingRef.current && !recBusyRef.current) { stopSpeak(); speakTTS(text); } }}
+      onPractice={() => { setMode("cue"); setIdx(0); setRevealed(false); beginPractice(scene); speakIfPartner(0, myRole); }} />
+  </View>;
 
   if (mode === "cue") {
     const mine = line && line.r === myRole;
