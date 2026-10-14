@@ -102,3 +102,9 @@ describe("AuthScreen — 가입 우선 + 2단계", () => {
     expect(profile.height).toBeNull();
   });
 });
+
+it("단체 공간 로그인 요청은 게스트여도 로그인 폼으로 연다",()=>{
+  useApp.mockReturnValue({...buildCtx(null),authIntent:{mode:"login",returnTo:"Groups"}});
+  const u=render(<AuthScreen navigation={{}}/>);
+  expect(u.queryByText("auth.forgot_password")).toBeTruthy();expect(u.queryByText("auth.step_basic")).toBeNull();
+});

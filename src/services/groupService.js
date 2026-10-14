@@ -2,14 +2,14 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient';
 
 // Bind each request to the account that initiated it. Never use a device ID as
 // group identity or cache private messages across accounts.
-export async function groupAction(accountId, action, groupId = null, payload = {}) {
+async function privateGroupRequest(accountId, rpc, action, groupId, payload) {
   const { data } = await supabase.auth.getSession();
   const session = data?.session;
   if (!accountId || session?.user?.id !== accountId || session.user.is_anonymous || !session.access_token) throw new Error('GROUP_LOGIN_REQUIRED');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/artlink_group_action`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${rpc}`, {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ p_action: action, p_group_id: groupId, p_payload: payload }),
@@ -26,8 +26,20 @@ export async function groupAction(accountId, action, groupId = null, payload = {
   } finally { clearTimeout(timer); }
 }
 
+export const groupAction = (accountId, action, groupId = null, payload = {}) =>
+  privateGroupRequest(accountId, 'artlink_group_action', action, groupId, payload);
+export const assignmentAction = (accountId, action, groupId, payload = {}) =>
+  privateGroupRequest(accountId, 'artlink_assignment_action', action, groupId, payload);
+
 export function groupErrorMessage(error, ko) {
   const messages = {
+    GROUP_ASSIGNMENT_NOT_FOUND: ['과제를 찾을 수 없어요.', 'This assignment is unavailable.'],
+    GROUP_ASSIGNMENT_CLOSED: ['제출이 마감된 과제예요. 기록은 그대로 보관됩니다.', 'This assignment is closed. Your local practice is preserved.'],
+    GROUP_NOTE_ALREADY_SUBMITTED: ['이미 제출한 기록이에요. 새 연습 기록을 선택해주세요.', 'This note was already submitted. Choose a new practice note.'],
+    GROUP_SUBMISSION_CONSENT: ['공유할 내용을 확인하고 제출에 동의해주세요.', 'Review the contents and consent before submitting.'],
+    GROUP_SUBMISSION_LIMIT: ['과제 하나에 최대 20회 제출할 수 있어요.', 'You can submit up to 20 attempts per assignment.'],
+    GROUP_ASSIGNMENT_LIMIT: ['공간 하나에 최대 100개 과제를 만들 수 있어요.', 'A group can have up to 100 assignments.'],
+    GROUP_STUDENT_REQUIRED: ['학생 계정에서 과제를 제출해주세요.', 'Submit from a student account.'],
     GROUP_LOGIN_REQUIRED: ['로그인 후 이용할 수 있어요.', 'Sign in to use private groups.'],
     GROUP_ACCOUNT_CHANGED: ['계정이 변경되어 요청을 중단했어요.', 'Your account changed. Please try again.'],
     GROUP_UNAVAILABLE: ['단체 공간 연결을 준비하고 있어요. 연결이 완료되면 이용할 수 있습니다.', 'Private groups are not connected yet. Please check back after setup.'],

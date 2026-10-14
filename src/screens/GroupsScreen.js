@@ -121,7 +121,7 @@ function GroupWorkspace({ accountId, context, navigation, ko }) {
       <Text style={s.eyebrow}>{say('함께 연습하는 사람들의 공간','YOUR CREATIVE GROUP')}</Text>
       <Text style={s.title}>{selected?.name || say('공지부터 연습 이야기까지.','Notices and rehearsal conversations.')}</Text>
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-      {!accountId ? <View style={s.card}><Text style={s.body}>{say('가입한 구성원만 공지와 대화를 볼 수 있어요. 로그인하고 초대코드로 들어오세요.','Only members can read notices and conversations. Sign in and use an invitation code.')}</Text>{button('groups-login',say('로그인하기','Sign in'),()=>context.setAuthState('auth'),false,true)}</View> : loading ? <ActivityIndicator /> : !selected ? <>
+      {!accountId ? <View style={s.card}><Text style={s.body}>{say('가입한 구성원만 공지와 대화를 볼 수 있어요. 로그인하고 초대코드로 들어오세요.','Only members can read notices and conversations. Sign in and use an invitation code.')}</Text>{button('groups-login',say('로그인하기','Sign in'),()=>context.requestGroupLogin(),false,true)}</View> : loading ? <ActivityIndicator /> : !selected ? <>
         <Text style={s.body}>{say('초대받은 구성원끼리 쓰는 비공개 공간입니다.','A private space for invited members.')}</Text>
         {groups.map(group => button(`group-open-${group.id}`,`${group.kind==='academy'?say('학원','Academy'):say('극단','Theatre')} · ${group.name}`,()=>changeGroup(group)))}
         <View style={s.card}><Text style={s.heading}>{say('공간에서 사용할 이름','Your name in this group')}</Text>{input('group-display-name',displayName,setDisplayName,say('구성원에게 보여줄 이름','Name shown to members'),40)}</View>
@@ -129,6 +129,7 @@ function GroupWorkspace({ accountId, context, navigation, ko }) {
         <View style={s.card}><Text style={s.heading}>{say('우리 단체 공간 만들기','Create your group')}</Text><View style={s.row}>{['academy','theatre'].map(value => button(`group-kind-${value}`,`${kind===value?'● ':''}${value==='academy'?say('학원','Academy'):say('극단','Theatre')}`,()=>setKind(value)))}</View>{input('group-name',name,setName,say('학원 또는 극단 이름','Academy or theatre name'))}{button('group-create',say('비공개 공간 만들기','Create private group'),()=>run('create',{name:name.trim(),kind,displayName:displayName.trim()}),!name.trim()||!displayName.trim(),true)}</View>
       </> : room ? <>
         <View style={s.row}>{[['notice','공지','Notices'],['message','대화','Chat'],['members','구성원','Members']].map(([value,kr,en])=>button(`group-tab-${value}`,`${tab===value?'● ':''}${say(kr,en)}`,()=>switchTab(value)))}</View>
+        {button('group-assignments',say('과제와 피드백','Assignments & feedback'),()=>navigation.navigate('GroupAssignments',{groupId:selected.id,groupName:selected.name}),false,true)}
         {tab === 'members' ? <View style={s.card}>
           {owner && button('group-invite',say('새 초대코드 만들기','Generate new invitation'),()=>Alert.alert(say('초대코드 만들기','Generate an invitation'),say('새 코드는 7일간 유효하며, 기존 초대코드는 즉시 만료됩니다.','The new code lasts 7 days. Any previous code expires immediately.'),[{text:say('취소','Cancel'),style:'cancel'},{text:say('만들기','Generate'),onPress:()=>run('invite')}]))}
           {invite && <View><Text selectable testID="group-invite-code" style={s.body}>{invite.code}</Text><Text style={s.small}>{say('길게 눌러 복사 · 7일간 유효합니다. 이전 코드는 만료됩니다.','Hold to copy · Valid for 7 days. Older codes stop working.')}</Text></View>}

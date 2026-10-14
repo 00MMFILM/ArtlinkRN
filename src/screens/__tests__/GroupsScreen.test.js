@@ -15,7 +15,7 @@ const listeners={};
 const navigation={goBack:jest.fn(),addListener:jest.fn((key,fn)=>{listeners[key]=fn;return jest.fn();})};
 const group={id:'group-a',name:'예술학원',kind:'academy'};
 const room={group,role:'member',members:[],notices:[],messages:[]};
-const context={userProfile:{authUserId:'a',name:'학생'},blockedUsers:[],setAuthState:jest.fn(),handleBlockUser:jest.fn(),handleReportContent:jest.fn()};
+const context={userProfile:{authUserId:'a',name:'학생'},blockedUsers:[],setAuthState:jest.fn(),requestGroupLogin:jest.fn(),handleBlockUser:jest.fn(),handleReportContent:jest.fn()};
 beforeEach(()=>{jest.clearAllMocks();AppState.currentState='active';useApp.mockReturnValue(context);groupAction.mockImplementation(async(_id,action)=>action==='list'?[group]:room);});
 async function open(u){await waitFor(()=>u.getByTestId('group-open-group-a'));fireEvent.press(u.getByTestId('group-open-group-a'));await waitFor(()=>u.getByTestId('group-tab-message'));}
 test('guests cannot create or read groups',()=>{
@@ -69,4 +69,9 @@ test('owners can access all moderation actions without exceeding native alert bu
   groupAction.mockImplementation(async(_id,action)=>action==='list'?[group]:{...room,role:'owner',notices:[{id:'n',author_id:'o',author_name:'구성원',body:'공지',created_at:new Date().toISOString()}]});
   const u=render(<GroupsScreen navigation={navigation}/>);await open(u);fireEvent.press(u.getByTestId('group-menu-n'));
   expect(u.getByTestId('group-delete-n')).toBeTruthy();expect(u.getByTestId('group-report-n')).toBeTruthy();expect(u.getByTestId('group-hide-n')).toBeTruthy();
+});
+
+test('group login requests the login form and a return to groups',()=>{
+  useApp.mockReturnValue({...context,userProfile:{}});const u=render(<GroupsScreen navigation={navigation}/>);
+  fireEvent.press(u.getByTestId('groups-login'));expect(context.requestGroupLogin).toHaveBeenCalledTimes(1);expect(context.setAuthState).not.toHaveBeenCalled();
 });

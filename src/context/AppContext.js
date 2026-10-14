@@ -66,6 +66,11 @@ export function AppProvider({ children }) {
   const [legacyRecordsPending, setLegacyRecordsPending] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
   const [authState, setAuthState] = useState("auth"); // "auth" | "app"
+  const [authIntent, setAuthIntent] = useState(null);
+  const requestGroupLogin = useCallback(() => {
+    setAuthIntent({ mode: "login", returnTo: "Groups" });
+    setAuthState("auth");
+  }, []);
   const [eulaAccepted, setEulaAccepted] = useState(false);
   // 가입 직후 첫 체크인 화면 — 노트 0건인 새 계정에만, 홈 대신 한 번 (1.11.8 활성화)
   const [firstCheckinPending, setFirstCheckinPending] = useState(false);
@@ -772,7 +777,7 @@ export function AppProvider({ children }) {
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
     premium, usage, refreshPremium, markPremiumActive,
-    firstCheckinPending, dismissFirstCheckin,
+    firstCheckinPending, dismissFirstCheckin, authIntent, setAuthIntent, requestGroupLogin,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,
@@ -789,7 +794,7 @@ export function AppProvider({ children }) {
     eulaAccepted, blockedUsers, reportedContent, deviceUserId,
     dataConsent, dataConsentAsked, aiDisclosureAccepted, language, isKoreanLocale,
     premium, usage, refreshPremium, markPremiumActive,
-    firstCheckinPending, dismissFirstCheckin,
+    firstCheckinPending, dismissFirstCheckin, authIntent, setAuthIntent, requestGroupLogin,
     showToast, hideToast,
     handleSaveNote, handleDeleteNote, handleToggleStar, handleUpdateNote,
     handleUpdateGoals, handleSubmitFeedback,

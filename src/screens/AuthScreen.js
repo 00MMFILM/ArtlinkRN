@@ -56,12 +56,12 @@ const artFields = [
 const TOTAL_STEPS = 2;
 
 export default function AuthScreen({ navigation }) {
-  const { handleAuth, handleChangeLanguage, language, userProfile } = useApp();
+  const { handleAuth, handleChangeLanguage, language, userProfile, authIntent } = useApp();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   // 계정이 없는 기기는 가입이 기본 (첫 화면이 로그인 폼이라 이탈하던 문제)
-  const [mode, setMode] = useState(userProfile?.authUserId ? "login" : "signup");
+  const [mode, setMode] = useState(authIntent?.mode === "login" || userProfile?.authUserId ? "login" : "signup");
 
   useEffect(() => {
     trackFunnelEvent("auth_reached", language);

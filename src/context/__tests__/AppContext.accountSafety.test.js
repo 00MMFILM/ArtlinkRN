@@ -318,3 +318,9 @@ describe("계정을 바꾼 뒤 늦게 끝난 결제 상태 갱신", () => {
     expect(service.fetchUsageStatus).not.toHaveBeenCalled();
   });
 });
+
+test("단체 로그인 요청은 로그인 의도와 복귀 위치를 유지한다",async()=>{
+  await mount();await act(async()=>{current.requestGroupLogin();await settle();});
+  expect(current.authState).toBe("auth");expect(current.authIntent).toEqual({mode:"login",returnTo:"Groups"});
+  await act(async()=>{current.setAuthIntent(null);await settle();});expect(current.authIntent).toBeNull();
+});

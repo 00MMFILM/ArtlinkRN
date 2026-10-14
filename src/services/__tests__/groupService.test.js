@@ -1,4 +1,4 @@
-import { groupAction } from '../groupService';
+import { groupAction, assignmentAction } from '../groupService';
 import { supabase } from '../supabaseClient';
 jest.mock('../supabaseClient',()=>({supabase:{auth:{getSession:jest.fn()}},SUPABASE_URL:'https://test.invalid',SUPABASE_ANON_KEY:'public-test-key'}));
 const session=(id)=>({data:{session:{user:{id},access_token:`test-${id}`}}});
@@ -20,4 +20,12 @@ test('missing migration fails closed without demo membership',async()=>{
 test('preserves server authorization errors',async()=>{
   fetch.mockResolvedValue({ok:false,status:403,json:async()=>({message:'GROUP_ACCESS_DENIED'})});
   await expect(groupAction('a','read','other')).rejects.toThrow('GROUP_ACCESS_DENIED');
+});
+
+test('assignment actions use the same account-bound request checks',async()=>{
+  await assignmentAction('a','read','g',{assignmentId:'lesson'});
+  expect(fetch.mock.calls[0][0]).toContain('/rpc/artlink_assignment_action');
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({p_action:'read',p_group_id:'g',p_payload:{assignmentId:'lesson'}});
+  supabase.auth.getSession.mockResolvedValueOnce(session('a')).mockResolvedValueOnce(session('b'));
+  await expect(assignmentAction('a','read','g')).rejects.toThrow('GROUP_ACCOUNT_CHANGED');
 });

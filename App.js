@@ -27,6 +27,7 @@ import NoteCreateScreen from "./src/screens/NoteCreateScreen";
 import NoteDetailScreen from "./src/screens/NoteDetailScreen";
 import CommunityScreen from "./src/screens/CommunityScreen";
 import GroupsScreen from "./src/screens/GroupsScreen";
+import GroupAssignmentsScreen from "./src/screens/GroupAssignmentsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import GrowthScreen from "./src/screens/GrowthScreen";
 import { practicePrefill } from "./src/utils/standardSpeech";
@@ -282,7 +283,7 @@ const resetStyles = StyleSheet.create({
 
 export function AppNavigator() {
   const { t } = useTranslation();
-  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady, firstCheckinPending, refreshPremium } = useApp();
+  const { authState, toast, hideToast, eulaAccepted, handleAcceptEula, handleSetDataConsent, handleDataConsentAsked, userProfile, handleAuth, storageReady, firstCheckinPending, refreshPremium, authIntent, setAuthIntent } = useApp();
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [pendingPractice, setPendingPractice] = useState(null);
@@ -383,6 +384,21 @@ export function AppNavigator() {
     return () => clearInterval(timer);
   }, [pendingPractice, authState, storageReady, showOnboarding, draftChecked]);
 
+  // Restore the group intent after auth. Never retain it after choosing guest browsing.
+  useEffect(() => {
+    if (authIntent?.returnTo !== "Groups" || authState !== "app" || !storageReady || !draftChecked || showOnboarding !== false) return;
+    if (!userProfile?.authUserId) { setAuthIntent(null); return; }
+    const open = () => {
+      if (!navigationRef.isReady() || !navigationRef.getRootState()?.routeNames?.includes("Groups")) return false;
+      navigationRef.navigate("Groups");
+      setAuthIntent(null);
+      return true;
+    };
+    if (open()) return;
+    const timer = setInterval(() => { if (open()) clearInterval(timer); }, 300);
+    return () => clearInterval(timer);
+  }, [authIntent, authState, storageReady, draftChecked, showOnboarding, userProfile?.authUserId, setAuthIntent]);
+
   // 쌓인 연습 이벤트 전송 — 앱 진입 시 1회, 백그라운드에서 돌아올 때 1회
   useEffect(() => {
     if (authState !== "app") return;
@@ -466,6 +482,7 @@ export function AppNavigator() {
               <Stack.Screen name="DevRoadmap" component={DevRoadmapScreen} />
               <Stack.Screen name="LegacyRecovery" component={LegacyRecoveryScreen} />
               <Stack.Screen name="Groups" component={GroupsScreen} />
+              <Stack.Screen name="GroupAssignments" component={GroupAssignmentsScreen} />
               <Stack.Screen name="CommunityPostDetail" component={CommunityPostDetailScreen} />
               <Stack.Screen
                 name="CommunityPostCreate"
