@@ -5,7 +5,7 @@ const mockNavigate = jest.fn();
 const mockDispatch = jest.fn();
 jest.mock("@react-navigation/native", () => ({
   NavigationContainer: ({ children }) => children,
-  createNavigationContainerRef: () => ({ isReady: () => true, getRootState: () => ({ routeNames: ["NoteCreate"] }), navigate: mockNavigate, dispatch: mockDispatch }),
+  createNavigationContainerRef: () => ({ isReady: () => true, getRootState: () => ({ routeNames: ["NoteCreate", "DuetPractice"] }), navigate: mockNavigate, dispatch: mockDispatch }),
   StackActions: { push: (name, params) => ({ type: "PUSH", payload: { name, params } }) },
 }));
 jest.mock("@react-navigation/native-stack", () => ({ createNativeStackNavigator: () => ({ Navigator: ({ children }) => children, Screen: () => null }) }));
@@ -180,4 +180,21 @@ test("외부 표준어 링크는 저장된 다른 초안을 먼저 복원한 후
   await waitFor(() => expect(mockDispatch).toHaveBeenCalled());
   expect(mockNavigate).toHaveBeenCalledWith("NoteCreate", {prefill:{title:"내가 쓰던 노트",content:"원래 본문"},restoredDraft:true});
   expect(mockNavigate.mock.invocationCallOrder[0]).toBeLessThan(mockDispatch.mock.invocationCallOrder[0]);
+});
+
+
+test("quick scene link survives auth and opens above a restored draft without replacing it", async () => {
+  context = { ...context, authState: "auth" };
+  ExpoLinking.getInitialURL.mockResolvedValueOnce("artlink://practice?mode=quick_scene&language=en");
+  ExpoLinking.parse.mockReturnValue({ hostname: "practice", queryParams: { mode: "quick_scene", language: "en", field: "acting" } });
+  loadDraft.mockResolvedValueOnce({ title: "Existing draft", content: "Keep me" });
+  const ui = render(<AppNavigator />);
+  await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled();
+  context = { ...context, authState: "app" };
+  ui.rerender(<AppNavigator />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledWith({ type: "PUSH", payload: {
+    name: "DuetPractice", params: { quickStart: true, scriptLanguage: "en" },
+  } }));
+  expect(mockNavigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({ prefill: { title: "Existing draft", content: "Keep me" }, restoredDraft: true }));
 });

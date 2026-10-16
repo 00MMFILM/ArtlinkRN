@@ -6,6 +6,11 @@ export function practicePrefill(query = {}) {
     content: typeof query.content === 'string' ? query.content.slice(0, 2000) : '',
     field: typeof query.field === 'string' ? query.field : 'acting',
   };
+  if (prefill.field === 'art') prefill.intent = 'material';
+  if (prefill.field === 'acting' && query.mode === 'quick_scene' && ['ko', 'en'].includes(query.language)) {
+    prefill.quickStart = true;
+    prefill.scriptLanguage = query.language;
+  }
   const sceneId = normalizePracticeSceneId(query);
   if (sceneId) prefill.sceneId = sceneId;
   if (sceneId && query.source === 'actraw' && query.mode === STANDARD_SPEECH) {

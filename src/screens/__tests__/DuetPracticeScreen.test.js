@@ -129,7 +129,7 @@ describe("DuetPracticeScreen — 연습 기록 남기기", () => {
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
       prefill: {
         title: `${firstScene.play} 2인 대사`,
-        field: "acting",
+        field: "acting", intent: "feedback",
         seriesName: firstScene.play,
         sceneId: firstScene.id,
         sessionId: "sess-duet",
@@ -720,7 +720,7 @@ describe("DuetPracticeScreen — 연습하면서 녹음", () => {
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
       prefill: {
         title: `${firstScene.play} 2인 대사`,
-        field: "acting",
+        field: "acting", intent: "feedback",
         seriesName: firstScene.play,
         sceneId: firstScene.id,
         sessionId: "sess-duet",
@@ -1110,4 +1110,34 @@ describe("English guided study integration", () => {
     fireEvent.press(u.getByTestId("duet-next"));
     expect(u.getByTestId("duet-reveal")).toBeTruthy();
   });
+});
+
+
+describe("short first scene",()=>{
+ const {Audio}=require('expo-av');
+ beforeEach(()=>{jest.clearAllMocks();useApp.mockReturnValue({userProfile:{},showToast:jest.fn()});jest.spyOn(Alert,'alert').mockImplementation(()=>{});Audio.requestPermissionsAsync.mockResolvedValue({granted:true});preserveMediaFile.mockImplementation(async uri=>uri);});
+ it("opens the chosen original English scene without asking for microphone permission",()=>{
+  const ui=render(<DuetPracticeScreen navigation={navigation} route={{params:{quickStart:true,scriptLanguage:'en'}}}/>);
+  expect(ui.getAllByText('Before You Go').length).toBeGreaterThan(0);
+  expect(ui.getByTestId('duet-quick-record')).toBeTruthy();
+  expect(Audio.requestPermissionsAsync).not.toHaveBeenCalled();
+ });
+ it("stays on setup if permission is denied",async()=>{
+  Audio.requestPermissionsAsync.mockResolvedValue({granted:false});
+  const ui=render(<DuetPracticeScreen navigation={navigation} route={{params:{quickStart:true,scriptLanguage:'ko'}}}/>);
+  await act(async()=>fireEvent.press(ui.getByTestId('duet-quick-record')));
+  expect(Audio.Recording.createAsync).not.toHaveBeenCalled();
+  expect(startPractice).not.toHaveBeenCalled();
+  expect(ui.getByTestId('duet-quick-record')).toBeTruthy();
+ });
+ it("explicit recording opens the short script and carries preserved audio into feedback",async()=>{
+  const rec={stopAndUnloadAsync:jest.fn(async()=>({durationMillis:5000})),getURI:()=> 'file:///quick.m4a'};
+  Audio.Recording.createAsync.mockResolvedValue({recording:rec});
+  const ui=render(<DuetPracticeScreen navigation={navigation} route={{params:{quickStart:true,scriptLanguage:'ko'}}}/>);
+  await act(async()=>fireEvent.press(ui.getByTestId('duet-quick-record')));
+  expect(startPractice).toHaveBeenCalled();
+  await act(async()=>fireEvent.press(ui.getByText('녹음 확인하고 피드백 받기')));
+  expect(preserveMediaFile).toHaveBeenCalledWith('file:///quick.m4a',expect.anything());
+  expect(navigation.navigate).toHaveBeenCalledWith('NoteCreate',{prefill:expect.objectContaining({intent:'feedback',scriptLanguage:'ko',sceneId:'artlink-first-ko',voiceRecordings:expect.arrayContaining([expect.objectContaining({uri:'file:///quick.m4a'})])})});
+ });
 });

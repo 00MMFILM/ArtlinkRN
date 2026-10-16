@@ -30,12 +30,12 @@ import { FIELDS } from "../utils/helpers";
 import { buildRepracticePrefill } from "../utils/repractice";
 import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 import { getStorageScope } from "../utils/accountStorage";
-import { hasAskedReminder, markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
+import { markReminderAsked, scheduleDailyPracticeReminder } from "../services/reminderService";
 import { trackFunnelEvent } from "../services/mauService";
 import { saveDraft, clearDraft, hasDraftContent } from "../services/noteDraft";
 import { startPractice, resumePractice, completePractice, abandonPractice, aiFeedbackDone } from "../services/practiceService";
 import TopBar from "../components/TopBar";
-import FocusPicker from "../components/FocusPicker";
+import FeedbackNextStep from "../components/FeedbackNextStep";
 import { ArtworkRegionPicker } from "../components/ArtworkReview";
 import StandardSpeechPractice from "../components/StandardSpeechPractice";
 import StudioContextCard from "../components/StudioContextCard";
@@ -43,13 +43,6 @@ import { useTranslation } from "react-i18next";
 
 // 게스트 가입 유도는 기기당 딱 1회 (리마인더 플래그와 같은 방식)
 const SIGNUP_NUDGE_KEY = "artlink-signup-nudge-asked";
-async function hasAskedSignupNudge() {
-  try {
-    return (await AsyncStorage.getItem(SIGNUP_NUDGE_KEY)) === "true";
-  } catch {
-    return false;
-  }
-}
 async function markSignupNudgeAsked() {
   try {
     await AsyncStorage.setItem(SIGNUP_NUDGE_KEY, "true");
@@ -185,6 +178,9 @@ export default function NoteCreateScreen({ navigation, route }) {
     aiCommentRef.current = aiComment;
   }, [aiComment]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState(null);
+  const analysisRetryRef = useRef(null);
+  const scrollRef = useRef(null);
   const [videoAnalysis, setVideoAnalysis] = useState(prefill?.videoAnalysis || "");
   const videoMetaRef = useRef({ model: prefill?.aiModel, promptVersion: prefill?.promptVersion, transcript: prefill?.transcript });
   const [videoAiLoading, setVideoAiLoading] = useState(false);
@@ -205,6 +201,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     speechPracticeRef.current?.stop();
     setSpeechLineIndex(p.speechLineIndex || 0);
     setPrefill(p);
+    setAnalysisError(null);
     setTitle(p.title || "");
     setContent(p.content || "");
     setField(p.field && FIELDS.includes(p.field) ? p.field : FIELDS[0]);
@@ -444,6 +441,8 @@ export default function NoteCreateScreen({ navigation, route }) {
     const owner = captureOwner();
     textWorkRef.current = true;
     setAiLoading(true);
+    setAnalysisError(null);
+    trackFunnelEvent("feedback_requested", i18n.language);
     const previousComment = aiCommentRef.current;
     try {
       // Foreign users: show interstitial ad from 2nd AI use per day (프리미엄은 광고 없음)
@@ -464,6 +463,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       );
       if (!ownerIsCurrent(owner)) return; // 계정이나 화면이 바뀌면 결과를 반영하지 않는다
       setAiComment(result.analysis || result);
+      scrollRef.current?.scrollTo?.({ y: 0, animated: true });
       if (result.scores) setAiScores(result.scores);
       // When both analyses exist, the visible video result owns the retake focus.
       if (!videoAnalysis) {
@@ -473,26 +473,30 @@ export default function NoteCreateScreen({ navigation, route }) {
       }
       trackFunnelEvent("ai_feedback_done", i18n.language);
       aiFeedbackDone(practiceRef.current, "text");
-      maybeOfferReminder();
     } catch (e) {
       if (!ownerIsCurrent(owner)) return;
       // 스트리밍 도중 실패 시 잘린 부분 텍스트가 남지 않도록 실패 이전 값으로 복원
       setAiComment(previousComment);
       if (e?.message === "AI_QUOTA") promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed });
-      else safeAlert(t("noteCreate.ai_failed"), t(e?.message === "AI_AUDIO_INCOMPLETE" ? "common.audio_analysis_failed" : "noteCreate.ai_failed_msg"));
+      else {
+        trackFunnelEvent("feedback_failed", i18n.language);
+        setAnalysisError(e?.message === "AI_AUDIO_INCOMPLETE" ? "audio" : "text");
+        safeAlert(t("noteCreate.ai_failed"), t(e?.message === "AI_AUDIO_INCOMPLETE" ? "common.audio_analysis_failed" : "noteCreate.ai_failed_msg"));
+      }
     } finally {
       textWorkRef.current = false;
       if (ownerIsCurrent(owner)) { setAiLoading(false); refreshPremium?.(); }
     }
   }, [videoAnalysis, content, field, savedNotes, title, images, voiceRecordings, audioFiles, pdfFiles, userProfile, isKoreanLocale, premium?.active, t, i18n.language, promptQuotaExceeded, focus, parentNote, safeAlert, refreshPremium, studioMetadata]);
 
-  // 첫 AI 피드백 직후 딱 한 번 — 게스트는 가입 유도, 로그인 유저는 연습 알림 제안 (Calm 패턴)
+  // Optional action after the user has read the result, never an automatic overlay.
   const maybeOfferReminder = useCallback(async () => {
+    const owner = captureOwner();
     try {
       if (!userProfile?.authUserId) {
-        if (await hasAskedSignupNudge()) return;
-        if (!isMountedRef.current) return;
+        if (!ownerIsCurrent(owner)) return;
         await markSignupNudgeAsked();
+        if (!ownerIsCurrent(owner)) return;
         trackFunnelEvent("signup_nudge_shown", i18n.language);
         safeAlert(
           t("signupNudge.title"),
@@ -502,6 +506,7 @@ export default function NoteCreateScreen({ navigation, route }) {
             {
               text: t("signupNudge.cta"),
               onPress: async () => {
+                if (!ownerIsCurrent(owner)) return;
                 trackFunnelEvent("signup_nudge_tapped", i18n.language);
                 await goToAuthWithDraft();
               },
@@ -510,9 +515,9 @@ export default function NoteCreateScreen({ navigation, route }) {
         );
         return;
       }
-      if (await hasAskedReminder()) return;
-      if (!isMountedRef.current) return;
+      if (!ownerIsCurrent(owner)) return;
       await markReminderAsked();
+      if (!ownerIsCurrent(owner)) return;
       const now = new Date();
       const hour = now.getHours();
       const minute = now.getMinutes();
@@ -526,6 +531,7 @@ export default function NoteCreateScreen({ navigation, route }) {
           {
             text: t("reminder.offer_yes"),
             onPress: async () => {
+              if (!ownerIsCurrent(owner)) return;
               const ok = await scheduleDailyPracticeReminder(
                 hour, minute,
                 t("reminder.push_title"),
@@ -565,6 +571,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     }
     runAnalyze();
   }, [content, voiceRecordings, audioFiles, pdfFiles, images, aiDisclosureAccepted, handleAcceptAIDisclosure, runAnalyze, t, ensurePracticeSession]);
+  useEffect(() => { analysisRetryRef.current = handleAnalyze; }, [handleAnalyze]);
 
   // Video AI Analysis — one attached take, one explicit request. A failed retry keeps the last result.
   const noteVideos = images.filter((i) => i.type === "video");
@@ -584,6 +591,8 @@ export default function NoteCreateScreen({ navigation, route }) {
     const owner = captureOwner();
     const revision = mediaRevisionRef.current;
     videoWorkRef.current = true;
+    setAnalysisError(null);
+    trackFunnelEvent("feedback_requested", i18n.language);
     setVideoAiLoading(true);
     setVideoAiProgress({ phase: "extracting", percent: 0, message: t("noteCreate.preparing") });
     try {
@@ -609,6 +618,7 @@ export default function NoteCreateScreen({ navigation, route }) {
       );
       if (!ownerIsCurrent(owner)) return;
       setVideoAnalysis(result);
+      scrollRef.current?.scrollTo?.({ y: 0, animated: true });
       videoMetaRef.current = { ...lastAiMeta };
       const newOptions = lastAiMeta.focusOptions || [];
       setFocusOptions(newOptions);
@@ -621,6 +631,8 @@ export default function NoteCreateScreen({ navigation, route }) {
       if (e?.videoAiReason === "QUOTA") {
         promptQuotaExceeded("video", { max: e.quotaMax, used: e.quotaUsed });
       } else {
+        trackFunnelEvent("feedback_failed", i18n.language);
+        setAnalysisError("video");
         safeAlert(t("noteCreate.ai_failed"), t("common.video_ai_retry_msg"), [
           { text: t("common.cancel"), style: "cancel" },
           { text: t("common.retry"), onPress: () => { if (ownerIsCurrent(owner) && revision === mediaRevisionRef.current) startVideoAnalysisRef.current?.(); } },
@@ -662,7 +674,7 @@ export default function NoteCreateScreen({ navigation, route }) {
 
   // ─── Media Handlers ───
 
-  const pickMedia = useCallback(async (source, videoOnly = false) => {
+  const pickMedia = useCallback(async (source, videoOnly = false, photoOnly = false) => {
     if (mediaWorkRef.current || videoWorkRef.current || savingRef.current || textWorkRef.current) return;
     const owner = captureOwner();
     mediaWorkRef.current = true;
@@ -681,12 +693,12 @@ export default function NoteCreateScreen({ navigation, route }) {
         if (!ownerIsCurrent(owner)) return;
         if (audio.status !== "granted") { safeAlert(t("common.permission_required"), t("common.mic_permission")); return; }
       }
-      const options = { mediaTypes: videoOnly ? ["videos"] : source === "camera" ? ["images"] : ["images", "videos"], quality: 0.8, allowsMultipleSelection: false, videoMaxDuration: 300, videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality };
+      const options = { mediaTypes: videoOnly ? ["videos"] : photoOnly || source === "camera" ? ["images"] : ["images", "videos"], quality: 0.8, allowsMultipleSelection: false, videoMaxDuration: 300, videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality };
       const result = source === "camera" ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
       if (!ownerIsCurrent(owner) || result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
       const isVideo = asset.type === "video";
-      if (videoOnly && !isVideo) return;
+      if ((videoOnly && !isVideo) || (photoOnly && isVideo)) return;
       if (isVideo && Number.isFinite(asset.duration) && asset.duration > 300000) {
         safeAlert(t("noteCreate.video_too_long"), t("noteCreate.video_too_long_msg"));
         return;
@@ -737,6 +749,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   const handleTakeVideo = useCallback(() => pickMedia("camera", true), [pickMedia]);
   const handlePickMedia = useCallback(() => pickMedia("gallery"), [pickMedia]);
   const handlePickVideo = useCallback(() => pickMedia("gallery", true), [pickMedia]);
+  const handlePickPhoto = useCallback(() => pickMedia("gallery", false, true), [pickMedia]);
 
   const handleRemoveMedia = useCallback((index) => {
     if (videoWorkRef.current || mediaWorkRef.current || savingRef.current || textWorkRef.current) return;
@@ -1056,14 +1069,15 @@ export default function NoteCreateScreen({ navigation, route }) {
 
   // AI 분석이 도는 중에는 저장을 막는다 — 반쪽 피드백이 노트로 굳어버린다
   const aiBusy = aiLoading || videoAiLoading || mediaBusy;
+  const quickFeedbackEntry = !videoAnalysis && !aiComment && (prefill?.intent === 'feedback' || prefill?.intent === 'material' || sceneId) && noteVideos.length === 0;
 
   // Save note
   const savedNoteRef = useRef(false);
   const savingRef = useRef(false); // 녹음 복사 중 저장 버튼 연타로 노트가 두 번 생기지 않게
-  const handleSave = useCallback(async (destination = "default") => {
+  const handleSave = useCallback(async (destination = "default", nextFocus = chosenFocus) => {
     if (recordingRef.current || recordingBusyRef.current) return;
     if (savedNoteRef.current || aiBusy || textWorkRef.current || videoWorkRef.current || mediaWorkRef.current || savingRef.current) return;
-    if (destination === "retake" && (!videoAnalysis || !chosenFocus)) return;
+    if (destination === "retake" && !videoAnalysis && !aiComment) return;
     const owner = captureOwner();
     if (!title.trim()) {
       Alert.alert(t("noteCreate.title_required"), t("noteCreate.title_required_msg"));
@@ -1128,7 +1142,7 @@ export default function NoteCreateScreen({ navigation, route }) {
         parentNoteId: parentNoteId || undefined,
         rootNoteId: rootNoteId || undefined,
         focus: focus || undefined,
-        chosenFocus: chosenFocus || undefined,
+        chosenFocus: (focusOptions.includes(nextFocus) ? nextFocus : chosenFocus) || undefined,
         focusOptions: focusOptions.length > 0 ? focusOptions : undefined,
         // 이 노트가 어느 연습 세션에서 나왔는지 — 홈 요약·성장 리포트가 이 값으로
         // 노트 없이 끝낸 연습 기록(getPracticeLog)과 중복 집계를 막는다.
@@ -1149,8 +1163,8 @@ export default function NoteCreateScreen({ navigation, route }) {
       if (destination === "retake") {
         trackFunnelEvent("repractice_started", i18n.language);
         navigation.replace("NoteCreate", { prefill: buildRepracticePrefill({ ...noteData, id: savedNoteId }) });
-      } else if (videoAnalysis || (field === "art" && images.some(item => item.type !== "video"))) {
-        navigation.replace("NoteDetail", { noteId: savedNoteId, initialTab: videoAnalysis ? "ai" : "content" });
+      } else if (destination === "compare" || videoAnalysis || (field === "art" && images.some(item => item.type !== "video"))) {
+        navigation.replace("NoteDetail", { noteId: savedNoteId, initialTab: videoAnalysis || (destination === "compare" && field !== "art") ? "ai" : "content" });
       } else navigation.goBack();
     } catch (e) {
       if (!ownerIsCurrent(owner)) return;
@@ -1190,11 +1204,34 @@ export default function NoteCreateScreen({ navigation, route }) {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {analysisError ? <View testID="feedback-error" accessibilityRole="alert" style={styles.materialCard}>
+          <Text style={T.bodyBold}>{String(i18n.language).startsWith('ko') ? '피드백을 완료하지 못했어요' : 'Feedback could not finish'}</Text>
+          <Text style={[T.small, { marginTop: 8 }]}>{String(i18n.language).startsWith('ko') ? '작성한 내용과 첨부 자료는 이 화면에 남아 있어요. 저장하거나 다시 요청할 수 있습니다.' : 'Your writing and attachments are still here. Save your entry or request feedback again.'}</Text>
+          <TouchableOpacity testID="feedback-error-retry" accessibilityRole="button" style={styles.materialBtn} disabled={aiBusy || saving || isRecording || speechRecordingBusy} onPress={() => analysisError === 'video' ? startVideoAnalysisRef.current?.() : analysisRetryRef.current?.()}><Text style={styles.materialBtnText}>{t('common.retry')}</Text></TouchableOpacity>
+        </View> : null}
+        {(videoAnalysis || aiComment) && !aiBusy ? <>
+          <Text style={T.bodyBold}>{t(videoAnalysis ? 'noteCreate.video_ai_result' : 'noteCreate.ai_result')}</Text>
+          <FeedbackNextStep feedback={videoAnalysis || aiComment} options={focusOptions} selected={chosenFocus} field={field} language={i18n.language} disabled={saving || isRecording || speechRecordingBusy}
+            onSelect={(value) => { if (saving) return; setChosenFocus(value); if (value) trackFunnelEvent('focus_selected', i18n.language); }}
+            onRetry={(value) => handleSave('retake', value)} onCompare={parentNoteId ? () => handleSave('compare') : undefined} />
+          <TouchableOpacity testID="feedback-optional-reminder" accessibilityRole="button" style={styles.existingFeedbackLink} disabled={saving || isRecording || speechRecordingBusy} onPress={maybeOfferReminder}>
+            <Text style={styles.retakeLink}>{t(userProfile?.authUserId ? 'reminder.offer_title' : 'signupNudge.title')}</Text>
+          </TouchableOpacity>
+        </> : null}
+        {quickFeedbackEntry ? <View testID="first-feedback-ready" style={styles.materialCard}>
+          <Text style={T.title}>{String(i18n.language).startsWith('ko') ? (hasAttachments ? '준비됐어요. 피드백으로 이어가요.' : field === 'art' ? '작품 한 장부터 시작해요.' : '내 목소리로 한 번 남겨요.') : (hasAttachments ? 'Ready for your first feedback.' : field === 'art' ? 'Start with one artwork.' : 'Record one take in your own voice.')}</Text>
+          {hasAttachments ? <>
+            <Text style={[T.small, { marginTop: 8 }]}>{String(i18n.language).startsWith('ko') ? '자료를 확인한 뒤 피드백을 요청하세요. 결과에서 다음에 바꿀 점을 고를 수 있어요.' : 'Check your material, then request feedback and choose a next step.'}</Text>
+            <TouchableOpacity testID="first-feedback-request" accessibilityRole="button" style={styles.materialBtn} disabled={aiBusy || saving || isRecording || speechRecordingBusy} onPress={handleAnalyze}><Text style={styles.materialBtnText}>{t(aiLoading ? 'noteCreate.ai_analyzing' : 'noteCreate.ai_analyze')}</Text></TouchableOpacity>
+            {quotaCaption ? <Text style={T.micro}>{quotaCaption}</Text> : null}
+          </> : field !== 'art' ? <TouchableOpacity testID="first-feedback-record" accessibilityRole="button" style={styles.materialBtn} disabled={aiBusy || saving || speechRecordingBusy} onPress={isRecording ? handleStopRecording : handleStartRecording}><Text style={styles.materialBtnText}>{isRecording ? t('duet.record_stop') : String(i18n.language).startsWith('ko') ? '녹음해서 시작하기' : 'Start with a recording'}</Text></TouchableOpacity> : null}
+        </View> : null}
         <StudioContextCard note={studioMetadata} />
         {studioMetadata.practiceMode === "standard_speech" && <StandardSpeechPractice
           ref={speechPracticeRef} content={content} language={i18n.language} lineIndex={speechLineIndex} onLineChange={setSpeechLineIndex}
@@ -1228,13 +1265,13 @@ export default function NoteCreateScreen({ navigation, route }) {
             (1.11.9 실화면: 안내 없는 빈 노트가 열리고, AI 분석을 누르면 "내용을 먼저 작성"이라고만 했다) */}
         {prefill?.intent === "material" && !hasAttachments ? (
           <View style={styles.materialCard}>
-            <Text style={[T.title, { color: CLight.gray900 }]}>{t("noteCreate.material_title")}</Text>
-            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>{t("noteCreate.material_desc")}</Text>
-            <TouchableOpacity style={styles.materialBtn} onPress={handlePickVideo} disabled={aiBusy || saving} activeOpacity={0.8}>
-              <Text style={styles.materialBtnText}>{t("noteCreate.material_pick_video")}</Text>
+            <Text style={[T.title, { color: CLight.gray900 }]}>{field === 'art' ? (String(i18n.language).startsWith('ko') ? '작품 사진을 골라주세요' : 'Choose an artwork photo') : t("noteCreate.material_title")}</Text>
+            <Text style={[T.small, { color: CLight.gray500, marginTop: 4 }]}>{field === 'art' ? (String(i18n.language).startsWith('ko') ? '작업 의도와 궁금한 부분을 적어주세요. 수정본은 이전 작품과 비교할 수 있어요.' : 'Describe your intention and what to examine. Compare revisions with the original.') : t("noteCreate.material_desc")}</Text>
+            <TouchableOpacity testID={field === 'art' ? 'material-pick-artwork' : 'material-pick-video'} style={styles.materialBtn} onPress={field === 'art' ? handlePickPhoto : handlePickVideo} disabled={aiBusy || saving} activeOpacity={0.8}>
+              <Text style={styles.materialBtnText}>{field === 'art' ? (String(i18n.language).startsWith('ko') ? '작품 사진 선택' : 'Select artwork photo') : t("noteCreate.material_pick_video")}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.materialBtn, styles.materialBtnAlt]} onPress={handlePickAudio} disabled={aiBusy || saving} activeOpacity={0.8}>
-              <Text style={[styles.materialBtnText, { color: CLight.pink }]}>{t("noteCreate.material_pick_audio")}</Text>
+            <TouchableOpacity style={[styles.materialBtn, styles.materialBtnAlt]} onPress={field === 'art' ? handleTakePhoto : handlePickAudio} disabled={aiBusy || saving} activeOpacity={0.8}>
+              <Text style={[styles.materialBtnText, { color: CLight.pink }]}>{field === 'art' ? t('noteCreate.camera') : t("noteCreate.material_pick_audio")}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1354,17 +1391,6 @@ export default function NoteCreateScreen({ navigation, route }) {
               <TouchableOpacity onPress={handleVideoAnalyze} disabled={saving || aiBusy}><Text style={styles.retakeLink}>{t("retake.reanalyze_link")}</Text></TouchableOpacity>
             )}
 
-            {videoAnalysis ? (
-              <View style={[styles.videoAiResultCard, { marginBottom: 14 }]}>
-                <View style={styles.videoAiResultHeader}>
-                  <Text style={styles.videoAiResultHeaderText}>{t("noteCreate.video_ai_result")}</Text>
-                </View>
-                <Text style={styles.aiResultContent}>{videoAnalysis}</Text>
-                <FocusPicker title={t("focus.pick_title")} options={focusOptions} value={chosenFocus} onSelect={(v) => { if (saving || aiBusy) return; setChosenFocus(v); if (v) trackFunnelEvent("focus_selected", i18n.language); }} />
-                {parentNoteId ? <TouchableOpacity style={styles.videoAiButton} disabled={saving || aiBusy} onPress={() => handleSave("compare")}><Text style={styles.videoAiButtonText}>{t("retake.save_compare")}</Text></TouchableOpacity> : null}
-                {chosenFocus ? <TouchableOpacity style={styles.videoAiButton} disabled={saving || aiBusy} onPress={() => handleSave("retake")}><Text style={styles.videoAiButtonText}>{t(parentNoteId ? "retake.capture_again" : "retake.fix_and_retake")}</Text></TouchableOpacity> : null}
-              </View>
-            ) : null}
           </>
         )}
 
@@ -1532,7 +1558,7 @@ export default function NoteCreateScreen({ navigation, route }) {
             />
             <Text style={styles.aiLoadingText}>{t("noteCreate.ai_analyzing")}</Text>
           </View>
-        ) : (
+        ) : !(quickFeedbackEntry && hasAttachments) ? (
           <>
             <TouchableOpacity
               style={styles.aiButton}
@@ -1547,30 +1573,9 @@ export default function NoteCreateScreen({ navigation, route }) {
               </Text>
             ) : null}
           </>
-        )}
+        ) : null}
 
         {/* AI Result — 영상 AI만 돌린 노트에도 고칠 점 칩이 떠야 한다 */}
-        {aiComment ? (
-          <View style={styles.aiResultCard}>
-            {aiComment ? (
-              <>
-                <View style={styles.aiResultHeader}>
-                  <Text style={styles.aiResultHeaderText}>{t("noteCreate.ai_result")}</Text>
-                </View>
-                <Text style={styles.aiResultContent}>{aiComment}</Text>
-              </>
-            ) : null}
-            {!videoAnalysis ? <FocusPicker
-              title={t("focus.pick_title")}
-              options={focusOptions}
-              value={chosenFocus}
-              onSelect={(v) => {
-                setChosenFocus(v);
-                if (v) trackFunnelEvent("focus_selected", i18n.language);
-              }}
-            /> : null}
-          </View>
-        ) : null}
 
         {/* Bottom spacing */}
         <View style={{ height: 40 }} />
@@ -1582,6 +1587,7 @@ export default function NoteCreateScreen({ navigation, route }) {
 
 // ─── Styles ───
 const styles = StyleSheet.create({
+  existingFeedbackLink: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
   container: {
     flex: 1,
     backgroundColor: CLight.bg,

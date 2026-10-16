@@ -85,7 +85,7 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
 
-    expect(utils.getByText("focus.pick_title")).toBeTruthy();
+    expect(utils.getByText("다른 초점 고르기")).toBeTruthy();
     await act(async () => { fireEvent.press(utils.getByText("첫 문장 호흡 늦추기")); });
 
     expect(ctx.handleUpdateNote).toHaveBeenCalledWith(
@@ -95,11 +95,14 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     expect(trackFunnelEvent).toHaveBeenCalledWith("focus_selected");
   });
 
-  it("고르기 전엔 '다시 연습' 버튼이 없다", async () => {
-    useApp.mockReturnValue(buildCtx([baseNote]));
+  it("첫 추천 초점으로 즉시 재연습하고 그 선택을 먼저 저장한다", async () => {
+    const ctx = buildCtx([baseNote]);
+    useApp.mockReturnValue(ctx);
     const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
     openAiTab(utils);
-    expect(utils.queryByText("focus.repractice_cta")).toBeNull();
+    await act(async () => fireEvent.press(utils.getByTestId("feedback-retry-practice")));
+    expect(ctx.handleUpdateNote).toHaveBeenCalledWith(expect.objectContaining({ chosenFocus: "첫 문장 호흡 늦추기" }), { silent: true });
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: expect.objectContaining({ focus: "첫 문장 호흡 늦추기", intent: "feedback" }) });
   });
 
   it("'이 포인트로 다시 연습'은 체인(rootNoteId·parentNoteId)과 초점을 들고 새 노트를 연다", async () => {
@@ -113,7 +116,7 @@ describe("NoteDetailScreen — 고칠 점 고르기 · 다시 연습", () => {
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
       prefill: {
         title: "햄릿 독백",
-        field: "acting",
+        field: "acting", intent: "feedback",
         seriesName: "햄릿",
         rootNoteId: 200, // 체인의 최초 id — 이 노트가 최초라 자기 자신
         parentNoteId: 200,
@@ -257,7 +260,7 @@ describe("항목2 — 영상 AI만 있는 노트에도 고칠 점·재연습이 
     openAiTab(utils);
 
     expect(utils.queryByText("noteDetail.ai_empty_title")).toBeNull();
-    expect(utils.getByText("focus.pick_title")).toBeTruthy();
+    expect(utils.getByText("다른 초점 고르기")).toBeTruthy();
 
     fireEvent.press(utils.getByText("무게중심 낮추기"));
     expect(ctx.handleUpdateNote).toHaveBeenCalledWith(
@@ -744,7 +747,7 @@ describe("표준어 노트 — AI 없이 같은 대사 다시 연습", () => {
     await act(async () => { fireEvent.press(utils.getByText("같은 대사 다시 연습")); });
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", {
       prefill: {
-        title: speechNote.title, field: "acting", seriesName: speechNote.title,
+        title: speechNote.title, field: "acting", intent: "feedback", seriesName: speechNote.title,
         content: speechNote.content, practiceMode: "standard_speech", speechLineIndex: 1,
         sceneId: "actraw:ss-001", rootNoteId: 400, parentNoteId: 410,
         scriptLanguage: "ko", feedbackLanguage: "ko", focus: null,

@@ -26,6 +26,7 @@ import { loadVoiceManifest, voiceUrlFor } from "../services/duetVoice";
 import { preserveMediaFile } from "../services/persistentMedia";
 import i18n from "i18next";
 import EnglishStudy, { lessonFor } from "../components/EnglishStudy";
+import { quickPracticeScene } from "../utils/quickPractice";
 
 // expo-speech 는 네이티브 모듈 — 구버전 바이너리에 OTA 로 나가도 죽지 않게 가드해서 로드한다.
 let Speech = null;
@@ -63,12 +64,12 @@ const mmss = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String
 
 const REMOTE_URL = "https://actraw.kr/duet-scenes.json";
 
-export default function DuetPracticeScreen({ navigation }) {
+export default function DuetPracticeScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { t: translate } = useTranslation();
   const { showToast, userProfile } = useApp();
   const [feedbackLanguage, setFeedbackLanguage] = useState(() => rehearsalLanguage(i18n.language));
-  const [scriptLanguage, setScriptLanguage] = useState(() => rehearsalLanguage(i18n.language));
+  const [scriptLanguage, setScriptLanguage] = useState(() => rehearsalLanguage(route?.params?.scriptLanguage || i18n.language));
   const [englishVoice, setEnglishVoice] = useState("en-US");
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pastedScript, setPastedScript] = useState("");
@@ -80,7 +81,7 @@ export default function DuetPracticeScreen({ navigation }) {
   const accountRef = useRef(userProfile?.authUserId || null);
   accountRef.current = userProfile?.authUserId || null;
   const visibleScenes = useMemo(() => scenes.filter((item) => sceneLanguage(item) === scriptLanguage), [scenes, scriptLanguage]);
-  const [scene, setScene] = useState(null);
+  const [scene, setScene] = useState(() => route?.params?.quickStart === true ? quickPracticeScene(route.params.scriptLanguage || i18n.language) : null);
   const [myRole, setMyRole] = useState(0);
   const [mode, setMode] = useState(null); // null=설정, 'cue', 'script'
   const [idx, setIdx] = useState(0);
@@ -353,6 +354,7 @@ export default function DuetPracticeScreen({ navigation }) {
       scriptLanguage: sceneLanguage(s),
       feedbackLanguage,
       rehearsalContext: rehearsalContextFor(s, myRole, feedbackLanguage),
+      intent: 'feedback',
     };
     const go = (recs) => {
       if (!mountedRef.current || owner !== accountRef.current) { noteTransferRef.current = false; return; }
@@ -546,7 +548,7 @@ export default function DuetPracticeScreen({ navigation }) {
   const RecordStatus = () => recordedCount > 0 && <Text style={styles.recordStatus}>{ds("recorded", { count: recordedCount })}</Text>;
   const NoteButton = () => <View>
     <TouchableOpacity accessibilityRole="button" style={[styles.noteBtn, noteSent && { opacity: 0.5 }]} onPress={goToNote} activeOpacity={0.85} disabled={noteSent || recordingPreparing}>
-      <Text style={styles.primaryText}>{noteSent ? t("duet.note_done") : ds("note")}</Text>
+      <Text style={styles.primaryText}>{noteSent ? t("duet.note_done") : scene.id?.startsWith("artlink-first-") ? (String(i18n.language).startsWith("ko") ? "녹음 확인하고 피드백 받기" : "Review recording and get feedback") : ds("note")}</Text>
     </TouchableOpacity>
     <Text style={styles.noteHint}>{ds("readyNote")}</Text>
   </View>;
@@ -609,7 +611,7 @@ export default function DuetPracticeScreen({ navigation }) {
       <Header title={scene.play} onBack={leaveScene} />
       <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom: 24 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.setupCard}>
-          <Text style={styles.eyebrow}>{scene.isPrivate ? ds("privateLabel") : sceneLanguage(scene) === "en" ? ds("original") : "ACT RAW"}</Text>
+          <Text style={styles.eyebrow}>{scene.isPrivate ? ds("privateLabel") : scene.rights?.type === "artlink-original" ? ds("original") : "ACT RAW"}</Text>
           <Text style={styles.setupTitle}>{scene.play}</Text>
           {sceneDescription(scene, feedbackLanguage, "label") ? <><Text style={styles.label}>{ds("situation")}</Text><Text style={styles.body}>{sceneDescription(scene, feedbackLanguage, "label")}</Text></> : null}
           <Text style={[styles.label, { marginTop: 22 }]}>{ds("myRole")}</Text>
@@ -617,6 +619,16 @@ export default function DuetPracticeScreen({ navigation }) {
           {sceneDescription(scene, feedbackLanguage, "point") ? <View style={styles.objective}><Text style={[styles.label, { color: STUDIO.positive }]}>{ds("objective")}</Text><Text style={styles.body}>{sceneDescription(scene, feedbackLanguage, "point")}</Text></View> : null}
           {feedbackLanguage === "en" && sceneLanguage(scene) === "ko" && !scene.isPrivate && <Text style={styles.noteHint}>{ds("englishDescriptionNotice")}</Text>}
         </View>
+        {scene.id.startsWith('artlink-first-') && <View style={styles.preferences}>
+          <Text style={styles.cardTitle}>{feedbackLanguage === 'ko' ? '녹음 한 번으로 시작하기' : 'Start with one recorded take'}</Text>
+          <Text style={styles.body}>{feedbackLanguage === 'ko' ? '6줄을 읽은 뒤 아래의 피드백 버튼으로 이어가세요. 녹음은 전사된 대사를 바탕으로 검토하며 발음·억양을 채점하지 않습니다.' : 'Read the six lines, then continue to feedback. Recording feedback uses a transcript, not pronunciation or accent scoring.'}</Text>
+          <TouchableOpacity testID="duet-quick-record" accessibilityRole="button" disabled={!canRecord || recordingPreparing} style={[styles.noteBtn, (!canRecord || recordingPreparing) && { opacity: 0.5 }]} onPress={async () => {
+            const owner = accountRef.current;
+            await startRecording();
+            if (!mountedRef.current || owner !== accountRef.current || !recordingRef.current) return;
+            setHideMine(false); setMode('script'); beginPractice(scene);
+          }}><Text style={styles.primaryText}>{recordingPreparing ? ds('recordPreparing') : feedbackLanguage === 'ko' ? '녹음하며 대사 읽기' : 'Record and read the scene'}</Text></TouchableOpacity>
+        </View>}
         <View style={styles.preferences}>
           <LanguageRow kind="feedbackLanguage" value={feedbackLanguage} onChange={setFeedbackLanguage} />
           {sceneLanguage(scene) === "en" && <View style={styles.voicePreference}><Text style={styles.label}>{ds("voiceLabel")}</Text><View style={styles.tools}>{["en-US", "en-GB"].map((voice) => <TouchableOpacity key={voice} accessibilityRole="button" accessibilityState={{ selected: englishVoice === voice }} testID={`duet-voice-${voice}`} style={[styles.chip, englishVoice === voice && styles.chipOn]} onPress={() => { stopSpeak(); setEnglishVoice(voice); }}><Text style={[styles.chipText, englishVoice === voice && styles.chipTextOn]}>{ds(voice === "en-US" ? "voiceUS" : "voiceUK")}</Text></TouchableOpacity>)}</View></View>}

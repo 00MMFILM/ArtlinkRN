@@ -1687,18 +1687,14 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
       ...(transcript ? { transcript } : {}),
     }, extra));
 
-    // 응답을 놓치면 분석이 소실되므로 일시적 실패는 1회 재시도한다.
-    // 4xx(인증·쿼터·잘못된 요청)는 재시도해도 결과가 같으므로 즉시 중단한다.
-    // 504(게이트웨이 타임아웃)와 클라이언트 타임아웃(abort)도 재시도하지 않는다 —
-    // 서버는 분석을 계속 돌리고 있을 수 있어 재요청하면 쿼터가 두 번 깎인다.
-    let lastError = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    // Losing a response does not prove the server failed. One explicit request
+    // sends one POST, so an automatic retry cannot consume the allowance twice.
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 310000); // 서버 상한 300초 + 여유
       try {
         onProgress?.({
           phase: "analyzing",
-          percent: attempt === 1 ? 55 : 60,
+          percent: 55,
           message: fmt.progressAIAnalyzing,
         });
 
@@ -1748,19 +1744,12 @@ export async function analyzeVideoFrames(field, content, title, videos, userProf
           deleteTempMedia(tempFileName);
           throw videoAiError("TIMEOUT", "client timeout");
         }
-        lastError = e;
-        console.log(`[analyzeVideoFrames] attempt ${attempt} failed:`, e.name, e.message);
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+        deleteTempMedia(tempFileName);
+        throw videoAiError("NETWORK", e.message || "unknown failure");
       } finally {
         clearTimeout(timeout);
       }
-    }
 
-    deleteTempMedia(tempFileName); // 재시도 소진 — 임시 원본 정리
-    throw videoAiError(
-      lastError?.name === "AbortError" ? "TIMEOUT" : "NETWORK",
-      lastError?.message || "unknown failure"
-    );
   } catch (e) {
     if (e.videoAiReason) throw e;
     console.log("[analyzeVideoFrames] Error:", e.message);

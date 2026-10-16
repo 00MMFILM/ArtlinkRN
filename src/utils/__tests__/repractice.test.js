@@ -13,7 +13,7 @@ describe("retake prefill", () => {
   });
   it("keeps the root, scene and chosen focus without copying media, analysis, or the completed session", () => {
     const original = { id: 21, title: "독백", field: "acting", sceneId: "scene-a", rootNoteId: 1, chosenFocus: "호흡", images: [{ uri: "old" }], videoAnalysis: "old", content: "old", practiceSessionId: "session-a", tags: ["private"] };
-    expect(buildRepracticePrefill(original)).toEqual({ title: "독백", field: "acting", seriesName: "독백", rootNoteId: 1, parentNoteId: 21, sceneId: "scene-a", focus: "호흡" });
+    expect(buildRepracticePrefill(original)).toEqual({ title: "독백", field: "acting", intent: "feedback", seriesName: "독백", rootNoteId: 1, parentNoteId: 21, sceneId: "scene-a", focus: "호흡" });
     expect(original.images).toHaveLength(1);
     expect(buildRepracticePrefill({ id: 1 }).rootNoteId).toBe(1);
     expect(buildRepracticePrefill(null)).toBeNull();

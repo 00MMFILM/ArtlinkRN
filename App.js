@@ -374,8 +374,10 @@ export function AppNavigator() {
   useEffect(() => {
     if (!pendingPractice || authState !== "app" || !storageReady || showOnboarding !== false || !draftChecked) return;
     const open = () => {
-      if (!navigationRef.isReady() || !navigationRef.getRootState()?.routeNames?.includes("NoteCreate")) return false;
-      navigationRef.dispatch(StackActions.push("NoteCreate", { prefill: pendingPractice, restoredDraft: false }));
+      const screen = pendingPractice.quickStart === true ? "DuetPractice" : "NoteCreate";
+      if (!navigationRef.isReady() || !navigationRef.getRootState()?.routeNames?.includes(screen)) return false;
+      const params = pendingPractice.quickStart === true ? { quickStart: true, scriptLanguage: pendingPractice.scriptLanguage } : { prefill: pendingPractice, restoredDraft: false };
+      navigationRef.dispatch(StackActions.push(screen, params));
       setPendingPractice(null);
       return true;
     };

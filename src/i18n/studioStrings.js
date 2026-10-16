@@ -1,5 +1,8 @@
 export default {
   ko: { studio: {
+    quick_title: "짧은 한 장면부터.\n지금 시작해요.",
+    quick_description: "준비된 6줄 대사로 연습하고, 녹음을 남겨 피드백까지 이어가세요.",
+    quick_action: "첫 장면 바로 열기",
     eyebrow: "ARTLINK STUDIO",
     title: "오늘은 한 장면.\n다음에는 한 걸음 더.",
     description: "영어와 한국어 대사 · 상대역 읽기 · 연습 기록",
@@ -28,6 +31,9 @@ export default {
     audio_hint: "녹음은 전사된 대사를 바탕으로 피드백합니다. 발음·억양 점수는 제공하지 않습니다.",
   } },
   en: { studio: {
+    quick_title: "Start with\none short scene.",
+    quick_description: "Rehearse six ready-to-use lines, record your take, and continue to feedback.",
+    quick_action: "Open your first scene",
     eyebrow: "ARTLINK STUDIO",
     title: "One scene today.\nA next step tomorrow.",
     description: "English & Korean scenes · Partner voices · Practice notes",

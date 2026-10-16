@@ -28,7 +28,8 @@ import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, show
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { aiFeedbackDone, newUuid } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
-import FocusPicker from "../components/FocusPicker";
+import FeedbackNextStep from "../components/FeedbackNextStep";
+import { nextFeedbackFocus } from "../utils/feedbackHighlights";
 import RetakeCompareCard from "../components/RetakeCompareCard";
 import ArtworkCompareCard from "../components/ArtworkReview";
 import StudioContextCard from "../components/StudioContextCard";
@@ -44,7 +45,7 @@ import { useTranslation } from "react-i18next";
 const EDITABLE_LISTS = ["tags", "images", "voiceRecordings", "audioFiles", "pdfFiles"];
 
 export default function NoteDetailScreen({ route, navigation }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { noteId } = route.params;
   const {
     savedNotes,
@@ -333,18 +334,26 @@ export default function NoteDetailScreen({ route, navigation }) {
   }, [note, handleUpdateNote, showToast, t]);
 
   // 고른 초점으로 같은 장면 다시 연습 — 새 노트가 체인(rootNoteId·parentNoteId)을 들고 열린다
-  const handleRepractice = useCallback(async () => {
-    if (!note || isEditing || pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || pendingSaveBusyRef.current) return;
+  const retakeBusyRef = useRef(false);
+  const handleRepractice = useCallback(async (requestedFocus) => {
+    if (!note || retakeBusyRef.current || isEditing || pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || pendingSaveBusyRef.current) return;
+    retakeBusyRef.current = true;
     const owner = captureOwner();
-    const stopping = stopDetailPlayback();
-    const generation = playbackGenerationRef.current;
-    await stopping;
-    if (!ownerIsCurrent(owner) || generation !== playbackGenerationRef.current || !playbackFocusedRef.current) return;
-    trackFunnelEvent("repractice_started");
-    navigation.navigate("NoteCreate", {
-      prefill: buildRepracticePrefill({ ...note, chosenFocus: note.chosenFocus || note.focus }),
-    });
-  }, [note, navigation, isEditing, stopDetailPlayback]);
+    try {
+      const stopping = stopDetailPlayback();
+      const generation = playbackGenerationRef.current;
+      await stopping;
+      if (!ownerIsCurrent(owner) || generation !== playbackGenerationRef.current || !playbackFocusedRef.current) return;
+      const chosen = nextFeedbackFocus(note.focusOptions, typeof requestedFocus === 'string' ? requestedFocus : note.chosenFocus || note.focus);
+      if (chosen && chosen !== note.chosenFocus) {
+        await handleUpdateNote({ ...(noteRef.current || note), chosenFocus: chosen }, { silent: true });
+        if (!ownerIsCurrent(owner) || generation !== playbackGenerationRef.current || !playbackFocusedRef.current) return;
+      }
+      trackFunnelEvent("repractice_started");
+      navigation.navigate("NoteCreate", { prefill: buildRepracticePrefill({ ...note, chosenFocus: chosen }) });
+    } catch (_) { if (ownerIsCurrent(owner)) showToast(t('common.save_failed_msg'), 'error'); }
+    finally { retakeBusyRef.current = false; }
+  }, [note, navigation, isEditing, stopDetailPlayback, handleUpdateNote, showToast, t]);
 
   const fieldEmoji = FIELD_EMOJIS[note?.field] || "\uD83D\uDCDD";
   const fieldLabel = t("fields." + (note?.field || "etc"));
@@ -1073,24 +1082,13 @@ export default function NoteDetailScreen({ route, navigation }) {
     const videoPercent = videoAiProgress.percent || 0;
 
     // 고칠 점 칩 + 재연습 버튼 — 글 피드백이든 영상 피드백이든 하나라도 있으면 보여준다
-    const renderFocusBlock = () => (
-      <>
-        <FocusPicker
-          title={t("focus.pick_title")}
-          options={note.focusOptions}
-          value={note.chosenFocus}
-          onSelect={handleChooseFocus}
-        />
-        {note.chosenFocus ? (
-          <TouchableOpacity style={styles.repracticeBtn} onPress={handleRepractice} activeOpacity={0.85}>
-            <Text style={[T.smallBold, { color: CLight.white }]}>{t("focus.repractice_cta")}</Text>
-          </TouchableOpacity>
-        ) : null}
-      </>
-    );
 
     return (
       <View style={styles.tabContent}>
+        {!aiLoading && !videoAiLoading && (note.videoAnalysis || note.aiComment) ? <FeedbackNextStep key={note.id}
+          feedback={note.videoAnalysis || note.aiComment} options={note.focusOptions} selected={note.chosenFocus || note.focus}
+          language={i18n.language} field={note.field} disabled={pendingSaving || isEditing}
+          actionLabel={t('focus.repractice_cta')} onSelect={handleChooseFocus} onRetry={handleRepractice} /> : null}
         {/* Video comparisons have no invented score delta; the text-note comparison stays below. */}
         {previousNote && (note.videoAnalysis || noteVideos.length > 0) &&
           (previousNote.videoAnalysis || previousNote.images?.some((item) => item.type === "video")) ? (
@@ -1161,8 +1159,7 @@ export default function NoteDetailScreen({ route, navigation }) {
               <Text style={[T.captionBold, { color: CLight.pink }]}>{t("noteDetail.ai_result")}</Text>
             </View>
             <View style={styles.aiDivider} />
-            <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text>
-            {renderFocusBlock()}
+            {note.videoAnalysis ? <Text style={[T.body, { color: CLight.gray900 }]}>{note.aiComment}</Text> : null}
             <View style={styles.aiActionRow}>
               <TouchableOpacity style={styles.shareBtn} onPress={handleShareFeedback} disabled={sharing}>
                 {sharing ? (
@@ -1244,9 +1241,6 @@ export default function NoteDetailScreen({ route, navigation }) {
                   <Text style={[T.captionBold, { color: "#007AFF" }]}>{t("noteDetail.video_ai_result")}</Text>
                 </View>
                 <View style={styles.aiDivider} />
-                <Text style={[T.body, { color: CLight.gray900 }]}>{note.videoAnalysis}</Text>
-                {/* 글 피드백 카드가 없을 때는 여기서 고칠 점·재연습을 제공한다 */}
-                {!note.aiComment ? renderFocusBlock() : null}
                 <TouchableOpacity style={styles.videoReAnalyzeBtn} onPress={handleRequestVideoAI}>
                   <Text style={[T.smallBold, { color: "#007AFF" }]}>{t("noteDetail.video_ai_reanalyze")}</Text>
                 </TouchableOpacity>

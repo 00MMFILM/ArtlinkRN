@@ -350,7 +350,7 @@ describe("항목14 — 타임아웃·재시도 정책", () => {
     expect(analyzeCalls).toHaveLength(1);
   });
 
-  it("그 밖의 5xx는 예전처럼 1회 재시도한다", async () => {
+  it("그 밖의 5xx도 자동 재요청하지 않는다", async () => {
     global.fetch = jest.fn(async (url) => {
       if (!String(url).includes("/api/analyze-video")) return { ok: true, status: 200, json: async () => ({}) };
       return { ok: false, status: 500, json: async () => ({}) };
@@ -361,7 +361,7 @@ describe("항목14 — 타임아웃·재시도 정책", () => {
     ).rejects.toMatchObject({ videoAiReason: "NETWORK" });
 
     const analyzeCalls = global.fetch.mock.calls.filter((c) => String(c[0]).includes("/api/analyze-video"));
-    expect(analyzeCalls).toHaveLength(2);
+    expect(analyzeCalls).toHaveLength(1);
   });
 });
 

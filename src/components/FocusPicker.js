@@ -4,7 +4,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { CLight, T } from "../constants/theme";
 
-export default function FocusPicker({ title, options, value, onSelect }) {
+export default function FocusPicker({ title, options, value, onSelect, disabled = false }) {
   const opts = (options || []).filter(Boolean).slice(0, 3);
   if (opts.length === 0) return null;
 
@@ -16,6 +16,9 @@ export default function FocusPicker({ title, options, value, onSelect }) {
         return (
           <TouchableOpacity
             key={opt}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on, disabled }}
+            disabled={disabled}
             style={[styles.chip, on && styles.chipOn]}
             onPress={() => onSelect && onSelect(on ? null : opt)}
             activeOpacity={0.8}

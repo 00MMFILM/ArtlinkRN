@@ -36,6 +36,7 @@ export default function HomeScreen({ navigation }) {
   } = useApp();
 
   const isActingUser = (userProfile?.fields || []).some((f) => /acting|film/i.test(String(f)));
+  const [quickLanguage, setQuickLanguage] = useState(() => String(i18n.language).startsWith('ko') ? 'ko' : 'en');
   const duetCard = (
     <View
       style={styles.studioCard}
@@ -44,8 +45,11 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.studioEyebrow}>{t("studio.eyebrow")}</Text>
         <Text style={styles.studioLanguages}>{t("studio.languages")}</Text>
       </View>
-      <Text style={styles.studioTitle}>{t("studio.title")}</Text>
-      <Text style={styles.studioDescription}>{t("studio.description")}</Text>
+      <Text style={styles.studioTitle}>{t("studio.quick_title")}</Text>
+      <Text style={styles.studioDescription}>{t("studio.quick_description")}</Text>
+      <View style={styles.practiceSteps}>
+        {['ko', 'en'].map(language => <TouchableOpacity key={language} testID={`home-quick-${language}`} accessibilityRole="button" accessibilityState={{ selected: quickLanguage === language }} style={[styles.existingMaterial, { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, backgroundColor: quickLanguage === language ? CLight.pinkGlow : CLight.surface }]} onPress={() => setQuickLanguage(language)}><Text style={styles.existingMaterialText}>{t(`studio.language_${language}`)}</Text></TouchableOpacity>)}
+      </View>
       <View style={styles.practiceSteps} accessibilityLabel={t("studio.loop")}>
         {["practice", "feedback", "repeat"].map((step, index) => (
           <View key={step} style={styles.practiceStep}>
@@ -57,16 +61,19 @@ export default function HomeScreen({ navigation }) {
       <TouchableOpacity
         testID="studio-home-card"
         accessibilityRole="button"
-        accessibilityLabel={t("studio.action")}
+        accessibilityLabel={t("studio.quick_action")}
         style={styles.studioAction}
         onPress={() => {
           trackFunnelEvent("home_practice_tapped", i18n.language);
-          navigation.navigate("DuetPractice");
+          navigation.navigate("DuetPractice", { quickStart: true, scriptLanguage: quickLanguage });
         }}
         activeOpacity={0.85}
       >
-        <Text style={styles.studioActionText}>{t("studio.action")}</Text>
+        <Text style={styles.studioActionText}>{t("studio.quick_action")}</Text>
         <Text style={styles.studioArrow}>↗</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" style={styles.existingMaterial} onPress={() => navigation.navigate("DuetPractice")}>
+        <Text style={styles.existingMaterialText}>{t("studio.other_scene")} →</Text>
       </TouchableOpacity>
       <TouchableOpacity
         testID="home-existing-material"

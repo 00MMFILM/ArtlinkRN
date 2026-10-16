@@ -112,6 +112,8 @@ const todayYmd = () => {
 const runAi = async (utils) => {
   fireEvent.changeText(utils.getByPlaceholderText("noteCreate.content_placeholder"), "오늘 연습");
   fireEvent.press(utils.getByText("noteCreate.ai_analyze"));
+  await waitFor(() => expect(utils.queryByTestId("feedback-optional-reminder") || Alert.alert.mock.calls.length).toBeTruthy());
+  if (utils.queryByTestId("feedback-optional-reminder")) await act(async () => fireEvent.press(utils.getByTestId("feedback-optional-reminder")));
   await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
 };
 
@@ -230,6 +232,7 @@ describe("studio context in note creation", () => {
     useApp.mockReturnValue(buildCtx(null));
     const utils = render(<NoteCreateScreen navigation={navigation} route={routeWith()} />);
     await act(async () => fireEvent.press(utils.getByText("noteCreate.ai_analyze")));
+    await act(async () => fireEvent.press(utils.getByTestId("feedback-optional-reminder")));
     await waitFor(() => expect(Alert.alert.mock.calls.some((call) => call[0] === "signupNudge.title")).toBe(true));
     const signup = Alert.alert.mock.calls.find((call) => call[0] === "signupNudge.title")[2].find((button) => button.text === "signupNudge.cta");
     await act(async () => signup.onPress());
@@ -237,10 +240,10 @@ describe("studio context in note creation", () => {
   });
 });
 
-describe("NoteCreateScreen — 첫 AI 피드백 직후 안내", () => {
+describe("NoteCreateScreen — 첫 AI 피드백 후 선택형 안내", () => {
   beforeEach(resetAll);
 
-  it("게스트는 첫 AI 성공 후 가입 유도가 딱 1회 뜬다", async () => {
+  it("게스트는 첫 AI 성공 후 안내 버튼을 누르면 가입 유도가 딱 1회 뜬다", async () => {
     useApp.mockReturnValue(buildCtx(null));
     const utils = render(<NoteCreateScreen navigation={navigation} route={{}} />);
     await runAi(utils);
@@ -667,7 +670,7 @@ describe("NoteCreateScreen — 재연습 체인 (focus · parentNoteId · sceneI
     await runAi(utils);
 
     // AI 결과 아래 "다음 연습에서 고칠 점 하나 고르기" 칩
-    expect(utils.getByText("focus.pick_title")).toBeTruthy();
+    expect(utils.getByText("다른 초점 고르기")).toBeTruthy();
     fireEvent.press(utils.getByText("시선 고정"));
     expect(trackFunnelEvent).toHaveBeenCalledWith("focus_selected", "ko");
 
@@ -776,7 +779,7 @@ describe("항목2 — 영상 AI만 돌려도 고칠 점 칩이 뜬다", () => {
     await waitFor(() => utils.getByText("noteCreate.video_ai_result"));
 
     expect(utils.queryByText("noteCreate.ai_result")).toBeNull(); // 글 피드백은 없다
-    expect(utils.getByText("focus.pick_title")).toBeTruthy();
+    expect(utils.getByText("다른 초점 고르기")).toBeTruthy();
     fireEvent.press(utils.getByText("시선 고정"));
 
     await act(async () => { fireEvent.press(utils.getByText("common.save")); });
@@ -1134,11 +1137,11 @@ describe("1.11.9 retake creation", () => {
     fireEvent.press(utils.getByText("호흡"));
     const saved = deferred();
     ctx.handleSaveNote.mockReturnValue(saved.promise);
-    await act(async () => { fireEvent.press(utils.getByText("retake.fix_and_retake")); fireEvent.press(utils.getByText("retake.fix_and_retake")); });
+    await act(async () => { fireEvent.press(utils.getByTestId("feedback-retry-practice")); fireEvent.press(utils.getByTestId("feedback-retry-practice")); });
     expect(ctx.handleSaveNote).toHaveBeenCalledTimes(1);
     expect(navigation.replace).not.toHaveBeenCalled();
     await act(async () => saved.resolve(22));
-    expect(navigation.replace).toHaveBeenCalledWith("NoteCreate", { prefill: { title: expect.any(String), field: "acting", seriesName: expect.any(String), rootNoteId: 22, parentNoteId: 22, sceneId: undefined, focus: "호흡" } });
+    expect(navigation.replace).toHaveBeenCalledWith("NoteCreate", { prefill: { title: expect.any(String), field: "acting", intent: "feedback", seriesName: expect.any(String), rootNoteId: 22, parentNoteId: 22, sceneId: undefined, focus: "호흡" } });
     expect(completePractice).toHaveBeenCalledWith(expect.any(Object), { subjectKey: 22, kind: "video" });
   });
   it("retake save opens the newly saved AI tab and keeps the subject key", async () => {
@@ -1148,7 +1151,7 @@ describe("1.11.9 retake creation", () => {
     expect(ctx.refreshPremium).toHaveBeenCalledTimes(1);
     expect(trackFunnelEvent).toHaveBeenCalledWith("retake_capture_added", "ko");
     expect(trackFunnelEvent).toHaveBeenCalledWith("retake_analysis_done", "ko");
-    await act(async () => fireEvent.press(utils.getByText("retake.save_compare")));
+    await act(async () => fireEvent.press(utils.getByTestId("feedback-compare")));
     expect(navigation.replace).toHaveBeenCalledWith("NoteDetail", { noteId: 22, initialTab: "ai" });
     expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ parentNoteId: 10, rootNoteId: 1, sceneId: "scene", focus: "호흡" }));
     expect(completePractice).toHaveBeenCalledWith(expect.any(Object), { subjectKey: "scene", kind: "video" });
@@ -1165,7 +1168,7 @@ describe("1.11.9 retake creation", () => {
     await act(async () => confirm.onPress());
     expect(analyzeVideoFrames).toHaveBeenCalledTimes(2);
     expect(utils.getByText("영상 분석 결과")).toBeTruthy();
-    await act(async () => fireEvent.press(utils.getByText("retake.save_compare")));
+    await act(async () => fireEvent.press(utils.getByTestId("feedback-compare")));
     expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({ videoAnalysis: "영상 분석 결과", transcript: "original transcript" }));
   });
   it("replacing the take clears its old result, focus, and stale confirmation", async () => {
@@ -1589,4 +1592,55 @@ describe("입력 소리 표시와 녹음 완료 소유자", () => {
     expect(ui.queryByTestId("speech-take-0")).toBeNull();
     expect(ui.queryByTestId("speech-input-monitor")).toBeNull();
   });
+});
+
+
+describe("first feedback and material entry", () => {
+ beforeEach(resetAll);
+ it("shows the result and a direct retry without an automatic signup or notification popup", async () => {
+  const ctx = buildCtx(null); ctx.handleSaveNote.mockResolvedValue(77); useApp.mockReturnValue(ctx);
+  analyzeNote.mockResolvedValue({analysis:"잘된 점: 구체적인 의도\n근거: 적어준 마지막 문장\n다음 연습: 다른 의도로 읽기",focusOptions:["다른 의도로 읽기"]});
+  const ui=render(<NoteCreateScreen navigation={navigation} route={{params:{prefill:{intent:'feedback',field:'acting',content:'연습 메모',voiceRecordings:[{uri:'file:///take.m4a',duration:3}]}}}} />);
+  await act(async()=>fireEvent.press(ui.getByTestId('first-feedback-request')));
+  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(ui.getByTestId('feedback-retry-practice')).toBeTruthy();
+  await act(async()=>fireEvent.press(ui.getByTestId('feedback-retry-practice')));
+  expect(ctx.handleSaveNote).toHaveBeenCalledWith(expect.objectContaining({chosenFocus:'다른 의도로 읽기',voiceRecordings:[{uri:'file:///take.m4a',duration:3}]}));
+  const next=navigation.replace.mock.calls.at(-1)[1].prefill;
+  expect(next).toMatchObject({parentNoteId:77,intent:'feedback',focus:'다른 의도로 읽기'});
+  expect(next.voiceRecordings).toBeUndefined(); expect(next.aiComment).toBeUndefined();
+ });
+ it("keeps the recording after a failed response and allows an explicit retry", async()=>{
+  useApp.mockReturnValue(buildCtx('u1'));
+  analyzeNote.mockRejectedValueOnce(new Error('AI_NETWORK')).mockResolvedValueOnce({analysis:'완성된 피드백',focusOptions:['다시 읽기']});
+  const recording={uri:'file:///take.m4a',duration:3};
+  const ui=render(<NoteCreateScreen navigation={navigation} route={{params:{prefill:{intent:'feedback',content:'남길 내용',voiceRecordings:[recording]}}}} />);
+  await act(async()=>fireEvent.press(ui.getByTestId('first-feedback-request')));
+  expect(ui.getByTestId('feedback-error')).toBeTruthy();
+  expect(ui.getByDisplayValue('남길 내용')).toBeTruthy();
+  await act(async()=>fireEvent.press(ui.getByTestId('feedback-error-retry')));
+  expect(analyzeNote).toHaveBeenCalledTimes(2);
+  expect(analyzeNote.mock.calls[1][3].voiceRecordings).toEqual([recording]);
+  expect(ui.queryByTestId('feedback-error')).toBeNull();
+  expect(ui.getByTestId('feedback-next-step')).toBeTruthy();
+ });
+ it("art entry opens a photo picker rather than requesting a video",async()=>{
+  useApp.mockReturnValue(buildCtx('u1'));
+  ImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({status:'granted'});
+  ImagePicker.launchImageLibraryAsync.mockResolvedValue({canceled:true});
+  const ui=render(<NoteCreateScreen navigation={navigation} route={{params:{prefill:{field:'art',intent:'material'}}}} />);
+  await act(async()=>fireEvent.press(ui.getByTestId('material-pick-artwork')));
+  expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({mediaTypes:['images']}));
+ });
+});
+
+
+test("a fresh retake keeps the script readable without copying it into the user's new reflection", async()=>{
+ resetAll();useApp.mockReturnValue(buildCtx('u1'));
+ const script='친구: 이제 갈게.\n나: 조금만 더 있어.';
+ const ui=render(<NoteCreateScreen navigation={navigation} route={{params:{prefill:{intent:'feedback',content:'',rehearsalContext:{script,role:'나',scriptLanguage:'ko',feedbackLanguage:'ko'}}}}}/>);
+ expect(ui.queryByTestId('rehearsal-script')).toBeNull();
+ fireEvent.press(ui.getByTestId('rehearsal-script-toggle'));
+ expect(ui.getByTestId('rehearsal-script').props.children).toBe(script);
+ expect(ui.getByPlaceholderText('noteCreate.content_placeholder').props.value).toBe('');
 });

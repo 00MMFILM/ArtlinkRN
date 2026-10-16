@@ -26,3 +26,11 @@ test("standard speech retry preserves script without previous media or AI output
  expect(next.voiceRecordings).toBeUndefined(); expect(next.aiComment).toBeUndefined();
  expect(buildRepracticePrefill({id:1,content:"other"}).content).toBeUndefined();
 });
+
+test('quick scene accepts only acting and supported scalar language; art opens material entry', () => {
+ expect(practicePrefill({mode:'quick_scene',language:'en',field:'acting'})).toMatchObject({quickStart:true,scriptLanguage:'en'});
+ for (const changes of [{field:'music'}, {mode:['quick_scene']}, {language:['en']}, {language:'en-US'}, {language:'../x'}]) {
+  expect(practicePrefill({mode:'quick_scene',language:'en',field:'acting',...changes}).quickStart).toBeUndefined();
+ }
+ expect(practicePrefill({field:'art'})).toMatchObject({intent:'material',field:'art'});
+});
