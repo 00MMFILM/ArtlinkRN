@@ -28,6 +28,7 @@ import { incrementDailyAICount, shouldShowInterstitial, showInterstitialAd, show
 import { SERVER_URL, getApiHeaders } from "../services/apiConfig";
 import { aiFeedbackDone, newUuid } from "../services/practiceService";
 import { trackFunnelEvent } from "../services/mauService";
+import { hasAskedSignupNudge, markSignupNudgeAsked } from "../services/signupNudge";
 import FocusPicker from "../components/FocusPicker";
 import RetakeCompareCard from "../components/RetakeCompareCard";
 import StudioContextCard from "../components/StudioContextCard";
@@ -43,7 +44,7 @@ import { useTranslation } from "react-i18next";
 const EDITABLE_LISTS = ["tags", "images", "voiceRecordings", "audioFiles", "pdfFiles"];
 
 export default function NoteDetailScreen({ route, navigation }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { noteId } = route.params;
   const {
     savedNotes,
@@ -487,6 +488,24 @@ export default function NoteDetailScreen({ route, navigation }) {
     setIsEditing(false);
   }, [note]);
 
+  // 첫 AI 피드백 직후 게스트에게 한 번 — 신규 대부분이 첫 체크인 → 여기서 첫 피드백을 받는다(2026-10-18 실측)
+  const afterAiFeedback = useCallback(async () => {
+    trackFunnelEvent("ai_feedback_done", i18n.language);
+    if (userProfile?.authUserId || (await hasAskedSignupNudge())) return;
+    await markSignupNudgeAsked();
+    trackFunnelEvent("signup_nudge_shown", i18n.language);
+    Alert.alert(t("signupNudge.title"), t("signupNudge.msg"), [
+      { text: t("signupNudge.later"), style: "cancel" },
+      {
+        text: t("signupNudge.cta"),
+        onPress: () => {
+          trackFunnelEvent("signup_nudge_tapped", i18n.language);
+          setAuthState("auth");
+        },
+      },
+    ]);
+  }, [userProfile?.authUserId, i18n.language, t, setAuthState]);
+
   const runRequestAI = useCallback(async () => {
     if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
     aiRequestBusyRef.current = true;
@@ -522,6 +541,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       pendingAiRef.current = pending;
       setPendingAi(pending);
       await savePendingAi();
+      afterAiFeedback().catch(() => {});
     } catch (e) {
       if (e?.message === "AI_QUOTA") {
         promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
@@ -533,7 +553,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       setAiLoading(false);
       refreshPremium?.(); // 한 번 썼으니 남은 횟수 캡션을 즉시 갱신한다
     }
-  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded, refreshPremium, studioMetadata]);
+  }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded, refreshPremium, studioMetadata, afterAiFeedback]);
 
   const handleRequestAI = useCallback(async () => {
     if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
@@ -584,6 +604,7 @@ export default function NoteDetailScreen({ route, navigation }) {
       pendingAiRef.current = pending;
       setPendingAi(pending);
       await savePendingAi();
+      afterAiFeedback().catch(() => {});
     } catch (e) {
       if (!ownerIsCurrent(owner)) return;
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
@@ -608,7 +629,7 @@ export default function NoteDetailScreen({ route, navigation }) {
         refreshPremium?.();
       }
     }
-  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote, refreshPremium, studioMetadata]);
+  }, [note, noteVideos, userProfile, savePendingAi, t, promptQuotaExceeded, previousNote, refreshPremium, studioMetadata, afterAiFeedback]);
 
   const runVideoAIFlow = useCallback(async (owner = captureOwner()) => {
     if (pendingAiRef.current || aiRequestBusyRef.current || videoPreflightBusyRef.current || !ownerIsCurrent(owner)) return;
