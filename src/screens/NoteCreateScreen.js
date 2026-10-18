@@ -40,14 +40,8 @@ import { ArtworkRegionPicker } from "../components/ArtworkReview";
 import StandardSpeechPractice from "../components/StandardSpeechPractice";
 import StudioContextCard from "../components/StudioContextCard";
 import { useTranslation } from "react-i18next";
+import { hasAskedSignupNudge, markSignupNudgeAsked } from "../services/signupNudge";
 
-// 게스트 가입 유도는 기기당 딱 1회 (리마인더 플래그와 같은 방식)
-const SIGNUP_NUDGE_KEY = "artlink-signup-nudge-asked";
-async function markSignupNudgeAsked() {
-  try {
-    await AsyncStorage.setItem(SIGNUP_NUDGE_KEY, "true");
-  } catch {}
-}
 
 export default function NoteCreateScreen({ navigation, route }) {
   const { t, i18n } = useTranslation();

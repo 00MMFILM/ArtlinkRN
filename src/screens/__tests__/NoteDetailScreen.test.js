@@ -13,6 +13,15 @@ jest.mock("react-i18next", () => ({
 jest.mock("../../context/AppContext", () => ({ useApp: jest.fn() }));
 jest.mock("@react-navigation/native", () => ({ usePreventRemove: jest.fn() }));
 jest.mock("../../services/mauService", () => ({ trackFunnelEvent: jest.fn() }));
+jest.mock("@react-native-async-storage/async-storage", () => {
+  const store = {};
+  return {
+    getItem: jest.fn(async (k) => (k in store ? store[k] : null)),
+    setItem: jest.fn(async (k, v) => { store[k] = v; }),
+    removeItem: jest.fn(async (k) => { delete store[k]; }),
+    __store: store,
+  };
+});
 jest.mock("../../services/analyticsService", () => ({ getRelatedNotes: jest.fn(() => []) }));
 jest.mock("../../services/aiService", () => ({
   analyzeNote: jest.fn(),
@@ -873,5 +882,57 @@ describe("상세 노트 음성 재생 소유권", () => {
     expect(nav.navigate).not.toHaveBeenCalled();
     await act(async () => unload.resolve());
     expect(nav.navigate).toHaveBeenCalledWith("NoteCreate", expect.anything());
+  });
+});
+
+// 2026-10-18 실측: 신규 대부분이 첫 체크인 → 노트 상세에서 첫 AI 피드백을 받는데, 가입 안내는 새 노트 화면에만 있었다.
+describe("노트 상세 첫 AI 피드백 직후 게스트 가입 안내", () => {
+  const AsyncStorage = require("@react-native-async-storage/async-storage");
+  beforeEach(() => {
+    resetDetail();
+    Object.keys(AsyncStorage.__store || {}).forEach((k) => delete AsyncStorage.__store[k]);
+  });
+  const requestAi = async (ctx) => {
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    openAiTab(utils);
+    await act(async () => { fireEvent.press(utils.getByText("noteDetail.ai_request")); });
+    return utils;
+  };
+  const nudgeCalls = () => Alert.alert.mock.calls.filter((c) => c[0] === "signupNudge.title");
+
+  it("게스트는 피드백 직후 가입 안내를 보고, 누르면 가입 화면으로 간다", async () => {
+    const ctx = buildCtx([{ ...baseNote, aiComment: undefined }], { userProfile: {} });
+    await requestAi(ctx);
+    expect(trackFunnelEvent).toHaveBeenCalledWith("ai_feedback_done", "ko");
+    await waitFor(() => expect(nudgeCalls().length).toBe(1));
+    expect(trackFunnelEvent).toHaveBeenCalledWith("signup_nudge_shown", "ko");
+    const cta = nudgeCalls()[0][2].find((b) => b.text === "signupNudge.cta");
+    await act(async () => { await cta.onPress(); });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("signup_nudge_tapped", "ko");
+    expect(ctx.setAuthState).toHaveBeenCalledWith("auth");
+  });
+
+  it("영상 분석 직후에도 같은 안내가 뜬다", async () => {
+    const ctx = buildCtx([{ ...baseNote, images: [{ uri: "file:///a.mov", type: "video", duration: 5000 }] }], { userProfile: {} });
+    useApp.mockReturnValue(ctx);
+    const utils = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    openAiTab(utils);
+    await act(async () => { fireEvent.press(utils.getByText("noteDetail.video_ai_request")); });
+    expect(trackFunnelEvent).toHaveBeenCalledWith("ai_feedback_done", "ko");
+    await waitFor(() => expect(nudgeCalls().length).toBe(1));
+  });
+
+  it("안내는 기기당 한 번뿐이다(새 노트 화면과 같은 표시를 쓴다)", async () => {
+    AsyncStorage.__store["artlink-signup-nudge-asked"] = "true";
+    await requestAi(buildCtx([{ ...baseNote, aiComment: undefined }], { userProfile: {} }));
+    expect(trackFunnelEvent).toHaveBeenCalledWith("ai_feedback_done", "ko");
+    expect(nudgeCalls().length).toBe(0);
+  });
+
+  it("가입한 사용자에게는 띄우지 않는다", async () => {
+    await requestAi(buildCtx([{ ...baseNote, aiComment: undefined }]));
+    expect(trackFunnelEvent).toHaveBeenCalledWith("ai_feedback_done", "ko");
+    expect(nudgeCalls().length).toBe(0);
   });
 });
