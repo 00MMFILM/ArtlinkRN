@@ -1,0 +1,516 @@
+--- a/tools/build-cardnews.mjs
++++ b/tools/build-cardnews.mjs
+@@ -9,6 +9,7 @@
+ // THEME=dark 면 어두운 테마. 기본은 밝은(종이) 테마 —
+ // 인스타 피드에서 광고처럼 안 읽히고 파일도 8배 가볍다(43KB vs 358KB).
+ import fs from 'node:fs';
++import { AI_TERMS, fieldCTA, toolLink, koreaDate, daysLeft, promotablePosting, supportedTip } from './channel-policy.mjs';
+ import path from 'node:path';
+ import os from 'node:os';
+ import { execFile } from 'node:child_process';
+@@ -27,7 +28,7 @@
+ const KEY = process.env.SUPABASE_SERVICE_KEY;
+ 
+ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+-const ymd = (d) => d.toISOString().slice(0, 10);
++const ymd = koreaDate;
+ const today = new Date();
+ const FIELD_KR = { acting: '연기', music: '음악', art: '미술', dance: '무용', literature: '문학', film: '영화' };
+ const KR_TO_FIELD = Object.fromEntries(Object.entries(FIELD_KR).map(([k, v]) => [v, k]));
+@@ -104,12 +105,11 @@
+   ITEMS: items.map((t) => `<div class="e-item"><div class="e-dash"></div><span>${esc(t)}</span></div>`).join(''),
+ });
+ 
+-const APP_ITEMS = ['오디션 · 캐스팅 공고 자동 수집', '연습 기록에 AI 피드백 30초', '연기 · 음악 · 미술 · 무용 · 문학 · 영화'];
++const APP_ITEMS = ['모집 · 공모 · 전시 · 교육 등 예술 기회', '작품 비교 · 구간 반복 · 퇴고 도구', 'AI 피드백 이용 한도·구독 조건은 앱에서 확인'];
+ // 전환 계측(2026-08-27): api/app.js 가 실제로 읽는 건 ?s= 뿐이라(source→link_clicks 테이블 기록) 남겨두고,
+ // UTM 3종을 얹어 데스크탑 경로(launch 페이지, Vercel Web Analytics)에서도 유입을 구분한다.
+ // utm_campaign 은 시리즈_날짜로 회차별 카드가 섞이지 않게 한다.
+-const ctaTail = (series) =>
+-  ['', `앱 무료 다운로드 → https://art-link.kr/app?s=instagram&utm_source=ig&utm_medium=card&utm_campaign=${series}_${ymd(today)}`];
++const ctaTail = (series) => ['', '프로필 링크에서 내 분야 작업실을 선택하세요.', toolLink(null, series, ymd(today)), AI_TERMS];
+ 
+ // ─── 시리즈 1: 이번 주 마감 오디션 ────────────────────────────────────────
+ // 대외 게시물이라 성인물 성격 공고는 제외한다. 장르(BL·GL 등)가 아니라 '노출·성인물 요구' 자체를 거른다
+@@ -142,13 +142,14 @@
+   return t.length >= 8 ? t : '자세한 지원 조건은 공고 원문에서 확인하세요.';
+ };
+ 
+-async function buildAudition() {
++export async function buildAudition({ query = sb, recordHistory = true, now = new Date() } = {}) {
++  const today = now;
+   const SLIDES = 8, WINDOW = 9;
+   const from = new Date(today.getTime() + 86400000);   // 오늘 마감분은 뺀다(볼 때쯤 이미 끝남)
+   const to = new Date(today.getTime() + WINDOW * 86400000);
+-  const all = await sb(`/postings?status=eq.active&deadline=gte.${ymd(from)}&deadline=lte.${ymd(to)}`
+-    + `&select=title,description,field,category,deadline,pay,requirements&order=deadline.asc&limit=200`);
+-  const rows = all.filter((p) => !ADULT.test(`${p.title || ''} ${p.description || ''}`));
++  const all = await query(`/postings?status=eq.active&deadline=gte.${ymd(from)}&deadline=lte.${ymd(to)}`
++    + `&select=id,source,source_url,contact,title,description,field,category,deadline,pay,requirements&order=deadline.asc&limit=200`);
++  const rows = all.filter((p) => !ADULT.test(`${p.title || ''} ${p.description || ''}`) && promotablePosting(p, today) && hasStoryApplicationPath(p) && /^[0-9a-f-]{36}$/i.test(p.id || ''));
+   console.log(`마감 ${WINDOW}일 내 active ${all.length}건 (성인물 필터 제외 ${all.length - rows.length}건)`);
+ 
+   // 카테고리 라운드로빈 — 한 분야로 쏠리면 큐레이션이 아니라 덤프가 된다
+@@ -171,19 +172,13 @@
+     }
+     if (!added) break;
+   }
+-  if (picked.length < SLIDES) throw new Error(`공고 부족 ${picked.length}/${SLIDES} — 크롤러 상태 확인 필요`);
+-
+-  const total = SLIDES + 2;
++  if (!picked.length) throw new Error("출처·지원 경로와 마감을 확인할 수 있는 공고 없음");
++
++  const total = picked.length + 2;
+   const row = (k, v, hl) => `<div class="p-row"><div class="p-k">${k}</div><div class="p-v${hl ? ' hl' : ''}">${esc(v)}</div></div>`;
+-  const dday = (p) => Math.round((new Date(p.deadline) - today) / 86400000);
+-
+-  const line = pickCoverLine('audition', {
+-    postings: picked.map((p) => ({
+-      title: cleanTitle(p.title), category: p.category || FIELD_KR[p.field] || '기타',
+-      dday: dday(p), pay: cleanPay(p.pay),
+-    })),
+-    window: WINDOW,
+-  }) || { title: `이번 주에 지원해야 하는<br>사람에게 <em>${SLIDES}</em>건` };
++  const dday = (p) => daysLeft(p.deadline, today);
++
++  const line = { title: `마감 전 살펴볼<br>예술 기회 <em>${picked.length}</em>건` };
+ 
+   const jobs = [['S01', fill({
+     TYPE: 'cover', KICKER: '이번 주 마감', ACCENT: DEFAULT_ACCENT,
+@@ -197,9 +192,11 @@
+     const pay = cleanPay(p.pay);
+     if (pay !== '미기재') rows2.unshift(row('보수', pay, true));   // 값 없는 항목은 줄 자체를 뺀다
+     if (q.location) rows2.push(row('지역', q.location));
++    rows2.push(row('출처', storySourceName(p)));
++    rows2.push(row('지원', '캡션의 공고별 링크에서 원문·지원 방법 확인'));
+     const title = esc(cleanTitle(p.title));
+     jobs.push([`S${String(i + 2).padStart(2, '0')}`, fill({
+-      TYPE: 'posting', CAT: esc(p.category || FIELD_KR[p.field] || '오디션'), ACCENT: accentFor(p.field),
++      TYPE: 'posting', CAT: esc(p.category || FIELD_KR[p.field] || '예술 기회'), ACCENT: accentFor(p.field),
+       DDAY: `D-${dday(p)}`, DDAY_CLASS: dday(p) <= 2 ? 'soon' : '',
+       TITLE: title, TITLE_SIZE: String(fitTitleSize(title, { containerW: 880, min: 46, max: 78 })),
+       DESC: esc(cleanDesc(p.description)), META_ROWS: rows2.join(''), PAGER: `${i + 2} / ${total}`,
+@@ -208,16 +205,16 @@
+ 
+   jobs.push([`S${String(total).padStart(2, '0')}`, endSlide('아트링크',
+     '공고 찾는 시간,<br><em>줄여드립니다</em>',
+-    '흩어진 오디션 공고를 매일 모아 한 화면에.<br>앱에서 전체 공고와 마감일을 확인하세요.',
++    '모집·공모·전시·교육 등 내 분야의 기회를.<br>공고별 원문과 지원 방법을 확인하세요.',
+     APP_ITEMS, `${total} / ${total}`)]);
+ 
+-  const caption = [`이번 주 마감되는 오디션 ${SLIDES}건을 모았습니다.`, '',
+-    picked.map((p) => `· ${cleanTitle(p.title)} (D-${dday(p)})`).join('\n'), '',
++  const caption = [`마감 전 살펴볼 예술 기회 ${picked.length}건을 모았습니다.`, '',
++    picked.map((p, i) => `${i + 1}. [${p.category || FIELD_KR[p.field] || '예술 기회'}] ${cleanTitle(p.title)} (D-${dday(p)})\n출처: ${storySourceName(p).slice(0, 40)}\nhttps://art-link.kr/casting/${p.id}`).join('\n\n'), '',
+     '흩어진 공고를 매일 모아 한 화면에 정리합니다.',
+-    '전체 공고와 마감일은 앱에서 확인하실 수 있습니다.', ...ctaTail('audition'), '',
++    '인스타 캡션의 주소는 바로 눌리지 않을 수 있어요. 주소를 복사하거나 프로필 링크에서 앱으로 이동해 공고 제목을 검색하세요. 지원 전 원문에서 마감과 제출물을 다시 확인하세요.', ...ctaTail('audition'), '',
+     '#오디션 #오디션정보 #배우모집 #캐스팅 #뮤지컬오디션 #연극 #단편영화 #연기지망생 #예술'].join('\n');
+ 
+-  recordCoverLine('audition', line.title, ymd(today));
++  if (recordHistory) recordCoverLine('audition', line.title, ymd(today));
+   return { slug: `audition-${ymd(today)}`, jobs, caption };
+ }
+ 
+@@ -231,10 +228,10 @@
+   for (const f of Object.keys(FIELD_KR)) {
+     // 최신 것만 집어오면 주제가 매일 같아진다 — 무용은 나흘 내리 "거울 없이 춤추기"였다(2026-08-26 실측).
+     // 같은 분야에서 최근에 쓴 제목과 주제가 겹치면 건너뛰고 다음 후보로 간다.
+-    const fresh = rows.find((r) => r.author_field === f && !usedTitle.has(r.title)
++    const fresh = rows.find((r) => r.author_field === f && supportedTip(r) && !usedTitle.has(r.title)
+       && !isDuplicate(`tips:${f}`, r.title, { threshold: 0.22 }));
+     // 후보가 전부 겹치면 카드를 못 만드느니 최신 것을 쓴다. 그 경우는 생성기 쪽 문제다.
+-    const hit = fresh || rows.find((r) => r.author_field === f && !usedTitle.has(r.title));
++    const hit = fresh || rows.find((r) => r.author_field === f && supportedTip(r) && !usedTitle.has(r.title));
+     if (hit) {
+       if (!fresh) console.log(`  [주의] ${FIELD_KR[f]} — 후보가 전부 최근 주제와 겹칩니다`);
+       usedTitle.add(hit.title); picked.push(hit);
+@@ -275,7 +272,7 @@
+ 
+   jobs.push([`S${String(total).padStart(2, '0')}`, endSlide('아트링크',
+     '연습을 적으면<br><em>답이 보입니다</em>',
+-    '오늘 연습을 기록하면 30초 안에<br>구체적인 AI 피드백을 받습니다.',
++    '내 분야의 자료를 비교하고<br>다음 작업에서 바꿀 점을 남기세요.',
+     APP_ITEMS, `${total} / ${total}`)]);
+ 
+   const caption = ['혼자 연습할 때 오늘 바로 써볼 수 있는 것만 모았습니다.', '',
+@@ -328,7 +325,7 @@
+   // 지표를 고정해두니 회차마다 숫자만 바뀌고 카드가 똑같았다(2026-08-26).
+   // 후보를 늘려두고 회차마다 다른 조합이 나가게 돌린다.
+   const POOL = [
+-    { LABEL: '지금 열려 있는 오디션·캐스팅 공고', FIG: rows.length.toLocaleString(), UNIT: '건',
++    { LABEL: '수집된 예술 기회 공고', FIG: rows.length.toLocaleString(), UNIT: '건',
+       NOTE: '아트링크가 매일 자동으로 모으고 있는 공고 수입니다.', SRC: `${ymd(today)} 기준 · ${SRC}` },
+     { LABEL: '보수를 밝힌 공고는 이만큼입니다', FIG: String(pct(withPay.length, rows.length)), UNIT: '%',
+       NOTE: `${rows.length.toLocaleString()}건 중 ${withPay.length}건. 나머지는 얼마를 받는지 적혀 있지 않습니다.`, SRC },
+@@ -365,7 +362,7 @@
+     noDeadlinePct: pct(noDeadline, rows.length),
+     topCategory: catEntries[0]?.[0], topCategoryCount: catEntries[0]?.[1],
+     secondCategory: catEntries[1]?.[0], secondCategoryCount: catEntries[1]?.[1],
+-  }, { turn }) || { title: `"요즘 오디션 없다"는 말에<br>공고 <em>${rows.length.toLocaleString()}</em>건을<br>다 세어봤습니다` };
++  }, { turn }) || { title: `내 분야의 기회를 찾는다면<br>공고 <em>${rows.length.toLocaleString()}</em>건을<br>다 세어봤습니다` };
+ 
+   const jobs = [['S01', fill({
+     TYPE: 'cover', KICKER: '숫자로 본 예술계', ACCENT: DEFAULT_ACCENT,
+@@ -378,7 +375,7 @@
+   })]));
+   jobs.push([`S${String(total).padStart(2, '0')}`, endSlide('아트링크',
+     '공고는 매일<br><em>쌓이고 있습니다</em>',
+-    '오디션·캐스팅 공고를 매일 자동으로 모읍니다.<br>앱에서 분야별로 확인하세요.',
++    '모집·공모·전시 등 예술 기회를 매일 모읍니다.<br>앱에서 분야별로 확인하세요.',
+     APP_ITEMS, `${total} / ${total}`)]);
+ 
+   // 줄바꿈은 공백으로 바꿔야 한다 — 그냥 지우면 "위해공고"처럼 낱말이 붙는다.
+@@ -397,13 +394,14 @@
+ // ─── 시리즈 4: 오디션 스토리 (1080×1920) ─────────────────────────────────
+ // 마감이 붙은 정보는 피드에 영구히 쌓이면 안 된다(몇 주 뒤 방문자에겐 전부 죽은 공고).
+ // 24시간 뒤 사라지는 스토리가 수명과 맞다. 공고 1건 = 1장.
+-export async function buildStoryAudition({ query = sb, offset = Number(process.argv[3] || 0) } = {}) {
++export async function buildStoryAudition({ query = sb, offset = Number(process.argv[3] || 0), now = new Date() } = {}) {
++  const today = now;
+   const N = 5, WINDOW = 7;
+   const from = new Date(today.getTime() + 86400000);
+   const to = new Date(today.getTime() + WINDOW * 86400000);
+   const all = await query(`/postings?status=eq.active&deadline=gte.${ymd(from)}&deadline=lte.${ymd(to)}`
+     + `&select=id,source,source_url,contact,title,description,field,category,deadline,pay,requirements&order=deadline.asc,id.asc&limit=120`);
+-  const rows = all.filter((p) => !ADULT.test(`${p.title || ''} ${p.description || ''}`) && hasStoryApplicationPath(p));
++  const rows = all.filter((p) => !ADULT.test(`${p.title || ''} ${p.description || ''}`) && promotablePosting(p, today) && hasStoryApplicationPath(p));
+   if (!rows.length) throw new Error('지원 경로가 확인된 마감 임박 공고 없음');
+   // 하루 여러 회차를 돌리므로 회차마다 다른 구간을 집는다(같은 공고 반복 방지).
+   const OFF = offset;
+@@ -422,7 +420,7 @@
+   const row = (k, v, hl) => `<div class="row"><div class="k">${k}</div><div class="v${hl ? ' hl' : ''}">${esc(v)}</div></div>`;
+ 
+   const jobs = picked.map((p, i) => {
+-    const dd = Math.round((new Date(p.deadline) - today) / 86400000);
++    const dd = daysLeft(p.deadline, today);
+     const q = p.requirements || {};
+     const rows2 = [row('마감', String(p.deadline).slice(5).replace('-', '월 ') + '일')];
+     const pay = cleanPay(p.pay);
+@@ -431,7 +429,7 @@
+     const sourceName = storySourceName(p);
+     if (sourceName) rows2.push(row('출처', sourceName));
+     return [`S${String(i + 1).padStart(2, '0')}`, fillStory({
+-      CAT: esc(p.category || p.field || '오디션'),
++      CAT: esc(p.category || FIELD_KR[p.field] || '예술 기회'),
+       DDAY: `D-${dd}`, DDAY_CLASS: dd <= 2 ? 'soon' : '',
+       TITLE: esc(cleanTitle(p.title)), META_ROWS: rows2.join(''),
+     })];
+--- a/tools/build-column.mjs
++++ b/tools/build-column.mjs
+@@ -2,6 +2,7 @@
+ // 주제 풀에서 그 주 하나를 결정론적으로 골라 Claude 로 본문을 쓰고, 정기 시리즈와 같은 템플릿으로 렌더한다.
+ // 사용: node tools/build-column.mjs [주제인덱스]
+ import fs from 'node:fs';
++import { AI_TERMS, fieldCTA, toolLink, koreaDate } from './channel-policy.mjs';
+ import path from 'node:path';
+ import os from 'node:os';
+ import { execFile } from 'node:child_process';
+@@ -115,7 +116,7 @@
+ console.log(FROM_BANK ? `주제 [뱅크] ${TOPIC.t}` : `주제 [${TOPICS.indexOf(TOPIC)}] ${TOPIC.t}`);
+ 
+ const SYSTEM = `당신은 예술 분야(연기·음악·무용·미술·문학·영화) 지망생을 20년 지도한 실무자다.
+-아트링크(오디션 공고 앱)의 주간 칼럼을 쓴다.
++아트링크(연기·음악·미술·무용·문학·영화의 작업 기록 앱)의 주간 칼럼을 쓴다.
+ 
+ 규칙:
+ - 한국어. 존댓말. 담백한 실무 문체. 격려·감탄사·이모지 금지.
+@@ -209,18 +210,17 @@
+     j[1] = j[1].replace('</style>', `.t-body{font-size:${bodySize}px}</style>`);
+   }
+ });
+-const endTitle = '공고 찾는 시간을<br><em>연습에 쓰세요</em>';
++const cta = fieldCTA(TOPIC.f);
++const endTitle = `${cta.name} 작업,<br><em>바로 비교해보세요</em>`;
+ jobs.push([`S${String(N).padStart(2, '0')}`, fill({
+   TYPE: 'end', KICKER: '아트링크', ACCENT: DEFAULT_ACCENT,
+   TITLE: endTitle, TITLE_SIZE: String(fitTitleSize(endTitle, { containerW: 880, min: 56, max: 120 })),
+-  SUB: '오디션 공고는 앱이 모아 오고,<br>연기 피드백은 AI가 먼저 봅니다.',
+-  ITEMS: ['<div class="e-item"><div class="e-dash"></div><span>전 분야 오디션 공고 · 마감 알림</span></div>',
+-          '<div class="e-item"><div class="e-dash"></div><span>AI 연기 피드백 — 첫 1회 무료</span></div>',
+-          '<div class="e-item"><div class="e-dash"></div><span>연습 기록과 자기 분석</span></div>'].join(''),
++  SUB: esc(cta.action),
++  ITEMS: [cta.steps, '파일은 브라우저 안에서 비교합니다.', 'AI 피드백 이용 한도·구독 조건은 앱에서 확인'].map(text => `<div class="e-item"><div class="e-dash"></div><span>${esc(text)}</span></div>`).join(''),
+   PAGER: `${N} / ${N}`,
+ })]);
+ 
+-const ymd = new Date().toISOString().slice(0, 10);
++const ymd = koreaDate();
+ const dir = path.join(ROOT, 'public/cardnews', `column-${ymd}`);
+ fs.mkdirSync(dir, { recursive: true });
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'column-'));
+@@ -234,9 +234,9 @@
+ }
+ const caption = [TOPIC.t, '', ...secs.map((s, i) => `${i + 1}. ${s.h}`), '',
+   '자세한 내용은 카드에서 확인하세요.', '',
+-  '오디션 공고는 아트링크가 매일 모읍니다. 연기 영상을 올리면 AI 피드백도 첫 1회 무료입니다.',
+-  `앱 무료 다운로드 → art-link.kr/app?s=instagram&utm_source=ig&utm_medium=card&utm_campaign=column_${ymd}`, '',
+-  '#오디션 #오디션정보 #연기입시 #배우지망생 #연기연습 #뮤지컬입시 #무용입시 #미대입시 #실용음악입시 #예대입시'].join('\n');
++  cta.action, cta.steps, AI_TERMS,
++  toolLink(cta.field, 'column', ymd), '',
++  cta.tags + ' #아트링크'].join('\n');
+ fs.writeFileSync(path.join(dir, '캡션.txt'), caption);
+ // 인덱스 지정 실행은 테스트·수동 확인용이다. 이것까지 기록하면 이력이 오염돼
+ // 다음 자동 발행이 엉뚱한 주제를 고른다(명언 카드에서 같은 사고, 2026-08-28).
+--- a/tools/build-promo-card.mjs
++++ b/tools/build-promo-card.mjs
+@@ -1,10 +1,8 @@
+ #!/usr/bin/env node
+-// 전환(어그로) 카드 빌더 — 다크 반전 1080×1350 카드 1장. 하루 2슬롯(12·20시).
+-// 훅 3계열(pain 아픔 / info 정보 / fun 재미)을 계열 순환 + 계열 내 LRU 로 로테이션한다.
+-// {TOTAL}{NEW7}{PERDAY}{WEEK} 은 Supabase postings 실측으로 채운다(조회 실패 시
+-// 동적 토큰 없는 카드로 대체 — 낡은 숫자를 박제하지 않는다).
+-// 사용: SUPABASE_SERVICE_KEY=… node tools/build-promo-card.mjs
++// 기존 예약 발행 시간에 6개 분야 작업실을 날짜별로 순환한다.
++// 비교 도구의 무료 범위와 앱 AI 이용 조건을 구분한다.
+ import fs from 'node:fs';
++import { AI_TERMS, dailyField, fieldCTA, toolLink, koreaDate } from './channel-policy.mjs';
+ import path from 'node:path';
+ import os from 'node:os';
+ import { execFile } from 'node:child_process';
+@@ -12,56 +10,12 @@
+ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+ const ROOT = path.resolve(import.meta.dirname, '..');
+ const TPL = fs.readFileSync(path.join(ROOT, 'tools/promo-card-template.html'), 'utf8');
+-const COPY = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/promo-copy.json'), 'utf8'));
+-const USED_FILE = path.join(ROOT, 'tools/promo-used.json');
+-
+ const now = new Date();
+ const pad = (n) => String(n).padStart(2, '0');
+-const slug = `promo-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}`;
+-
+-// ── 실측 숫자 ──────────────────────────────────────────────
+-const SB = 'https://ayvfdomoghppgrleugnk.supabase.co/rest/v1';
+-const KEY = process.env.SUPABASE_SERVICE_KEY;
+-async function count(q) {
+-  const r = await fetch(`${SB}${q}&select=id&limit=1`, {
+-    headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' } });
+-  if (!r.ok) throw new Error(`Supabase ${r.status}`);
+-  return Number((r.headers.get('content-range') || '/0').split('/')[1]);
+-}
+-let nums = null;
+-if (KEY) {
+-  try {
+-    const ymd = (d) => d.toISOString().slice(0, 10);
+-    const d7ago = new Date(now - 7 * 86400000), d7later = new Date(+now + 7 * 86400000);
+-    const [total, new7, week] = await Promise.all([
+-      count('/postings?status=eq.active'),
+-      count(`/postings?created_at=gte.${d7ago.toISOString()}`),
+-      count(`/postings?status=eq.active&deadline=gte.${ymd(now)}&deadline=lte.${ymd(d7later)}`),
+-    ]);
+-    nums = { TOTAL: total, NEW7: new7, PERDAY: Math.max(1, Math.round(new7 / 7)), WEEK: week };
+-    console.log('실측:', JSON.stringify(nums));
+-  } catch (e) { console.log('[경고] 실측 조회 실패 — 동적 카드 제외:', e.message); }
+-}
+-
+-// ── 선택: 계열 순환(pain→info→fun) + 계열 내 가장 오래전 사용 ──
+-const LANES = ['pain', 'info', 'fun'];
+-let used = {};
+-try { used = JSON.parse(fs.readFileSync(USED_FILE, 'utf8')); } catch {}
+-const lastLane = used._lastLane || 'fun';
+-const laneOrder = LANES.slice(LANES.indexOf(lastLane) + 1).concat(LANES.slice(0, LANES.indexOf(lastLane) + 1));
+-const hasToken = (c) => /\{(TOTAL|NEW7|PERDAY|WEEK)\}/.test(c.hook + c.resolve + c.mark);
+-let entry = null;
+-for (const lane of laneOrder) {
+-  const pool = COPY.filter((c) => c.lane === lane && (nums || !hasToken(c)));
+-  if (!pool.length) continue;
+-  entry = pool.sort((a, b) => (used[a.id] || '').localeCompare(used[b.id] || ''))[0];
+-  break;
+-}
+-if (!entry) { console.error('선택 가능한 카피 없음'); process.exit(1); }
+-
+-const fillNums = (s) => s.replace(/\{(TOTAL|NEW7|PERDAY|WEEK)\}/g, (_, k) => String(nums?.[k] ?? ''));
+-const hook = fillNums(entry.hook), resolve = fillNums(entry.resolve), mark = fillNums(entry.mark);
+-console.log(`카피 [${entry.lane}/${entry.id}] ${hook.replace(/<br>/g, ' ').replace(/<\/?em>/g, '')}`);
++const field = dailyField(now), cta = fieldCTA(field);
++const date = koreaDate(now), slug = `promo-${date}-${pad(now.getHours())}`;
++const hook = cta.hook, resolve = cta.action, mark = cta.name;
++console.log(`작업실 홍보: ${field}`);
+ 
+ // ── 렌더 ──────────────────────────────────────────────────
+ const weight = hook.replace(/<br>|<\/?em>/g, '').length;
+@@ -81,16 +35,12 @@
+ 
+ // ── 캡션 ──────────────────────────────────────────────────
+ const plain = hook.replace(/<br>/g, ' ').replace(/<\/?em>/g, '');
+-const ymdCap = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+ const caption = [
+   plain, '', resolve, '',
+-  '아트링크 — 6개 분야 예술 공고를 매일 모아 마감 임박 순으로. 연습 노트에는 AI 코멘트까지. 전부 무료입니다.',
+-  `앱 무료 다운로드 → https://art-link.kr/app?s=instagram&utm_source=ig&utm_medium=card&utm_campaign=promo_${ymdCap}`,
+-  '', '#오디션 #오디션공고 #배우지망생 #연기 #예술 #아트링크',
++  cta.steps, '설치 없이 웹에서 작품을 비교하고, 앱에서 작업 기록과 AI 피드백을 이어가세요.', AI_TERMS,
++  toolLink(field, 'promo', date),
++  '', cta.tags + ' #아트링크',
+ ].join('\n');
+ fs.writeFileSync(path.join(dir, 'caption.txt'), caption);
+ 
+-used[entry.id] = now.toISOString();
+-used._lastLane = entry.lane;
+-fs.writeFileSync(USED_FILE, JSON.stringify(used, null, 1));
+ console.log(`완료 → public/cardnews/${slug}/S01.png · 캡션 ${caption.length}자`);
+--- a/tools/promo-card-template.html
++++ b/tools/promo-card-template.html
+@@ -26,7 +26,7 @@
+   <div class="stage">
+     <div class="hook">{{HOOK}}</div>
+     <div class="resolve">{{RESOLVE}}</div>
+-    <div class="ctarow"><div class="free">100% 무료</div><div class="cta">다운로드는 프로필 링크에서</div></div>
++    <div class="ctarow"><div class="free">웹 비교 도구 무료</div><div class="cta">프로필 링크에서 내 분야 선택</div></div>
+   </div>
+   <div class="foot"><div class="site">art-link.kr</div><div class="site">@art_link.kr</div></div>
+ </div></div></body></html>
+--- a/scripts/test-posting-support.js
++++ b/scripts/test-posting-support.js
+@@ -280,7 +280,7 @@
+ test('story query includes id and rotation keeps each rendered slot tied to its UUID', async () => {
+   const { buildStoryAudition } = await import('../tools/build-cardnews.mjs');
+   let request;
+-  const result = await buildStoryAudition({ offset: 1, query: async query => { request = query; return storyRows(7); } });
++  const result = await buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 1, query: async query => { request = query; return storyRows(7); } });
+   assert.match(request, /select=id,source,source_url,contact,title,/);
+   assert.equal(result.jobs.length, 5);
+   assert.deepEqual(result.links.map(link => link.postingId), [5, 6, 0, 1, 2].map(uuid));
+@@ -295,7 +295,7 @@
+ 
+ test('story with fewer than five postings does not duplicate a posting to fill slots', async () => {
+   const { buildStoryAudition } = await import('../tools/build-cardnews.mjs');
+-  const result = await buildStoryAudition({ offset: 0, query: async () => storyRows(2) });
++  const result = await buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 0, query: async () => storyRows(2) });
+   assert.equal(result.jobs.length, 2);
+   assert.equal(new Set(result.links.map(link => link.postingId)).size, 2);
+ });
+@@ -308,7 +308,7 @@
+   rows[0].source_url = 'https://www.filmmakers.co.kr/actorCasting/123';
+   delete rows[1].source_url;
+   rows[1].contact = 'actor@example.test';
+-  const result = await buildStoryAudition({ offset: 0, query: async () => rows });
++  const result = await buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 0, query: async () => rows });
+   assert.match(result.jobs[0][1], /출처/);
+   assert.match(result.jobs[0][1], /필름메이커스/);
+   assert.equal(result.links[0].source, 'filmmakers');
+@@ -325,7 +325,7 @@
+   delete rows[0].source_url;
+   delete rows[1].source_url;
+   rows[1].source = 'filmmakers';
+-  const result = await buildStoryAudition({ offset: 0, query: async () => rows });
++  const result = await buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 0, query: async () => rows });
+   assert.equal(result.jobs.length, 1);
+   assert.equal(result.links[0].postingId, uuid(2));
+ });
+@@ -333,7 +333,7 @@
+ test('verified contact alone can be promoted without inventing its source or exposing the email in metadata', async () => {
+   const { buildStoryAudition } = await import('../tools/build-cardnews.mjs');
+   const row = { ...storyRows(1)[0], source_url: null, contact: 'actor@example.test' };
+-  const result = await buildStoryAudition({ offset: 0, query: async () => [row] });
++  const result = await buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 0, query: async () => [row] });
+   assert.equal(result.jobs.length, 1);
+   assert.equal(result.links[0].postingId, row.id);
+   assert.ok(!Object.hasOwn(result.links[0], 'source'));
+@@ -350,7 +350,7 @@
+   rows[1].contact = '문의 actor@example.test';
+   rows[2].source_url = null;
+   rows[2].contact = 'actor@example.test?bcc=other@example.test';
+-  await assert.rejects(buildStoryAudition({ offset: 0, query: async () => rows }), /지원 경로가 확인된/);
++  await assert.rejects(buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 0, query: async () => rows }), /지원 경로가 확인된/);
+ });
+ 
+ test('story links reject invalid/missing UUIDs, slot mismatches and invalid offsets', async () => {
+@@ -360,8 +360,8 @@
+   assert.throws(() => buildStoryLinks([{ id: uuid(1) }], []), /불일치/);
+   assert.throws(() => buildStoryLinks([{ id: uuid(1) }], [['../S01', 'html']]), /슬롯/);
+   const { buildStoryAudition } = await import('../tools/build-cardnews.mjs');
+-  await assert.rejects(buildStoryAudition({ offset: -1, query: async () => storyRows(3) }), /정수/);
+-  await assert.rejects(buildStoryAudition({ offset: 0, query: async () => [{ title: 'ID 없는 모집', deadline: '2026-10-01', contact: 'actor@example.test' }] }), /UUID/);
++  await assert.rejects(buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: -1, query: async () => storyRows(3) }), /정수/);
++  await assert.rejects(buildStoryAudition({ now: new Date('2026-09-30T03:00:00Z'), offset: 0, query: async () => [{ title: 'ID 없는 모집', deadline: '2026-10-01', contact: 'actor@example.test' }] }), /UUID/);
+ });
+ 
+ test('links.json preserves slot, filename, posting UUID and detail URL without feed manifest mutation', async () => {
+--- /dev/null
++++ b/tools/channel-policy.mjs
+@@ -0,0 +1,49 @@
++export const FIELD_CONTENT = {
++  acting: { name: '연기', hook: '테이크 두 개,<br><em>어느 쪽을 보낼까요?</em>', action: '두 테이크를 비교하고 제출 전 확인할 것을 정리하세요.', tags: '#연기연습 #셀프테이프 #배우 #연극 #뮤지컬' },
++  music: { name: '음악', hook: '한 곡을 다시 부르기 전에,<br><em>막힌 한 구간부터</em>', action: '녹음에서 어려운 구간을 반복하고, 두 녹음을 번갈아 들어보세요.', tags: '#보컬연습 #악기연습 #작곡 #프로듀싱 #음악' },
++  art: { name: '미술', hook: '고친 작품,<br><em>어디가 달라졌나요?</em>', action: '원본과 수정본을 나란히 놓고, 작품 위에 위치 메모를 남기세요.', tags: '#드로잉 #회화 #일러스트 #사진 #미술' },
++  dance: { name: '무용', hook: '같은 카운트에서,<br><em>두 동작을 함께</em>', action: '두 영상의 시작점을 맞추고 느린 속도와 거울 모드로 비교하세요.', tags: '#무용 #안무 #발레 #스트리트댄스 #케이팝댄스' },
++  literature: { name: '문학', hook: '고친 문장에,<br><em>이유를 남기세요</em>', action: '원문과 수정 문단을 비교하고, 다음 퇴고에서 바꿀 점을 남기세요.', tags: '#글쓰기 #소설 #시 #에세이 #각본' },
++  film: { name: '영화', hook: '이 컷에서,<br><em>무엇을 전할까요?</em>', action: '두 편집본을 같은 장면에서 비교하고, 시점별 메모를 남기세요.', tags: '#독립영화 #단편영화 #영상편집 #촬영 #영화연출' },
++};
++export const AI_TERMS = '웹 비교 도구는 무료입니다. 앱의 AI 피드백은 이용 한도·구독 조건이 적용되며 앱에서 확인할 수 있습니다.';
++export function fieldKey(value) {
++  if (Object.hasOwn(FIELD_CONTENT, value)) return value;
++  return Object.keys(FIELD_CONTENT).find(key => FIELD_CONTENT[key].name === value) || null;
++}
++export function fieldCTA(value) {
++  const field = fieldKey(value), item = FIELD_CONTENT[field];
++  return item ? { field, ...item, route: `/studio/?field=${field}`, steps: `프로필 링크 → ${item.name} 작업실` }
++    : { field: 'all', name: '예술', action: '내 분야를 골라 작품 비교와 작업 기록을 시작하세요.', tags: '#연기 #음악 #미술 #무용 #문학 #영화', route: '/launch/#field-tools', steps: '프로필 링크 → 내 분야 작업실' };
++}
++export function toolLink(field, campaign, date) {
++  const u = new URL(fieldCTA(field).route, 'https://art-link.kr');
++  u.searchParams.set('utm_source', 'instagram');
++  u.searchParams.set('utm_medium', 'organic');
++  u.searchParams.set('utm_campaign', `${campaign}_${date}`);
++  return u.href;
++}
++export function koreaDate(date = new Date()) { return new Date(+date + 9 * 3600000).toISOString().slice(0, 10); }
++export function daysLeft(deadline, now = new Date()) {
++  const raw = String(deadline || '').slice(0, 10);
++  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
++  const target = Date.parse(raw + 'T00:00:00Z');
++  if (!Number.isFinite(target) || new Date(target).toISOString().slice(0, 10) !== raw) return null;
++  return Math.round((target - Date.parse(koreaDate(now) + 'T00:00:00Z')) / 86400000);
++}
++export function closedTitle(title) {
++  return /[\[【(（]\s*(?:모집\s*)?(?:마감|종료|접수\s*종료|모집\s*완료|CLOSED|EXPIRED)\s*[\]】)）]/i.test(String(title || '')) ||
++    /모집\s*마감|접수\s*마감\s*(?:완료|됨)|모집\s*종료/.test(String(title || ''));
++}
++export function promotablePosting(posting, now = new Date()) {
++  const remaining = daysLeft(posting.deadline, now);
++  return !closedTitle(posting.title) && remaining !== null && remaining > 0 && posting.status !== 'closed';
++}
++export function supportedTip(posting) {
++  // Do not promote quantitative performance claims without a traceable source.
++  return !/\d+(?:\.\d+)?\s*%/.test(`${posting.title || ''} ${posting.content || ''}`);
++}
++export function dailyField(now = new Date()) {
++  const day = Math.floor(Date.parse(koreaDate(now) + 'T00:00:00Z') / 86400000);
++  return Object.keys(FIELD_CONTENT)[day % 6];
++}
+--- /dev/null
++++ b/scripts/test-channel-policy.mjs
+@@ -0,0 +1,32 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { FIELD_CONTENT, fieldCTA, toolLink, daysLeft, promotablePosting, dailyField, supportedTip } from '../tools/channel-policy.mjs';
++import { buildAudition, buildStoryAudition } from '../tools/build-cardnews.mjs';
++global.fetch = async () => { throw new Error('Unexpected network'); };
++const now = new Date('2026-10-20T14:59:00Z');
++const make = (i, overrides = {}) => ({id:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,title:`공모 ${i}`, field:'art',category:'공모전',deadline:'2026-10-21',source_url:`https://example.test/open/${i}`, ...overrides});
++test('six fields have distinct destinations, topics and profile instructions', () => {
++ for(const f of Object.keys(FIELD_CONTENT)){const c=fieldCTA(f); assert.match(c.steps,new RegExp(c.name));assert.equal(new URL(toolLink(f,'column','2026-10-20')).searchParams.get('field'),f);}
++ assert.equal(fieldCTA('입시').field,'all');
++ assert.equal(fieldCTA('음악').field,'music');
++ const fields=new Set(Array.from({length:6},(_,i)=>dailyField(new Date(+now+i*86400000))));assert.equal(fields.size,6);
++});
++test('Korea midnight changes D-day, closed-title conflicts and unverifiable percentage tips are excluded', () => {
++ assert.equal(daysLeft('2026-10-21',now),1);
++ assert.equal(daysLeft('2026-10-21',new Date('2026-10-20T15:01:00Z')),0);
++ assert.equal(promotablePosting(make(1,{title:'[마감] 공모'}),now),false);
++ assert.equal(promotablePosting(make(1,{deadline:'2026-02-30'}),now),false);
++ assert.equal(promotablePosting(make(1,{title:'마감 임박 공모'}),now),true);
++ assert.equal(supportedTip({content:'자기 녹음은 10% 느리다'}),false);
++});
++test('mixed opportunity cards name their real category/count and keep each source and destination', async () => {
++ const result=await buildAudition({now,recordHistory:false,query:async()=>[make(1),make(2,{field:'music',category:'연주자 모집'}),make(3,{title:'[마감] 끝난 공모'}),make(4,{source_url:null,contact:null})]});
++ assert.equal(result.jobs.length,4);assert.match(result.caption,/예술 기회 2건/);assert.doesNotMatch(result.caption,/끝난 공모|오디션 8건/);
++ assert.match(result.caption,/https:\/\/art-link.kr\/casting\/00000000-0000-4000-8000-000000000001/);
++ assert.match(result.jobs[1][1],/출처/);assert.match(result.jobs[1][1],/example.test/);
++ assert.ok(result.caption.length<2200);
++});
++test('story selection removes ended title even when database says active and deadline is future', async () => {
++ const result=await buildStoryAudition({now,offset:0,query:async()=>[make(1,{title:'[마감] 모집'}),make(2)]});
++ assert.equal(result.links.length,1);assert.equal(result.links[0].postingId,make(2).id);
++});

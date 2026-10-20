@@ -1,0 +1,17 @@
+{
+  "purpose": "Archive of changes applied to the existing local Instagram scheduler sources. Does not publish posts or change schedules.",
+  "runtime": "artlink-cron",
+  "validation": [
+    "node scripts/test-posting-support.js: 38 passed",
+    "node scripts/test-channel-policy.mjs: 4 passed"
+  ],
+  "sha256": {
+    "tools/build-cardnews.mjs": "526069b16c54dae210b067b373681f7b975c886d68a57d8daea92bc589ee0df7",
+    "tools/build-column.mjs": "23ef88e80e947c56bea3cc0e352baf2485eaeb977ea69e15ff5eb301add4fbcb",
+    "tools/build-promo-card.mjs": "6c54b5ed0e1535a106244e335b30ed203c5b8f4b9a42a1415fa9f452e23507ff",
+    "tools/promo-card-template.html": "9ac51a22bd78fe500986b8915426bd9eecbfd861ee98307e1f203ce108b8aee4",
+    "scripts/test-posting-support.js": "81c075fcc547becb68d9c4e62c1d896a301f408eedc95e25576ac28dcc6053c8",
+    "tools/channel-policy.mjs": "241c2198978430941e46f1bd3a2899810ada646e37b3ed899e70a8eb5f61526f",
+    "scripts/test-channel-policy.mjs": "75c5018dfe105a948dc76c3a80e7f06830ab29295ef010cbc6d7b55e8ebff339"
+  }
+}
