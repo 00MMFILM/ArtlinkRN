@@ -33,6 +33,8 @@ import { nextFeedbackFocus } from "../utils/feedbackHighlights";
 import { hasAskedSignupNudge, markSignupNudgeAsked } from "../services/signupNudge";
 import RetakeCompareCard from "../components/RetakeCompareCard";
 import ArtworkCompareCard from "../components/ArtworkReview";
+import WorkReview from "../components/WorkReview";
+import { reviewNotes } from "../utils/workReview";
 import StudioContextCard from "../components/StudioContextCard";
 import { buildRepracticePrefill } from "../utils/repractice";
 import { sanitizeStudioMetadata } from "../utils/studioMetadata";
@@ -113,10 +115,13 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   const mountedRef = useRef(true);
   const ownerRef = useRef(null);
-  ownerRef.current = { account: userProfile?.authUserId || null, noteId };
+  const account = userProfile?.authUserId || null;
+  if (ownerRef.current?.account !== account || ownerRef.current?.noteId !== noteId) {
+    ownerRef.current = { account, noteId, generation: (ownerRef.current?.generation || 0) + 1 };
+  }
   const captureOwner = () => ({ ...ownerRef.current, scope: getStorageScope() });
   const ownerIsCurrent = (owner) => !!owner && mountedRef.current &&
-    owner.account === ownerRef.current.account && owner.noteId === ownerRef.current.noteId &&
+    owner.generation === ownerRef.current.generation && owner.account === ownerRef.current.account && owner.noteId === ownerRef.current.noteId &&
     owner.scope === getStorageScope();
   useEffect(() => {
     mountedRef.current = true;
@@ -148,6 +153,11 @@ export default function NoteDetailScreen({ route, navigation }) {
   useEffect(() => {
     setActiveTab(route.params.initialTab === "ai" ? "ai" : "content");
   }, [noteId, route.params.initialTab]);
+  const reviewDraftKey = `${userProfile?.authUserId || "guest"}:${noteId}`;
+  const [reviewDraftState, setReviewDraftState] = useState({});
+  const reviewDraft = reviewDraftState.key === reviewDraftKey ? reviewDraftState : { body: "", anchor: "" };
+  const reviewDirty = !!reviewDraft.body?.trim();
+  const updateReviewDraft = next => setReviewDraftState({ key: reviewDraftKey, ...next });
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(note?.title || "");
   const [editContent, setEditContent] = useState(note?.content || "");
@@ -170,6 +180,36 @@ export default function NoteDetailScreen({ route, navigation }) {
   const [sharing, setSharing] = useState(false);
   const feedCardRef = useRef(null);
   const storyCardRef = useRef(null);
+
+  useEffect(() => {
+    aiRequestBusyRef.current = false; videoPreflightBusyRef.current = false;
+    videoPromptOpenRef.current = false; pendingSaveBusyRef.current = false;
+    pendingAiRef.current = null; setPendingAi(null); setPendingSaving(false);
+    setAiLoading(false); setVideoAiLoading(false); setStreamingText("");
+  }, [noteId, account]);
+
+  // 첫 AI 피드백 직후 게스트에게 한 번 — 신규 대부분이 첫 체크인 → 여기서 첫 피드백을 받는다(2026-10-18 실측)
+  const afterAiFeedback = useCallback(async (owner) => {
+    if (!ownerIsCurrent(owner)) return;
+    trackFunnelEvent("ai_feedback_done", i18n.language);
+    if (userProfile?.authUserId || (await hasAskedSignupNudge())) return;
+    if (!ownerIsCurrent(owner)) return;
+    await markSignupNudgeAsked();
+    if (!ownerIsCurrent(owner)) return;
+    trackFunnelEvent("signup_nudge_shown", i18n.language);
+    Alert.alert(t("signupNudge.title"), t("signupNudge.msg"), [
+      { text: t("signupNudge.later"), style: "cancel" },
+      {
+        text: t("signupNudge.cta"),
+        onPress: () => {
+          if (!ownerIsCurrent(owner)) return;
+          trackFunnelEvent("signup_nudge_tapped", i18n.language);
+          setAuthState("auth");
+        },
+      },
+    ]);
+  }, [userProfile?.authUserId, i18n.language, t, setAuthState]);
+
 
   // A completed generation has already used its credit. Retrying here only writes
   // its AI fields onto the latest note; it never calls the model again.
@@ -194,8 +234,10 @@ export default function NoteDetailScreen({ route, navigation }) {
       showToast(t("common.save_failed_msg"), "error");
       return false;
     } finally {
-      pendingSaveBusyRef.current = false;
-      if (mountedRef.current) setPendingSaving(false);
+      if (!pending.owner || ownerIsCurrent(pending.owner)) {
+        pendingSaveBusyRef.current = false;
+        if (mountedRef.current) setPendingSaving(false);
+      }
     }
     pendingAiRef.current = null;
     setPendingAi(null);
@@ -207,8 +249,9 @@ export default function NoteDetailScreen({ route, navigation }) {
         tags: latest.tags || [], userType: userProfile.userType,
       })).catch(() => {});
     }
+    afterAiFeedback(pending.owner || captureOwner()).catch(() => {});
     return true;
-  }, [handleUpdateNote, showToast, t, userProfile.userType]);
+  }, [handleUpdateNote, showToast, t, userProfile.userType, afterAiFeedback]);
 
   // AI 피드백을 카드 이미지로 공유 (인스타/스레드/틱톡). variant 선택 → 캡처 → 공유 시트
   const handleShareFeedback = useCallback(() => {
@@ -244,8 +287,11 @@ export default function NoteDetailScreen({ route, navigation }) {
 
   // Each sound belongs to one visible screen/account and one playback request.
   const [playingIdx, setPlayingIdx] = useState(null);
+  const [reviewStopSignal, setReviewStopSignal] = useState(0);
   const [expandedImage, setExpandedImage] = useState(null);
   const playingSoundRef = useRef(null);
+  const detailVideoRefs = useRef({});
+  const detailVideoPlaying = useRef({});
   const playingIdxRef = useRef(null);
   const playbackGenerationRef = useRef(0);
   const playbackFocusedRef = useRef(navigation.isFocused?.() ?? true);
@@ -261,7 +307,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     playingSoundRef.current = null;
     playingIdxRef.current = null;
     if (mountedRef.current) setPlayingIdx(null);
-    return releaseSound(sound);
+    return Promise.all([releaseSound(sound), ...Object.values(detailVideoRefs.current).filter(Boolean).map(video => Promise.resolve().then(() => video.pauseAsync()).catch(() => {}))]);
   }, []);
 
   useEffect(() => {
@@ -281,6 +327,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   const handlePlayVoice = useCallback(async (uri, index) => {
     if (!playbackFocusedRef.current || playbackAppStateRef.current !== "active") return;
     const owner = captureOwner();
+    setReviewStopSignal(value => value + 1);
     const sameTake = playingIdxRef.current === index;
     const stopping = stopDetailPlayback();
     const generation = playbackGenerationRef.current;
@@ -368,7 +415,7 @@ export default function NoteDetailScreen({ route, navigation }) {
   const confirmPendingLeave = useCallback((leave) => {
     if (pendingSaveBusyRef.current || pendingLeavePromptRef.current) return;
     pendingLeavePromptRef.current = true;
-    Alert.alert(t("common.discard_title"), t("noteDetail.ai_save_leave"), [
+    Alert.alert(t("common.discard_title"), t("noteDetail.ai_save_leave") + (reviewDirty ? (isKoreanLocale ? "\n작성 중인 검토 메모도 사라집니다." : "\nYour review draft will also be discarded.") : ""), [
       { text: t("common.cancel"), style: "cancel", onPress: () => { pendingLeavePromptRef.current = false; } },
       { text: t("common.retry_save"), onPress: () => { pendingLeavePromptRef.current = false; savePendingAi(); } },
       { text: t("common.leave"), style: "destructive", onPress: () => {
@@ -380,15 +427,22 @@ export default function NoteDetailScreen({ route, navigation }) {
         leave();
       } },
     ], { cancelable: false });
-  }, [savePendingAi, t]);
+  }, [savePendingAi, t, reviewDirty, isKoreanLocale]);
 
-  usePreventRemove(!!pendingAi, ({ data }) => {
+  const confirmReviewLeave = (leave) => Alert.alert(
+    isKoreanLocale ? "검토 메모가 아직 저장되지 않았어요" : "Review note not saved",
+    isKoreanLocale ? "기록 탭에서 메모 저장을 누르면 보관됩니다." : "Use Save note in the entry tab to keep your draft.",
+    [{ text: t("common.cancel"), style: "cancel" }, { text: t("common.leave"), style: "destructive", onPress: () => { setReviewDraftState({}); leavingRef.current = true; leave(); } }]
+  );
+  usePreventRemove(!!pendingAi || reviewDirty, ({ data }) => {
     if (leavingRef.current) { navigation.dispatch(data.action); return; }
-    confirmPendingLeave(() => navigation.dispatch(data.action));
+    if (pendingAiRef.current) confirmPendingLeave(() => navigation.dispatch(data.action));
+    else confirmReviewLeave(() => navigation.dispatch(data.action));
   });
 
   const handleBack = useCallback(() => {
     if (pendingAiRef.current) { confirmPendingLeave(() => navigation.goBack()); return; }
+    if (reviewDirty) { confirmReviewLeave(() => navigation.goBack()); return; }
     if (isEditing) {
       Alert.alert(t("noteDetail.edit_cancel_title"), t("noteDetail.edit_cancel_msg"), [
         { text: t("noteDetail.keep_editing"), style: "cancel" },
@@ -407,7 +461,7 @@ export default function NoteDetailScreen({ route, navigation }) {
     } else {
       navigation.goBack();
     }
-  }, [isEditing, note, navigation, t, confirmPendingLeave]);
+  }, [isEditing, note, navigation, t, confirmPendingLeave, reviewDirty, isKoreanLocale]);
 
   // 편집 중에는 하드웨어 뒤로가기·스와이프백도 상단 ‹ 버튼과 똑같이 확인을 받는다.
   // 저장·삭제로 나갈 때는 이미 isEditing이 false라 걸리지 않는다.
@@ -498,26 +552,10 @@ export default function NoteDetailScreen({ route, navigation }) {
     setIsEditing(false);
   }, [note]);
 
-  // 첫 AI 피드백 직후 게스트에게 한 번 — 신규 대부분이 첫 체크인 → 여기서 첫 피드백을 받는다(2026-10-18 실측)
-  const afterAiFeedback = useCallback(async () => {
-    trackFunnelEvent("ai_feedback_done", i18n.language);
-    if (userProfile?.authUserId || (await hasAskedSignupNudge())) return;
-    await markSignupNudgeAsked();
-    trackFunnelEvent("signup_nudge_shown", i18n.language);
-    Alert.alert(t("signupNudge.title"), t("signupNudge.msg"), [
-      { text: t("signupNudge.later"), style: "cancel" },
-      {
-        text: t("signupNudge.cta"),
-        onPress: () => {
-          trackFunnelEvent("signup_nudge_tapped", i18n.language);
-          setAuthState("auth");
-        },
-      },
-    ]);
-  }, [userProfile?.authUserId, i18n.language, t, setAuthState]);
 
   const runRequestAI = useCallback(async () => {
     if (!note || pendingAiRef.current || aiRequestBusyRef.current) return;
+    const owner = captureOwner();
     aiRequestBusyRef.current = true;
     setAiLoading(true);
     try {
@@ -528,6 +566,7 @@ export default function NoteDetailScreen({ route, navigation }) {
           await showInterstitialAd(); // proceeds even if ad fails
         }
       }
+      if (!ownerIsCurrent(owner)) return;
       setStreamingText("");
       const result = await analyzeNote(
         note.field,
@@ -535,14 +574,15 @@ export default function NoteDetailScreen({ route, navigation }) {
         savedNotes,
         note,
         userProfile,
-        (partial) => setStreamingText(partial),
+        (partial) => { if (ownerIsCurrent(owner)) setStreamingText(partial); },
         { ...studioMetadata, focus: note.focus, previous: buildPreviousContext(previousNote), previousArtwork: note.field === "art" ? previousNote?.images?.find(image => image.type !== "video") : undefined }
       );
+      if (!ownerIsCurrent(owner)) return;
       const analysis = result.analysis || result;
       const scores = result.scores || null;
       setStreamingText("");
       const pending = {
-        kind: "text", noteId: note.id, sessionId: newUuid(),
+        kind: "text", noteId: note.id, sessionId: newUuid(), owner,
         patch: {
           aiComment: analysis, aiScores: scores, focusOptions: result.focusOptions || undefined,
           aiModel: lastAiMeta.model, promptVersion: lastAiMeta.promptVersion,
@@ -551,17 +591,16 @@ export default function NoteDetailScreen({ route, navigation }) {
       pendingAiRef.current = pending;
       setPendingAi(pending);
       await savePendingAi();
-      afterAiFeedback().catch(() => {});
     } catch (e) {
+      if (!ownerIsCurrent(owner)) return;
       if (e?.message === "AI_QUOTA") {
         promptQuotaExceeded("text", { max: e.quotaMax, used: e.quotaUsed }); // 게스트→로그인, 무료→프리미엄, 프리미엄→한도 안내
       } else {
         showToast(t(e?.message === "AI_AUDIO_INCOMPLETE" ? "common.audio_analysis_failed" : "noteDetail.ai_failed"), "error");
       }
     } finally {
-      aiRequestBusyRef.current = false;
-      setAiLoading(false);
-      refreshPremium?.(); // 한 번 썼으니 남은 횟수 캡션을 즉시 갱신한다
+      if (ownerIsCurrent(owner)) { aiRequestBusyRef.current = false; setAiLoading(false); refreshPremium?.(); }
+      // // 한 번 썼으니 남은 횟수 캡션을 즉시 갱신한다
     }
   }, [note, savedNotes, userProfile, savePendingAi, showToast, isKoreanLocale, premium?.active, t, previousNote, promptQuotaExceeded, refreshPremium, studioMetadata, afterAiFeedback]);
 
@@ -614,7 +653,6 @@ export default function NoteDetailScreen({ route, navigation }) {
       pendingAiRef.current = pending;
       setPendingAi(pending);
       await savePendingAi();
-      afterAiFeedback().catch(() => {});
     } catch (e) {
       if (!ownerIsCurrent(owner)) return;
       // 실패는 노트에 저장하지 않는다 — 안내만 띄우고 재시도를 제안한다
@@ -632,8 +670,8 @@ export default function NoteDetailScreen({ route, navigation }) {
         );
       }
     } finally {
-      aiRequestBusyRef.current = false;
       if (ownerIsCurrent(owner)) {
+        aiRequestBusyRef.current = false;
         setVideoAiLoading(false);
         setVideoAiProgress({ phase: "", percent: 0, message: "" });
         refreshPremium?.();
@@ -949,6 +987,17 @@ export default function NoteDetailScreen({ route, navigation }) {
 
     return (
       <View style={styles.tabContent}>
+        {!isEditing && !pendingAi && ["music", "literature"].includes(note.field) && <WorkReview
+          key={`${userProfile?.authUserId || "guest"}:${note.id}`} note={note} previousNote={previousNote}
+          language={isKoreanLocale ? "ko" : "en"} visible={screenFocused && activeTab === "content"}
+          draft={reviewDraft} onDraftChange={updateReviewDraft}
+          stopSignal={reviewStopSignal} beforePlay={stopDetailPlayback} disabled={aiLoading || videoAiLoading || pendingSaving}
+          onSave={async values => {
+            const owner = captureOwner();
+            if (!ownerIsCurrent(owner) || !noteRef.current) throw new Error("STALE_REVIEW");
+            await handleUpdateNote({ ...noteRef.current, workReviewNotes: reviewNotes(values) }, { silent: true });
+            if (!ownerIsCurrent(owner)) throw new Error("STALE_REVIEW");
+          }} />}
         {note.field === "art" && !isEditing && !pendingAi && <ArtworkCompareCard key={note.id} previousNote={previousNote} note={note} language={isKoreanLocale ? "ko" : "en"} onRetake={handleRepractice} disabled={aiLoading || videoAiLoading || pendingSaving} />}
         {note.practiceMode === "standard_speech" && !isEditing && !pendingAi && (
           <TouchableOpacity
@@ -1006,6 +1055,19 @@ export default function NoteDetailScreen({ route, navigation }) {
                     {item.type === "video" ? (
                       <View style={styles.detailVideoWrap}>
                         <Video
+                          ref={instance => { detailVideoRefs.current[idx] = instance; }}
+                          onPlaybackStatusUpdate={status => {
+                            const active = !!(status.isLoaded && status.isPlaying);
+                            if (active && !detailVideoPlaying.current[idx]) {
+                              setReviewStopSignal(value => value + 1);
+                              playbackGenerationRef.current += 1;
+                              const old = playingSoundRef.current;
+                              playingSoundRef.current = null; playingIdxRef.current = null; setPlayingIdx(null);
+                              releaseSound(old);
+                              Object.entries(detailVideoRefs.current).forEach(([key, video]) => { if (key !== String(idx) && video) Promise.resolve().then(() => video.pauseAsync()).catch(() => {}); });
+                            }
+                            detailVideoPlaying.current[idx] = active;
+                          }}
                           source={{ uri: item.uri }}
                           style={styles.detailThumbnail}
                           resizeMode={ResizeMode.COVER}

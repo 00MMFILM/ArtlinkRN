@@ -479,13 +479,13 @@ describe("growth home — one useful next action", () => {
     expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({ prefill: expect.objectContaining({ parentNoteId: "retake" }) }));
   });
 
-  it("lets a newcomer bring existing material without pretending that tapping completed a practice", async () => {
+  it("shows film work instead of acting rehearsal and opens film material without completing a practice", async () => {
     useApp.mockReturnValue({ ...buildCtx([]), userProfile: { fields: ["film"] } });
     const screen = render(<HomeScreen navigation={navigation} />);
     await act(async () => {});
-    fireEvent.press(screen.getByTestId("home-existing-material"));
-    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: { field: "film", intent: "material" } });
-    expect(trackFunnelEvent).toHaveBeenCalledWith("home_material_tapped", "ko");
+    expect(screen.queryByTestId("studio-home-card")).toBeNull();
+    fireEvent.press(screen.getByTestId("starter-open"));
+    expect(navigation.navigate).toHaveBeenCalledWith("NoteCreate", { prefill: expect.objectContaining({ field: "film", intent: "material" }) });
     expect(startPractice).not.toHaveBeenCalled();
     expect(completePractice).not.toHaveBeenCalled();
   });

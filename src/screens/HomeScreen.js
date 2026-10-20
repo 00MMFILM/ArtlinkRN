@@ -35,7 +35,7 @@ export default function HomeScreen({ navigation }) {
     showToast,
   } = useApp();
 
-  const isActingUser = (userProfile?.fields || []).some((f) => /acting|film/i.test(String(f)));
+  const isActingUser = (userProfile?.fields || []).some((f) => /^acting$/i.test(String(f)));
   const [quickLanguage, setQuickLanguage] = useState(() => String(i18n.language).startsWith('ko') ? 'ko' : 'en');
   const duetCard = (
     <View

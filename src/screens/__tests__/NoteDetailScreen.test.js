@@ -936,3 +936,33 @@ describe("노트 상세 첫 AI 피드백 직후 게스트 가입 안내", () => 
     expect(nudgeCalls().length).toBe(0);
   });
 });
+
+describe('review draft and late AI ownership', () => {
+  beforeEach(resetDetail);
+  it('preserves an unsaved review across tabs and prevents accidental navigation', async () => {
+    const note = { ...baseNote, field: 'literature' };
+    const ctx = buildCtx([note]); useApp.mockReturnValue(ctx);
+    const ui = render(<NoteDetailScreen route={{ params: { noteId: 200 } }} navigation={navigation} />);
+    fireEvent.changeText(ui.getByTestId('review-note-input'), '다음 퇴고의 메모');
+    expect(usePreventRemove.mock.calls.at(-1)[0]).toBe(true);
+    openAiTab(ui);
+    fireEvent.press(ui.getByText('noteDetail.tab_content'));
+    expect(ui.getByTestId('review-note-input').props.value).toBe('다음 퇴고의 메모');
+    await act(async () => { fireEvent.press(ui.getByTestId('review-save')); });
+    expect(ctx.handleUpdateNote).toHaveBeenCalledWith(expect.objectContaining({ content: note.content, workReviewNotes: [expect.objectContaining({ body: '다음 퇴고의 메모' })] }), { silent: true });
+    expect(usePreventRemove.mock.calls.at(-1)[0]).toBe(false);
+  });
+  it('drops an old text response even if the account switches away and back', async () => {
+    let finish;
+    analyzeNote.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const ctx = buildCtx([baseNote]); useApp.mockReturnValue(ctx);
+    const props = { route: { params: { noteId: 200 } }, navigation };
+    const ui = render(<NoteDetailScreen {...props} />); openAiTab(ui);
+    await act(async () => { fireEvent.press(ui.getByText('noteDetail.ai_reanalyze')); });
+    useApp.mockReturnValue({ ...ctx, userProfile: { authUserId: 'other' } }); ui.rerender(<NoteDetailScreen {...props} />);
+    useApp.mockReturnValue(ctx); ui.rerender(<NoteDetailScreen {...props} />);
+    await act(async () => finish({ analysis: 'stale response' }));
+    expect(ctx.handleUpdateNote).not.toHaveBeenCalled();
+    expect(trackFunnelEvent).not.toHaveBeenCalledWith('ai_feedback_done', expect.anything());
+  });
+});

@@ -2,6 +2,8 @@ import { supabase } from "./supabaseClient";
 import { mutateNoteState, readNoteState } from "./noteStore";
 import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 
+import { reviewNotes } from "../utils/workReview";
+
 const PRACTICE_FIELDS = ["sceneId", "parentNoteId", "rootNoteId", "focus", "chosenFocus", "focusOptions", "practiceSessionId", "type"];
 function practiceMeta(note) {
   const meta = { ...sanitizeStudioMetadata(note) };
@@ -11,6 +13,7 @@ function practiceMeta(note) {
       if (Array.isArray(value)) meta[key] = value.filter((v) => typeof v === "string").slice(0, 3);
     } else if (typeof value === "string" || typeof value === "number") meta[key] = value;
   }
+  if (Array.isArray(note?.workReviewNotes)) meta.workReviewNotes = reviewNotes(note.workReviewNotes);
   return meta;
 }
 export function isMissingPracticeMetaColumn(error) {
