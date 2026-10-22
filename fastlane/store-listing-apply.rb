@@ -11,6 +11,7 @@ require "openssl"
 require_relative "asc_env"
 
 VERSION = "1.11.13"
+SUPPORT_URL = "https://artlink-server.vercel.app" # ko 로케일과 동일. 신설 로케일은 supportUrl·whatsNew 없으면 제출 409
 LISTING = JSON.parse(File.read(File.expand_path("store-listing-i18n.json", __dir__))).reject { |k, _| k.start_with?("_") }
 DRY = ARGV.include?("--dry")
 
@@ -56,10 +57,10 @@ end
 puts "STEP2: 설명·키워드 #{LISTING.size}개 로케일"
 have = vid ? asc(:get, "appStoreVersions/#{vid}/appStoreVersionLocalizations?limit=50")[1]["data"].to_h { |l| [l["attributes"]["locale"], l] } : {}
 LISTING.each do |loc, t|
-  attrs = { description: t["description"], keywords: t["keywords"] }
+  attrs = { description: t["description"], keywords: t["keywords"], supportUrl: SUPPORT_URL, marketingUrl: SUPPORT_URL }
   if (l = have[loc])
     cur = l["attributes"]
-    next puts("  skip #{loc} 이미 같음") if cur["description"] == t["description"] && cur["keywords"] == t["keywords"]
+    next puts("  skip #{loc} 이미 같음") if cur["description"] == t["description"] && cur["keywords"] == t["keywords"] && cur["supportUrl"] == SUPPORT_URL
     write(:patch, "appStoreVersionLocalizations/#{l["id"]}", { data: { type: "appStoreVersionLocalizations", id: l["id"], attributes: attrs } }, "#{loc} 수정")
   else
     attrs[:whatsNew] = have.values.first&.dig("attributes", "whatsNew") if have.any?

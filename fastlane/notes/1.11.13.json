@@ -6,5 +6,8 @@
   "zh-Hant": "- 首次獲得 AI 回饋後，會提示如何將記錄儲存到帳號。\n- 改善了練習記錄和錄音儲存的穩定性。",
   "th": "- หลังได้รับคำติชมจาก AI ครั้งแรก แอปจะแนะนำวิธีเก็บบันทึกไว้ในบัญชี\n- ปรับปรุงความเสถียรในการบันทึกการฝึกและไฟล์เสียง",
   "vi": "- Sau phản hồi AI đầu tiên, ứng dụng sẽ hướng dẫn cách lưu ghi chú vào tài khoản.\n- Cải thiện độ ổn định khi lưu ghi chú luyện tập và bản ghi âm.",
-  "id": "- Setelah umpan balik AI pertama, aplikasi menunjukkan cara menyimpan catatan ke akun.\n- Peningkatan keandalan penyimpanan catatan latihan dan rekaman."
+  "id": "- Setelah umpan balik AI pertama, aplikasi menunjukkan cara menyimpan catatan ke akun.\n- Peningkatan keandalan penyimpanan catatan latihan dan rekaman.",
+  "es-MX": "- Tras tu primer feedback de IA, te mostramos cómo guardar tus notas en una cuenta.\n- Mejoramos la estabilidad al guardar notas de práctica y grabaciones.",
+  "es-ES": "- Tras tu primer feedback de IA, te mostramos cómo guardar tus notas en una cuenta.\n- Mejoramos la estabilidad al guardar notas de práctica y grabaciones.",
+  "ar-SA": "- بعد أول ملاحظات من الذكاء الاصطناعي، نعرض لك كيفية حفظ ملاحظاتك في حساب.\n- تحسين استقرار حفظ ملاحظات التدريب والتسجيلات."
 }
