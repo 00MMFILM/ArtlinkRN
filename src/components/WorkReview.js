@@ -18,6 +18,7 @@ export function MusicLoop({ note, previousNote, visible, stopSignal, beforePlay,
   const importedSettings = note.webReview?.review?.settings || previousNote?.webReview?.review?.settings || {};
   const [start, setStart] = useState(String(importedSettings.start ?? 0)), [end, setEnd] = useState(String(importedSettings.end ?? 10)), [rate, setRate] = useState(importedSettings.rate || 1);
   const [message, setMessage] = useState(""), [playing, setPlaying] = useState(false);
+  const [repeat, setRepeat] = useState(importedSettings.loop !== false);
   const sound = useRef(null), token = useRef(0), mounted = useRef(true), position = useRef(0), loopBusy = useRef(false);
   const available = useRef(visible), file = choices[index];
   available.current = visible;
@@ -68,6 +69,7 @@ export function MusicLoop({ note, previousNote, visible, stopSignal, beforePlay,
         if (!current()) return;
         if (!status.isLoaded) { if (status.error) fail(); return; }
         position.current = status.positionMillis || 0;
+        if ((position.current >= range.end || status.didJustFinish) && !repeat) { stop(); return; }
         if ((position.current >= range.end || status.didJustFinish) && !loopBusy.current) {
           loopBusy.current = true;
           loaded.sound.setPositionAsync(range.start).then(async () => {
@@ -80,7 +82,7 @@ export function MusicLoop({ note, previousNote, visible, stopSignal, beforePlay,
       await loaded.sound.setPositionAsync(range.start);
       if (!current()) return;
       await loaded.sound.playAsync();
-      if (current()) { setPlaying(true); setMessage(ko ? "선택한 구간을 반복하고 있어요." : "Looping your selected range."); }
+      if (current()) { setPlaying(true); setMessage(repeat ? (ko ? "선택한 구간을 반복하고 있어요." : "Looping your selected range.") : (ko ? "선택한 구간을 한 번 재생합니다." : "Playing the range once.")); }
     } catch { fail(); }
   };
   if (!choices.length) return <Text style={s.small}>{ko ? "녹음 파일을 첨부하면 구간 반복과 시점 메모를 쓸 수 있어요." : "Attach a recording to loop a phrase and leave time notes."}</Text>;
@@ -92,7 +94,8 @@ export function MusicLoop({ note, previousNote, visible, stopSignal, beforePlay,
       <View style={s.flex}><Text style={s.small}>{ko ? "끝(초)" : "End (s)"}</Text><TextInput testID="review-end" accessibilityLabel={ko ? "끝 초" : "End seconds"} style={s.input} keyboardType="decimal-pad" value={end} onChangeText={v => { stop(); setEnd(v); }} /></View>
     </View>
     <View style={s.row}>{[0.5, 0.75, 1, 1.25].map(value => <TouchableOpacity key={value} style={[s.chip, rate === value && s.selected]} accessibilityRole="button" accessibilityState={{ selected: rate === value }} onPress={() => { stop(); setRate(value); }}><Text style={s.body}>{value}×</Text></TouchableOpacity>)}</View>
-    <View style={s.row}><TouchableOpacity testID="review-play" style={s.primary} accessibilityRole="button" onPress={playing ? stop : play}><Text style={s.white}>{playing ? (ko ? "멈춤" : "Stop") : (ko ? "구간 반복" : "Loop phrase")}</Text></TouchableOpacity>
+    <TouchableOpacity testID="review-repeat" accessibilityRole="switch" accessibilityState={{ checked: repeat }} style={s.chip} onPress={() => { stop(); setRepeat(value => !value); }}><Text style={s.body}>{ko ? `구간 반복: ${repeat ? "켜짐" : "꺼짐"}` : `Repeat: ${repeat ? "on" : "off"}`}</Text></TouchableOpacity>
+    <View style={s.row}><TouchableOpacity testID="review-play" style={s.primary} accessibilityRole="button" onPress={playing ? stop : play}><Text style={s.white}>{playing ? (ko ? "멈춤" : "Stop") : (repeat ? (ko ? "구간 반복" : "Loop phrase") : (ko ? "구간 재생" : "Play range"))}</Text></TouchableOpacity>
       <TouchableOpacity testID="review-time-note" style={s.chip} accessibilityRole="button" onPress={() => onAnchor(`${file.label} · ${stamp(position.current)}`)}><Text style={s.body}>{ko ? "현재 시점에 메모" : "Note this moment"}</Text></TouchableOpacity></View>
     {!!message && <Text accessibilityRole="alert" style={s.small}>{message}</Text>}
   </View>;
@@ -123,7 +126,7 @@ export default function WorkReview({ note, previousNote, language, visible, stop
     {literary ? hasOriginal ? rows ? <View style={s.group}>
       <Text style={s.small}>{ko ? "− 이전 문단 · + 수정 문단. 문단을 눌러 수정 이유를 남기세요." : "− Previous · + Revised. Tap a passage to leave a note."}</Text>
       {rows.map((row, i) => <TouchableOpacity testID={`revision-line-${i}`} key={i} accessibilityRole="button" style={[s.passage, row.kind === "add" && s.add, row.kind === "remove" && s.remove]} onPress={() => setAnchor(`${row.kind === "remove" ? (ko ? "이전" : "Previous") : (ko ? "현재" : "Current")} ${row.line} · ${row.text.slice(0, 300)}`)}><Text style={s.body}>{row.kind === "add" ? "+ " : row.kind === "remove" ? "− " : ""}{row.text || " "}</Text></TouchableOpacity>)}
-    </View> : <Text style={s.small}>{ko ? "문단이 많아 비교를 생략했어요. 원문은 기록 본문에서 확인할 수 있어요." : "Too many paragraphs to compare. The original remains in your entry."}</Text>
+    </View> : <View style={s.group}><Text style={s.small}>{ko ? "문단이 많아 차이 표시를 생략했어요. 원문은 아래에 보존했습니다." : "Too many paragraphs to highlight changes. The original is preserved below."}</Text><Text selectable style={s.body}>{originalText}</Text></View>
       : <Text style={s.small}>{ko ? "‘다시 연습’으로 수정본을 남기면 원문과 문단별로 비교할 수 있어요." : "Use Practice again to save a revision and compare it with the original."}</Text>
       : note.field === "music" ? <MusicLoop note={note} previousNote={previousNote} ko={ko} visible={visible} stopSignal={stopSignal} beforePlay={beforePlay} onAnchor={setAnchor} /> : null}
     <Text style={s.small}>{anchor || (ko ? "작업 전체에 남기는 메모" : "Note for the whole work")}</Text>

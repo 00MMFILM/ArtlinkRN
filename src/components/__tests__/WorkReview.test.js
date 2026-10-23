@@ -94,3 +94,19 @@ test("imported literature compares even when the entire revision was deleted", (
  const screen = render(<WorkReview note={{field:"literature",content:"",webReview:{review:{texts:{a:"원문"}}}}} language="ko" onDraftChange={()=>{}} onSave={async()=>{}} />);
  expect(screen.getByText("− 원문")).toBeTruthy();
 });
+
+
+test("a transferred non-looping range stops at its end", async () => {
+ const player = sound();Audio.Sound.createAsync.mockResolvedValue({sound:player,status:{durationMillis:12000}});
+ const screen = render(<MusicLoop {...props} note={{...props.note,webReview:{review:{settings:{start:2,end:3,loop:false}}}}} />);
+ expect(screen.getByTestId("review-repeat").props.accessibilityState.checked).toBe(false);
+ await act(async()=>fireEvent.press(screen.getByTestId("review-play")));
+ await act(async()=>player.setOnPlaybackStatusUpdate.mock.calls[0][0]({isLoaded:true,positionMillis:3100}));
+ expect(player.setPositionAsync).toHaveBeenCalledTimes(1);expect(player.unloadAsync).toHaveBeenCalledTimes(1);
+});
+
+test("long imported manuscripts retain a readable original when diff is bounded",()=>{
+ const original="보존할 원문\n".repeat(401);
+ const screen=render(<WorkReview note={{field:"literature",content:"새 원고",webReview:{review:{texts:{a:original}}}}} language="ko" onDraftChange={()=>{}} />);
+ expect(screen.getByText(original,{exact:true})).toBeTruthy();
+});
