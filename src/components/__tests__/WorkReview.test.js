@@ -77,3 +77,20 @@ test("failed saving preserves a paragraph note, successful retry clears only the
   expect(note.content).toBe("고친 문장");
   expect(save.mock.calls[1][0][0]).toEqual(expect.objectContaining({ body: "감정을 장면으로 표현하기", label: expect.stringContaining("고친 문장") }));
 });
+
+
+test("imported music restores A/B ranges including offset and speed", async () => {
+ const player = sound(); Audio.Sound.createAsync.mockResolvedValue({ sound: player, status: { durationMillis: 12000 } });
+ const screen = render(<MusicLoop {...props} note={{...props.note,voiceRecordings:[{uri:"file:///a.wav"},{uri:"file:///b.wav"}],webReview:{review:{settings:{start:2,end:4,offset:1,rate:.75}}}}} />);
+ expect(screen.getByTestId("review-start").props.value).toBe("2");
+ fireEvent.press(screen.getByText("B 2"));
+ expect(screen.getByTestId("review-start").props.value).toBe("3");
+ expect(screen.getByTestId("review-end").props.value).toBe("5");
+ await act(async()=>fireEvent.press(screen.getByTestId("review-play")));
+ expect(player.setPositionAsync).toHaveBeenCalledWith(3000);expect(player.setRateAsync).toHaveBeenCalledWith(.75,true);
+});
+
+test("imported literature compares even when the entire revision was deleted", () => {
+ const screen = render(<WorkReview note={{field:"literature",content:"",webReview:{review:{texts:{a:"원문"}}}}} language="ko" onDraftChange={()=>{}} onSave={async()=>{}} />);
+ expect(screen.getByText("− 원문")).toBeTruthy();
+});

@@ -987,7 +987,7 @@ export default function NoteDetailScreen({ route, navigation }) {
 
     return (
       <View style={styles.tabContent}>
-        {!isEditing && !pendingAi && ["music", "literature"].includes(note.field) && <WorkReview
+        {!isEditing && !pendingAi && (["music", "literature"].includes(note.field) || note.webReview) && <WorkReview
           key={`${userProfile?.authUserId || "guest"}:${note.id}`} note={note} previousNote={previousNote}
           language={isKoreanLocale ? "ko" : "en"} visible={screenFocused && activeTab === "content"}
           draft={reviewDraft} onDraftChange={updateReviewDraft}

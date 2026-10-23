@@ -7,7 +7,7 @@ export function reviewRange(start, end, duration) {
 
 export function reviewNotes(value) {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 100).filter(n => n && typeof n.id === "string" && typeof n.body === "string" && n.body.trim())
+  return value.slice(0, 101).filter(n => n && typeof n.id === "string" && typeof n.body === "string" && n.body.trim())
     .map(n => ({
       id: n.id.slice(0, 100), body: n.body.trim().slice(0, 1000),
       label: typeof n.label === "string" ? n.label.slice(0, 400) : "",

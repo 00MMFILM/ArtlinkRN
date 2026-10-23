@@ -2,11 +2,13 @@ import { supabase } from "./supabaseClient";
 import { mutateNoteState, readNoteState } from "./noteStore";
 import { sanitizeStudioMetadata } from "../utils/studioMetadata";
 
+import { webReviewMetadata } from "../utils/studioImport";
+
 import { reviewNotes } from "../utils/workReview";
 
 const PRACTICE_FIELDS = ["sceneId", "parentNoteId", "rootNoteId", "focus", "chosenFocus", "focusOptions", "practiceSessionId", "type"];
 function practiceMeta(note) {
-  const meta = { ...sanitizeStudioMetadata(note) };
+  const meta = { ...sanitizeStudioMetadata(note), ...webReviewMetadata(note) };
   for (const key of PRACTICE_FIELDS) {
     const value = note?.[key];
     if (key === "focusOptions") {
@@ -176,4 +178,13 @@ export function syncAccountNotes({ authUserId, scope, isCurrent = () => true, on
   syncing.set(scope, run);
   run.finally(() => { if (syncing.get(scope) === run) syncing.delete(scope); }).catch(() => {});
   return run;
+}
+
+// Check for an earlier import on another device before creating a local copy.
+export async function findImportedCloudNote(authUserId, localId) {
+  if (!authUserId) return null;
+  const { data, error } = await supabase.from("user_notes").select("*").eq("auth_user_id", authUserId).eq("local_id", localId).maybeSingle();
+  if (error) throw error;
+  if (data?.deleted) throw new Error("REVIEW_DELETED");
+  return data ? serverNoteToLocal(data) : null;
 }

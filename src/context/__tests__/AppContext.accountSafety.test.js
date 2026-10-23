@@ -25,6 +25,7 @@ jest.mock("../../services/premiumService", () => ({ fetchUsageStatus: jest.fn(as
 jest.mock("../../services/practiceService", () => ({ getPracticeLog: jest.fn(async () => []) }));
 jest.mock("../../services/reminderService", () => ({ scheduleFirstNoteNudge: jest.fn(), cancelFirstNoteNudge: jest.fn() }));
 jest.mock("../../services/recordingMigration", () => ({ migrateCachedRecordings: jest.fn(async () => null) }));
+jest.mock("../../services/notesSyncService", () => ({ ...jest.requireActual("../../services/notesSyncService"), findImportedCloudNote: jest.fn(async () => null) }));
 const disk = require("@react-native-async-storage/async-storage");
 const { AppProvider, useApp } = require("../AppContext");
 const { readNoteState } = require("../../services/noteStore");
@@ -323,4 +324,30 @@ test("단체 로그인 요청은 로그인 의도와 복귀 위치를 유지한�
   await mount();await act(async()=>{current.requestGroupLogin();await settle();});
   expect(current.authState).toBe("auth");expect(current.authIntent).toEqual({mode:"login",returnTo:"Groups"});
   await act(async()=>{current.setAuthIntent(null);await settle();});expect(current.authIntent).toBeNull();
+});
+
+
+test("웹 기록을 다시 가져와도 수정본을 덮어쓰거나 중복 저장하지 않는다", async () => {
+  await mount();
+  const incoming = { title: "web", content: "first", webReview: { id: "a".repeat(64) } };
+  let id;
+  await act(async () => { id = await current.handleSaveNote(incoming); });
+  expect(Number.isSafeInteger(id)).toBe(true); expect(id).toBeLessThan(0);
+  await act(async () => { await current.handleUpdateNote({ ...current.savedNotes.find(n => n.id === id), content: "edited" }); });
+  await act(async () => { expect(await current.handleSaveNote(incoming)).toBe(id); });
+  expect(current.savedNotes.filter(n => n.id === id)).toHaveLength(1);
+  expect(current.savedNotes.find(n => n.id === id).content).toBe("edited");
+  await act(async () => { await current.handleDeleteNote(id); });
+  await act(async () => { await expect(current.handleSaveNote(incoming)).rejects.toThrow("REVIEW_DELETED"); });
+});
+
+test("웹 기록 조회 중 계정이 바뀌면 새 계정에 저장하지 않는다", async () => {
+  await mount(); let finish;
+  require("../../services/notesSyncService").findImportedCloudNote.mockImplementationOnce(() => new Promise(r => { finish = r; }));
+  const pending = current.handleSaveNote({title:"private",content:"private",webReview:{id:"b".repeat(64)}});
+  const outcome = pending.catch(e => e.message);
+  await act(async () => { await current.handleLogout(); await settle(); });
+  await act(async () => { finish(null); });
+  expect(await outcome).toBe("ACCOUNT_CHANGED");
+  expect(current.savedNotes).toEqual([]);
 });

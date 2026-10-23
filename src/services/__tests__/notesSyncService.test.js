@@ -132,3 +132,13 @@ describe("mergeNotes — 연습 세션 표식 보존 (다른 기기 수정 후 2
     expect(merged[0].type).toBe("checkin");
   });
 });
+
+
+it("웹 작업의 원문·수정본·설정·메모가 계정 백업을 왕복한다", async () => {
+ const { importedNote } = require("../../utils/studioImport");
+ const note = importedNote({id:"a".repeat(64),review:{version:1,field:"literature",lang:"ko",title:"퇴고",role:"소설",intent:"행동",settings:{},notes:[{body:"수정",label:"B",resolved:true}],texts:{a:"전",b:"후"}}});
+ let rows;
+ supabase.from=jest.fn(()=>({upsert:jest.fn(input=>{rows=input;return {select:async()=>({data:input,error:null})};})}));
+ await syncNotesToServer("A",[{...note,id:-123,createdAt:"2026-10-23T00:00:00Z"}]);
+ expect(mergeNotes([],rows)[0]).toEqual(expect.objectContaining(note));
+});

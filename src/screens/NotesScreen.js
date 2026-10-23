@@ -168,6 +168,10 @@ export default function NotesScreen({ navigation }) {
         </TouchableOpacity>
       )}
 
+      <TouchableOpacity testID="import-web-review" accessibilityRole="button" style={styles.guestNotice} onPress={() => navigation.navigate("StudioImport")}>
+        <Text style={[T.captionBold, { color: CLight.pink }]}>{isKoreanLocale !== false ? "웹 작업 가져오기 →" : "Import web review →"}</Text>
+      </TouchableOpacity>
+
       {/* Field Filter Tabs */}
       <View style={styles.filterSection}>
         <ScrollView

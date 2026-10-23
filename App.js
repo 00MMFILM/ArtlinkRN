@@ -23,6 +23,8 @@ import Toast from "./src/components/Toast";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import NotesScreen from "./src/screens/NotesScreen";
+import StudioImportScreen from "./src/screens/StudioImportScreen";
+import { code as studioCode } from "./src/utils/studioTransferContract";
 import NoteCreateScreen from "./src/screens/NoteCreateScreen";
 import NoteDetailScreen from "./src/screens/NoteDetailScreen";
 import CommunityScreen from "./src/screens/CommunityScreen";
@@ -287,6 +289,7 @@ export function AppNavigator() {
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [pendingPractice, setPendingPractice] = useState(null);
+  const [pendingStudio, setPendingStudio] = useState(null);
   const [draftChecked, setDraftChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
 
@@ -318,6 +321,11 @@ export function AppNavigator() {
       try {
         const parsed = ExpoLinking.parse(url);
         const path = (parsed.hostname || parsed.path || "").replace(/^\//, "");
+        if (path === "studio-import") {
+          const code = studioCode(parsed.queryParams?.code);
+          setPendingStudio({ code: code || "" });
+          return;
+        }
         if (path === "practice") {
           const qp = parsed.queryParams || {};
           const prefill = practicePrefill(qp);
@@ -385,6 +393,18 @@ export function AppNavigator() {
     const timer = setInterval(() => { if (open()) clearInterval(timer); }, 500);
     return () => clearInterval(timer);
   }, [pendingPractice, authState, storageReady, showOnboarding, draftChecked]);
+
+  useEffect(() => {
+    if (!pendingStudio || authState !== "app" || !storageReady || showOnboarding !== false || !draftChecked) return;
+    const open = () => {
+      if (!navigationRef.isReady() || !navigationRef.getRootState()?.routeNames?.includes("StudioImport")) return false;
+      navigationRef.dispatch(StackActions.push("StudioImport", pendingStudio));
+      setPendingStudio(null); return true;
+    };
+    if (open()) return;
+    const timer = setInterval(() => { if (open()) clearInterval(timer); }, 500);
+    return () => clearInterval(timer);
+  }, [pendingStudio, authState, storageReady, showOnboarding, draftChecked]);
 
   // Restore the group intent after auth. Never retain it after choosing guest browsing.
   useEffect(() => {
@@ -462,6 +482,7 @@ export function AppNavigator() {
                 options={{ presentation: "modal", animation: "slide_from_bottom" }}
               />
               <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
+              <Stack.Screen name="StudioImport" component={StudioImportScreen} />
               <Stack.Screen name="Growth" component={GrowthScreen} />
               <Stack.Screen name="DuetPractice" component={DuetPracticeScreen} />
               <Stack.Screen name="Matching" component={MatchingScreen} />

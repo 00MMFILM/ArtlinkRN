@@ -10,7 +10,8 @@ import { computeArtistProfile } from "../services/analyticsService";
 import { ensureDeviceUser } from "../services/communityService";
 import { upsertArtistProfile, deleteArtistProfile, uploadProfilePhotos, mergeServerStats, syncProfileVisibility, nextVisibilityStamp, adoptServerVisibility } from "../services/profileService";
 import { requestAccountDelete } from "../services/accountDeleteService";
-import { syncAccountNotes } from "../services/notesSyncService";
+import { importedNoteId } from "../utils/studioImport";
+import { syncAccountNotes, findImportedCloudNote } from "../services/notesSyncService";
 import { trackAppOpen, trackFunnelEvent } from "../services/mauService";
 import { createMatchingPost, deleteMatchingPost } from "../services/matchingService";
 import { SERVER_URL, getApiHeaders, setApiDeviceId, setDataConsentCache } from "../services/apiConfig";
@@ -472,14 +473,26 @@ export function AppProvider({ children }) {
   const handleSaveNote = useCallback(async (noteData) => {
     const now = new Date().toISOString();
     const newNote = { id: Date.now(), createdAt: now, updatedAt: now, starred: false, ...noteData };
+    const importedId = importedNoteId(noteData?.webReview?.id);
+    const generation = accountGenerationRef.current;
+    const cloudNote = importedId ? await findImportedCloudNote(userProfile.authUserId, importedId) : null;
+    if (generation !== accountGenerationRef.current) throw new Error("ACCOUNT_CHANGED");
+    if (importedId) newNote.id = importedId;
     await commitNotes((state) => {
+      if (importedId) {
+        if (state.tombstones[importedId]) throw new Error("REVIEW_DELETED");
+        const existing = state.notes.find((n) => Number(n.id) === importedId);
+        if ((existing && existing.webReview?.id !== noteData.webReview.id) || (cloudNote && cloudNote.webReview?.id !== noteData.webReview.id)) throw new Error("IMPORT_COLLISION");
+        if (existing) return state;
+        return { ...state, notes: [cloudNote || newNote, ...state.notes] };
+      }
       while (state.notes.some((n) => n.id === newNote.id) || state.tombstones[newNote.id]) newNote.id += 1;
       return { ...state, notes: [newNote, ...state.notes] };
     });
     showToast(i18n.t("toast.note_saved"), "success");
     cancelFirstNoteNudge(); // 노트를 남겼으면 48시간 넛지는 필요 없다
     return newNote.id;
-  }, [commitNotes, showToast]);
+  }, [commitNotes, showToast, userProfile.authUserId]);
 
   const handleDeleteNote = useCallback(async (noteId) => {
     await commitNotes((state) => ({
