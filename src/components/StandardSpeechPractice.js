@@ -90,7 +90,7 @@ export default forwardRef(function StandardSpeechPractice({ content, language, l
     {showDetails && <View style={{ gap: 8 }}>
       <Text>{ko ? '원하는 말투를 연습하세요. 사투리를 잘못된 말로 평가하지 않습니다.' : 'Practice your chosen delivery. Regional dialects are not mistakes.'}</Text>
       <Text>{ko ? '기기 음성은 참고용이며 공인된 표준 발음이나 억양 정답이 아닙니다. 자동 발음·사투리·억양 채점은 하지 않습니다.' : 'Device voice is for reference, not a certified pronunciation or intonation model. No automatic accent or pronunciation scoring.'}</Text>
-      <Text>{ko ? '듣기·녹음은 AI 이용량을 쓰지 않습니다. AI 피드백은 별도 이용 한도가 적용됩니다. 노트의 글과 연습 모드는 계정 동기화 대상이며, 녹음 파일은 이 기기에 남습니다.' : 'Listening and recording do not use AI credits. AI feedback has separate limits. Note text and practice mode can sync with your account; recordings stay on this device.'}</Text>
+      <Text>{ko ? '듣기·녹음은 AI 이용량을 쓰지 않습니다. AI 피드백과 녹음 점검에는 별도 이용 한도가 적용됩니다. 노트의 글과 연습 모드는 계정 동기화 대상입니다. 녹음은 이 기기에 저장되며, 녹음 점검에 동의하고 요청할 때 선택한 파일을 분석 서버로 전송합니다.' : 'Listening and recording do not use AI credits. AI feedback and recording checks have separate limits. Note text and practice mode can sync with your account. Recordings are saved on this device; a selected file is sent to the analysis server when you consent and request a recording check.'}</Text>
     </View>}
   </View>;
 });

@@ -64,7 +64,7 @@ test('owner can publish a dated assignment and sees metrics',async()=>{
   role='owner';const normal=assignmentAction.getMockImplementation();assignmentAction.mockImplementation(async(...args)=>args[1]==='create'?assignment:normal(...args));
   const u=screen();await waitFor(()=>u.getByTestId('assignment-create'));expect(u.getByTestId('assignment-metrics')).toBeTruthy();
   fireEvent.changeText(u.getByTestId('assignment-title'),'Listen');fireEvent.changeText(u.getByTestId('assignment-instructions'),'Try pausing.');fireEvent.changeText(u.getByTestId('assignment-due'),'2026-11-01');
-  await act(async()=>fireEvent.press(u.getByTestId('assignment-create')));expect(assignmentAction).toHaveBeenCalledWith('student','create','g',{title:'Listen',instructions:'Try pausing.',dueDate:'2026-11-01',clientId:'stable-client-id'});
+  await act(async()=>fireEvent.press(u.getByTestId('assignment-create')));expect(assignmentAction).toHaveBeenCalledWith('student','create','g',{field:'acting',title:'Listen',instructions:'Try pausing.',dueDate:'2026-11-01',clientId:'stable-client-id'});
   await waitFor(()=>u.getByTestId('assignment-close'));expect(u.queryByTestId('assignment-submit')).toBeNull();
 });
 test('owner saves a comment to the selected student submission only',async()=>{
@@ -75,4 +75,10 @@ test('owner saves a comment to the selected student submission only',async()=>{
 test('a closed assignment keeps past feedback but disables new submissions',async()=>{
   const normal=assignmentAction.getMockImplementation();assignmentAction.mockImplementation(async(...args)=>args[1]==='read'?{assignment:{...assignment,closed_at:'2026-10-15'},role,submissions:[]}:normal(...args));
   const u=screen();await open(u);expect(u.queryByTestId('assignment-practice')).toBeNull();expect(u.queryByTestId('assignment-submit')).toBeNull();
+});
+
+test('music assignment starts a music record and opens media submissions in the same field',async()=>{
+ const normal=assignmentAction.getMockImplementation();assignmentAction.mockImplementation(async(...args)=>args[1]==='read'?{assignment:{...assignment,field:'music'},role,submissions:[]}:normal(...args));
+ const u=screen();await open(u);fireEvent.press(u.getByTestId('assignment-practice'));expect(navigation.navigate).toHaveBeenCalledWith('NoteCreate',{prefill:{field:'music',title:'Listen',focus:'Try pausing.'}});
+ fireEvent.press(u.getByTestId('assignment-artwork'));expect(navigation.navigate).toHaveBeenCalledWith('ReviewRoom',{assignmentId:'a',field:'music',title:'Listen'});
 });

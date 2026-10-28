@@ -38,6 +38,8 @@ function manageUrl(planCode) {
   return `https://play.google.com/store/account/subscriptions?package=${ANDROID_PACKAGE}${sku}`;
 }
 
+const priceOf = (pkg) => typeof pkg?.product?.priceString === "string" ? pkg.product.priceString.trim() : "";
+
 export default function SubscriptionScreen({ navigation }) {
   const { t } = useTranslation();
   const { premium, usage, markPremiumActive, refreshPremium, userProfile, setAuthState, storageReady } = useApp();
@@ -57,7 +59,9 @@ export default function SubscriptionScreen({ navigation }) {
   const operationRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
-  const [offering, setOffering] = useState(null);
+  const [offeringResult, setOfferingResult] = useState(null);
+  const offering = offeringResult?.owner === owner ? offeringResult.value : null;
+  const [offeringAttempt, setOfferingAttempt] = useState(0);
   const [entitlementResult, setEntitlementResult] = useState(null);
   const entitlement = entitlementResult?.owner === owner ? entitlementResult.value : null;
   const [selected, setSelected] = useState("yearly");
@@ -86,7 +90,7 @@ export default function SubscriptionScreen({ navigation }) {
     let cancelled = false;
     const canApply = () => !cancelled && isCurrent();
     setEntitlementResult(null);
-    setOffering(null);
+    setOfferingResult(null);
     setLoading(true);
     (async () => {
       try {
@@ -96,20 +100,33 @@ export default function SubscriptionScreen({ navigation }) {
           if (canApply()) setEntitlementResult({ owner, value });
         } else {
           const value = await getPremiumOffering();
-          if (canApply()) setOffering(value);
+          if (canApply()) {
+            setOfferingResult({ owner, value });
+            if (!priceOf(value?.annual) && priceOf(value?.monthly)) setSelected("monthly");
+          }
         }
       } catch (_) {
-        // An unavailable offering keeps the existing "not ready" purchase message.
+        // Keep unavailable prices empty; the user can retry without a fabricated price.
       } finally {
         if (canApply()) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [isActive, owner]);
+  }, [isActive, owner, offeringAttempt]);
 
   const monthlyPkg = offering?.monthly || null;
   const yearlyPkg = offering?.annual || null;
   const selectedPkg = selected === "yearly" ? yearlyPkg : monthlyPkg;
+  const monthlyPrice = priceOf(monthlyPkg);
+  const yearlyPrice = priceOf(yearlyPkg);
+  const selectedPrice = priceOf(selectedPkg);
+  const monthlyProduct = monthlyPkg?.product;
+  const yearlyProduct = yearlyPkg?.product;
+  const annualSaving = monthlyPrice && yearlyPrice && monthlyProduct.currencyCode && monthlyProduct.currencyCode === yearlyProduct.currencyCode
+    && monthlyProduct.subscriptionPeriod === "P1M" && yearlyProduct.subscriptionPeriod === "P1Y"
+    && Number.isFinite(monthlyProduct.price) && monthlyProduct.price > 0
+    && Number.isFinite(yearlyProduct.price) && yearlyProduct.price > 0
+    ? Math.floor((1 - yearlyProduct.price / (monthlyProduct.price * 12)) * 100) : 0;
 
   const showFailure = (result, restoring) => {
     if (result?.cancelled || result?.reason === "account_changed") return;
@@ -126,7 +143,7 @@ export default function SubscriptionScreen({ navigation }) {
 
   const runTransaction = async (restoring) => {
     if (!isCurrent() || operationRef.current || requireLogin()) return;
-    if (!restoring && !selectedPkg) {
+    if (!restoring && (loading || !selectedPkg || !selectedPrice)) {
       Alert.alert(t("premium.title"), t("premium.not_ready"));
       return;
     }
@@ -280,34 +297,42 @@ export default function SubscriptionScreen({ navigation }) {
             <TouchableOpacity
               style={[styles.planCard, selected === "yearly" && styles.planSelected]}
               onPress={() => setSelected("yearly")}
+              disabled={buying || !yearlyPrice}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected === "yearly", disabled: buying || !yearlyPrice }}
               activeOpacity={0.8}
             >
-              <View style={styles.saveBadge}>
-                <Text style={styles.saveBadgeText}>{t("premium.yearly_save")}</Text>
-              </View>
+              {annualSaving > 0 && <View style={styles.saveBadge}>
+                <Text style={styles.saveBadgeText}>{t("premium.yearly_save", { percent: annualSaving })}</Text>
+              </View>}
               <Text style={[T.bodyBold, styles.planName]}>{t("premium.yearly")}</Text>
               <Text style={[T.title, styles.planPrice]}>
-                {yearlyPkg?.product?.priceString || "₩49,000"}
+                {yearlyPrice || t("premium.price_unavailable")}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.planCard, selected === "monthly" && styles.planSelected]}
               onPress={() => setSelected("monthly")}
+              disabled={buying || !monthlyPrice}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected === "monthly", disabled: buying || !monthlyPrice }}
               activeOpacity={0.8}
             >
               <Text style={[T.bodyBold, styles.planName]}>{t("premium.monthly")}</Text>
               <Text style={[T.title, styles.planPrice]}>
-                {monthlyPkg?.product?.priceString || "₩6,900"}
+                {monthlyPrice || t("premium.price_unavailable")}
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
         <TouchableOpacity
-          style={[styles.ctaBtn, (buying || loading) && { opacity: 0.6 }]}
+          style={[styles.ctaBtn, (buying || loading || !selectedPrice) && { opacity: 0.6 }]}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: buying || loading || !selectedPrice }}
           onPress={handlePurchase}
-          disabled={buying || loading}
+          disabled={buying || loading || !selectedPrice}
         >
           {buying ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -318,6 +343,15 @@ export default function SubscriptionScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
+        {!loading && (!monthlyPrice || !yearlyPrice) && <TouchableOpacity
+          style={styles.restoreBtn}
+          accessibilityRole="button"
+          disabled={buying}
+          onPress={() => { if (isCurrent() && !buying) setOfferingAttempt(value => value + 1); }}
+        >
+          <Text style={[T.small, { color: CLight.gray500 }]}>{t("common.retry")}</Text>
+        </TouchableOpacity>}
+
         {/* 익명 결제 방지 — 누르기 전에 로그인이 필요하다는 걸 보여준다 */}
         {!userProfile?.authUserId ? (
           <Text style={[T.caption, styles.note]}>{t("premium.login_required_message")}</Text>
@@ -327,12 +361,12 @@ export default function SubscriptionScreen({ navigation }) {
           <Text style={[T.small, { color: CLight.gray500 }]}>{t("premium.restore")}</Text>
         </TouchableOpacity>
 
-        <Text style={[T.caption, styles.note]}>
+        {!!selectedPrice && <Text style={[T.caption, styles.note]}>
           {t(Platform.OS === "android" ? "premium.renew_notice_android" : "premium.renew_notice", {
             plan: selected === "yearly" ? t("premium.yearly") : t("premium.monthly"),
-            price: selectedPkg?.product?.priceString || (selected === "yearly" ? "₩49,000" : "₩6,900"),
+            price: selectedPrice,
           })}
-        </Text>
+        </Text>}
 
         <View style={styles.links}>
           <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>

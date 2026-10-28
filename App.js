@@ -23,6 +23,8 @@ import Toast from "./src/components/Toast";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import NotesScreen from "./src/screens/NotesScreen";
+import ReviewRoomScreen from "./src/screens/ReviewRoomScreen";
+import {uuid as reviewUuid, token as reviewToken} from "./src/utils/reviewContract";
 import StudioImportScreen from "./src/screens/StudioImportScreen";
 import { code as studioCode } from "./src/utils/studioTransferContract";
 import NoteCreateScreen from "./src/screens/NoteCreateScreen";
@@ -290,6 +292,7 @@ export function AppNavigator() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [pendingPractice, setPendingPractice] = useState(null);
   const [pendingStudio, setPendingStudio] = useState(null);
+  const [pendingReview, setPendingReview] = useState(null);
   const [draftChecked, setDraftChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(null); // null = loading
 
@@ -321,6 +324,10 @@ export function AppNavigator() {
       try {
         const parsed = ExpoLinking.parse(url);
         const path = (parsed.hostname || parsed.path || "").replace(/^\//, "");
+        if (path === "review-room") {
+          if(reviewUuid(parsed.queryParams?.room)) setPendingReview({roomId:parsed.queryParams.room,linkKey:reviewToken(parsed.queryParams?.key)?parsed.queryParams.key:null});
+          return;
+        }
         if (path === "studio-import") {
           const code = studioCode(parsed.queryParams?.code);
           setPendingStudio({ code: code || "" });
@@ -393,6 +400,18 @@ export function AppNavigator() {
     const timer = setInterval(() => { if (open()) clearInterval(timer); }, 500);
     return () => clearInterval(timer);
   }, [pendingPractice, authState, storageReady, showOnboarding, draftChecked]);
+
+  useEffect(() => {
+    if (!pendingReview || authState !== "app" || !storageReady || showOnboarding !== false || !draftChecked) return;
+    const open = () => {
+      if (!navigationRef.isReady() || !navigationRef.getRootState()?.routeNames?.includes("ReviewRoom")) return false;
+      navigationRef.dispatch(StackActions.push("ReviewRoom", pendingReview));
+      setPendingReview(null); return true;
+    };
+    if (open()) return;
+    const timer = setInterval(() => { if (open()) clearInterval(timer); }, 500);
+    return () => clearInterval(timer);
+  }, [pendingReview, authState, storageReady, showOnboarding, draftChecked]);
 
   useEffect(() => {
     if (!pendingStudio || authState !== "app" || !storageReady || showOnboarding !== false || !draftChecked) return;
@@ -482,6 +501,7 @@ export function AppNavigator() {
                 options={{ presentation: "modal", animation: "slide_from_bottom" }}
               />
               <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
+              <Stack.Screen name="ReviewRoom" component={ReviewRoomScreen} />
               <Stack.Screen name="StudioImport" component={StudioImportScreen} />
               <Stack.Screen name="Growth" component={GrowthScreen} />
               <Stack.Screen name="DuetPractice" component={DuetPracticeScreen} />

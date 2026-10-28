@@ -8,6 +8,8 @@ import { STUDIO as C } from '../constants/studioTheme';
 import { groupAction, groupErrorMessage } from '../services/groupService';
 import { newUuid } from '../services/practiceService';
 
+const kinds={academy:['학원','Academy'],theatre:['극단','Theatre'],band:['밴드·음악','Music'],dance:['무용단','Dance'],art:['미술 작업실','Art studio'],writing:['합평 모임','Writing circle'],film:['영화 제작팀','Film crew'],collective:['창작 모임','Collective']};
+
 export default function GroupsScreen({ navigation }) {
   const context = useApp();
   const { i18n } = useTranslation();
@@ -115,7 +117,7 @@ function GroupWorkspace({ accountId, context, navigation, ko }) {
     </View>}
   </View>;
   return <SafeAreaView style={s.safe} edges={['top','bottom']}>
-    <View style={s.top}>{button('groups-back',say('뒤로','Back'),()=>{ const leave=()=>selected ? changeGroup(null) : navigation.goBack(); if (body.trim() || title.trim() || Object.values(drafts.current).some(d=>d.body.trim()||d.title.trim())) confirm(say('작성 중인 글을 두고 나가기','Discard unsent draft'),leave); else leave(); })}<Text style={s.heading}>{say('학원·극단 공간','Private groups')}</Text></View>
+    <View style={s.top}>{button('groups-back',say('뒤로','Back'),()=>{ const leave=()=>selected ? changeGroup(null) : navigation.goBack(); if (body.trim() || title.trim() || Object.values(drafts.current).some(d=>d.body.trim()||d.title.trim())) confirm(say('작성 중인 글을 두고 나가기','Discard unsent draft'),leave); else leave(); })}<Text style={s.heading}>{say('창작 모임','Private groups')}</Text></View>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView ref={scroll} onContentSizeChange={() => { if (scrollToChat.current) { scrollToChat.current = false; scroll.current?.scrollToEnd({ animated: false }); } }} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
       <Text style={s.eyebrow}>{say('함께 연습하는 사람들의 공간','YOUR CREATIVE GROUP')}</Text>
@@ -123,10 +125,10 @@ function GroupWorkspace({ accountId, context, navigation, ko }) {
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       {!accountId ? <View style={s.card}><Text style={s.body}>{say('가입한 구성원만 공지와 대화를 볼 수 있어요. 로그인하고 초대코드로 들어오세요.','Only members can read notices and conversations. Sign in and use an invitation code.')}</Text>{button('groups-login',say('로그인하기','Sign in'),()=>context.requestGroupLogin(),false,true)}</View> : loading ? <ActivityIndicator /> : !selected ? <>
         <Text style={s.body}>{say('초대받은 구성원끼리 쓰는 비공개 공간입니다.','A private space for invited members.')}</Text>
-        {groups.map(group => button(`group-open-${group.id}`,`${group.kind==='academy'?say('학원','Academy'):say('극단','Theatre')} · ${group.name}`,()=>changeGroup(group)))}
+        {groups.map(group => button(`group-open-${group.id}`,`${(kinds[group.kind]||kinds.collective)[ko?0:1]} · ${group.name}`,()=>changeGroup(group)))}
         <View style={s.card}><Text style={s.heading}>{say('공간에서 사용할 이름','Your name in this group')}</Text>{input('group-display-name',displayName,setDisplayName,say('구성원에게 보여줄 이름','Name shown to members'),40)}</View>
         <View style={s.card}><Text style={s.heading}>{say('초대코드로 가입','Join with a code')}</Text>{input('group-code',code,setCode,say('운영자에게 받은 초대코드','Invitation code'),32)}{button('group-join',say('가입하기','Join'),()=>run('join',{code:code.trim(),displayName:displayName.trim()}),!code.trim()||!displayName.trim(),true)}</View>
-        <View style={s.card}><Text style={s.heading}>{say('우리 단체 공간 만들기','Create your group')}</Text><View style={s.row}>{['academy','theatre'].map(value => button(`group-kind-${value}`,`${kind===value?'● ':''}${value==='academy'?say('학원','Academy'):say('극단','Theatre')}`,()=>setKind(value)))}</View>{input('group-name',name,setName,say('학원 또는 극단 이름','Academy or theatre name'))}{button('group-create',say('비공개 공간 만들기','Create private group'),()=>run('create',{name:name.trim(),kind,displayName:displayName.trim()}),!name.trim()||!displayName.trim(),true)}</View>
+        <View style={s.card}><Text style={s.heading}>{say('우리 단체 공간 만들기','Create your group')}</Text><View style={[s.row,{flexWrap:'wrap'}]}>{Object.keys(kinds).map(value => button(`group-kind-${value}`,`${kind===value?'● ':''}${kinds[value][ko?0:1]}`,()=>setKind(value)))}</View>{input('group-name',name,setName,say('모임 또는 단체 이름','Group name'))}{button('group-create',say('비공개 공간 만들기','Create private group'),()=>run('create',{name:name.trim(),kind,displayName:displayName.trim()}),!name.trim()||!displayName.trim(),true)}</View>
       </> : room ? <>
         <View style={s.row}>{[['notice','공지','Notices'],['message','대화','Chat'],['members','구성원','Members']].map(([value,kr,en])=>button(`group-tab-${value}`,`${tab===value?'● ':''}${say(kr,en)}`,()=>switchTab(value)))}</View>
         {button('group-assignments',say('과제와 피드백','Assignments & feedback'),()=>navigation.navigate('GroupAssignments',{groupId:selected.id,groupName:selected.name}),false,true)}

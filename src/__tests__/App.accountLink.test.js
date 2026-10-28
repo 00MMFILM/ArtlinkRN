@@ -5,7 +5,7 @@ const mockNavigate = jest.fn();
 const mockDispatch = jest.fn();
 jest.mock("@react-navigation/native", () => ({
   NavigationContainer: ({ children }) => children,
-  createNavigationContainerRef: () => ({ isReady: () => true, getRootState: () => ({ routeNames: ["NoteCreate", "DuetPractice"] }), navigate: mockNavigate, dispatch: mockDispatch }),
+  createNavigationContainerRef: () => ({ isReady: () => true, getRootState: () => ({ routeNames: ["NoteCreate", "DuetPractice", "ReviewRoom"] }), navigate: mockNavigate, dispatch: mockDispatch }),
   StackActions: { push: (name, params) => ({ type: "PUSH", payload: { name, params } }) },
 }));
 jest.mock("@react-navigation/native-stack", () => ({ createNativeStackNavigator: () => ({ Navigator: ({ children }) => children, Screen: () => null }) }));
@@ -25,7 +25,7 @@ jest.mock("../services/practiceService", () => ({ flushPracticeQueue: jest.fn() 
 jest.mock("../services/purchasesService", () => ({ initPurchases: jest.fn(), logInPurchases: jest.fn() }));
 jest.mock("../components/Toast", () => () => null);
 [
-  "GroupsScreen", "AuthScreen", "HomeScreen", "NotesScreen", "NoteCreateScreen", "NoteDetailScreen", "CommunityScreen", "ProfileScreen",
+  "ReviewRoomScreen", "GroupsScreen", "AuthScreen", "HomeScreen", "NotesScreen", "NoteCreateScreen", "NoteDetailScreen", "CommunityScreen", "ProfileScreen",
   "GrowthScreen", "DuetPracticeScreen", "MatchingScreen", "ShareCardScreen", "PortfolioScreen", "GoalsScreen", "SubscriptionScreen",
   "NotificationsScreen", "B2BDashboardScreen", "DevRoadmapScreen", "OnboardingScreen", "MatchingPostCreateScreen", "ProfileEditScreen",
   "EULAScreen", "CommunityPostDetailScreen", "CommunityPostCreateScreen", "MatchingPostDetailScreen", "InboxScreen",
@@ -197,4 +197,13 @@ test("quick scene link survives auth and opens above a restored draft without re
     name: "DuetPractice", params: { quickStart: true, scriptLanguage: "en" },
   } }));
   expect(mockNavigate).toHaveBeenCalledWith("NoteCreate", expect.objectContaining({ prefill: { title: "Existing draft", content: "Keep me" }, restoredDraft: true }));
+});
+
+test("작품 초대 딥링크는 초대 키와 방 번호를 전용 화면으로 전달한다", async () => {
+ context = {...context, userProfile: {authUserId:'member',name:'Artist'}, showOnboarding:false};
+ const room='00000000-0000-4000-8000-000000000001',key='a'.repeat(48);
+ ExpoLinking.getInitialURL.mockResolvedValueOnce('artlink://review-room?room='+room+'&key='+key);
+ ExpoLinking.parse.mockReturnValueOnce({hostname:'review-room',queryParams:{room,key}});
+ render(<AppNavigator/>);
+ await waitFor(()=>expect(mockDispatch).toHaveBeenCalledWith({type:'PUSH',payload:{name:'ReviewRoom',params:{roomId:room,linkKey:key}}}));
 });

@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext';
 import { assignmentAction, groupErrorMessage } from '../services/groupService';
 import { submissionPreview } from '../services/assignmentSubmission';
 import { newUuid } from '../services/practiceService';
+import { fields, labels } from '../utils/reviewContract';
 import { STUDIO as C } from '../constants/studioTheme';
 
 export default function GroupAssignmentsScreen({ route, navigation }) {
@@ -18,6 +19,7 @@ export default function GroupAssignmentsScreen({ route, navigation }) {
 
 function Workspace({ context, accountId, groupId, groupName, navigation, ko }) {
   const say = (a,b) => ko ? a : b;
+  const [field,setField]=useState('acting');
   const [selected, setSelected] = useState(null), [data, setData] = useState(null);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [title, setTitle] = useState(''), [instructions, setInstructions] = useState(''), [dueDate, setDueDate] = useState('');
@@ -92,7 +94,7 @@ function Workspace({ context, accountId, groupId, groupName, navigation, ko }) {
   return <SafeAreaView style={s.safe} edges={['top','bottom']}>
     <View style={s.top}>{button('assignment-back',say('뒤로','Back'),()=>selected?choose(null):navigation.goBack())}<Text style={s.heading}>{say('과제와 피드백','Assignments & feedback')}</Text></View>
     <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
-      <Text style={s.eyebrow}>{groupName || say('학원·극단 공간','Private group')}</Text>
+      <Text style={s.eyebrow}>{groupName || say('창작 모임','Private group')}</Text>
       <Text style={s.title}>{assignment?.title || say('다음 연습을 함께.','Keep practising together.')}</Text>
       {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       {!!message&&visible&&<Text accessibilityRole="alert" style={s.success}>{message}</Text>}
@@ -111,20 +113,22 @@ function Workspace({ context, accountId, groupId, groupName, navigation, ko }) {
         {data.list.assignments.map(a=>button(`assignment-open-${a.id}`,`${a.closed_at?say('마감 · ','Closed · '):''}${a.title}${a.due_date?` · ${a.due_date}`:''}`,()=>choose(a.id)))}
         {!data.list.assignments.length&&<Text style={s.body}>{say('아직 과제가 없어요. 운영자가 첫 과제를 올리면 여기에 나타납니다.','No assignments yet. The owner can create the first one here.')}</Text>}
         {owner&&<View style={s.card}><Text style={s.heading}>{say('새 과제','New assignment')}</Text>
+          <View style={{flexDirection:'row',flexWrap:'wrap',gap:6}}>{fields.map(f=>button(`assignment-field-${f}`,`${field===f?'● ':''}${labels[f][ko?0:1]}`,()=>setField(f)))}</View>
           {input('assignment-title',title,setTitle,say('과제 제목','Assignment title'),120)}
           {input('assignment-instructions',instructions,setInstructions,say('연습할 내용과 제출 기준','Practice instructions and submission criteria'),4000,true)}
           {input('assignment-due',dueDate,setDueDate,say('목표일 (선택, YYYY-MM-DD)','Target date (optional, YYYY-MM-DD)'),10)}
           <Text style={s.small}>{say('목표일이 지나도 제출할 수 있어요. 제출 종료 버튼으로 마감합니다.','Students can submit after the target date until you close submissions.')}</Text>
-          {button('assignment-create',say('과제 올리기','Publish assignment'),()=>run('create',withKey('create',{title:title.trim(),instructions:instructions.trim(),dueDate:dueDate.trim()}),r=>{clearDraft();setSelected(r.id);}),!title.trim()||!instructions.trim(),true)}
+          {button('assignment-create',say('과제 올리기','Publish assignment'),()=>run('create',withKey('create',{field,title:title.trim(),instructions:instructions.trim(),dueDate:dueDate.trim()}),r=>{clearDraft();setSelected(r.id);}),!title.trim()||!instructions.trim(),true)}
         </View>}
       </>}
       {assignment&&<>
+        {button('assignment-artwork',say('작품 제출과 부분별 코멘트','Artwork submissions & comments'),()=>navigation.navigate('ReviewRoom',{assignmentId:assignment.id,field:assignment.field||'acting',title:assignment.title}))}
         <View style={s.card}><Text selectable style={s.body}>{assignment.instructions}</Text><Text style={s.small}>{assignment.closed_at?say('제출 종료','Submissions closed'):assignment.due_date?say(`목표일 ${assignment.due_date} · 이후에도 제출 가능`,`Target ${assignment.due_date} · Late submissions accepted`):say('목표일 없음','No target date')}</Text>
           {owner&&!assignment.closed_at&&button('assignment-close',say('제출 종료','Close submissions'),()=>Alert.alert(say('이 과제 제출을 종료할까요?','Close this assignment?'),say('새 제출을 받지 않습니다. 기존 제출물과 코멘트는 계속 볼 수 있어요.','Existing submissions and comments remain visible. New submissions will be closed.'),[{text:say('취소','Cancel'),style:'cancel'},{text:say('종료','Close'),onPress:()=>run('close')}]))}
         </View>
         {!owner&&!assignment.closed_at&&<View style={s.card}>
           <Text style={s.heading}>{say('내 연습 제출하기','Submit my practice')}</Text>
-          {button('assignment-practice',say('이 과제로 새 연습 기록','Start a practice note'),()=>navigation.navigate('NoteCreate',{prefill:{field:'acting',title:assignment.title.slice(0,100),focus:assignment.instructions.slice(0,500)}}))}
+          {button('assignment-practice',say('이 과제로 새 연습 기록','Start a practice note'),()=>navigation.navigate('NoteCreate',{prefill:{field:assignment.field||'acting',title:assignment.title.slice(0,100),focus:assignment.instructions.slice(0,500)}}))}
           <Text style={s.small}>{say('연습 기록을 저장하고 이 화면으로 돌아와 선택해주세요. 최근 기록 중 공유 가능한 글과 AI 피드백이 있는 30개를 표시합니다.','Save your practice and return here to choose it. Showing up to 30 recent notes with shareable writing or AI feedback.')}</Text>
           {!notes.length&&<Text style={s.body}>{say('공유 가능한 기록이 없어요. 연습 글 또는 AI 피드백을 먼저 저장해주세요. 너무 긴 기록은 제출할 수 없습니다.','Save a note with writing or AI feedback first. Media-only or oversized notes cannot be submitted here.')}</Text>}
           {notes.map(n=>button(`assignment-note-${n.id}`,`${noteId===String(n.id)?'● ':''}${n.title||say('제목 없는 기록','Untitled note')}`,()=>{setNoteId(String(n.id));setConsent(false);} ))}

@@ -168,6 +168,9 @@ export default function NotesScreen({ navigation }) {
         </TouchableOpacity>
       )}
 
+      <TouchableOpacity testID="review-rooms" accessibilityRole="button" style={styles.guestNotice} onPress={() => navigation.navigate("ReviewRoom", {field:selectedField==='all'?'acting':selectedField})}>
+        <Text style={[T.captionBold, {color:CLight.pink}]}>{isKoreanLocale ? "작품 피드백룸 · 동료에게 의견 받기" : "Artwork rooms · Invite feedback"}</Text>
+      </TouchableOpacity>
       <TouchableOpacity testID="import-web-review" accessibilityRole="button" style={styles.guestNotice} onPress={() => navigation.navigate("StudioImport")}>
         <Text style={[T.captionBold, { color: CLight.pink }]}>{isKoreanLocale !== false ? "웹 작업 가져오기 →" : "Import web review →"}</Text>
       </TouchableOpacity>

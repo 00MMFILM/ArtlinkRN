@@ -38,6 +38,7 @@ import TopBar from "../components/TopBar";
 import FeedbackNextStep from "../components/FeedbackNextStep";
 import { ArtworkRegionPicker } from "../components/ArtworkReview";
 import StandardSpeechPractice from "../components/StandardSpeechPractice";
+import SpeechCheckPanel from "../components/SpeechCheckPanel";
 import StudioContextCard from "../components/StudioContextCard";
 import { useTranslation } from "react-i18next";
 import { hasAskedSignupNudge, markSignupNudgeAsked } from "../services/signupNudge";
@@ -138,6 +139,7 @@ export default function NoteCreateScreen({ navigation, route }) {
   // the current script language, role, and application context unchanged.
   const [speechLineIndex, setSpeechLineIndex] = useState(prefill?.speechLineIndex || 0);
   const speechPracticeRef = useRef(null);
+  const speechCheckRef = useRef(null);
   const studioMetadata = useMemo(() => sanitizeStudioMetadata({ ...prefill, speechLineIndex }), [prefill, speechLineIndex]);
   // 가입 왕복 후 복원으로 열린 경우 (App.js가 보관된 초안을 prefill로 넘긴다)
   const restoredDraft = !!route?.params?.restoredDraft;
@@ -784,6 +786,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     };
     try {
       if (speechPracticeRef.current) await speechPracticeRef.current.stop();
+      await speechCheckRef.current?.stop();
       if (!canRecord()) return;
       if (playingSoundRef.current) {
         await playingSoundRef.current.unloadAsync();
@@ -917,6 +920,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     const owner = accountRef.current;
     const stale = () => generation !== playbackGenerationRef.current || owner !== accountRef.current || !!recordingRef.current || recordingBusyRef.current;
     await speechPracticeRef.current?.stop();
+    await speechCheckRef.current?.stop();
     if (stale()) return;
     try {
       if (playingSound) {
@@ -984,6 +988,7 @@ export default function NoteCreateScreen({ navigation, route }) {
     const owner = accountRef.current;
     const stale = () => generation !== playbackGenerationRef.current || owner !== accountRef.current || !!recordingRef.current || recordingBusyRef.current;
     await speechPracticeRef.current?.stop();
+    await speechCheckRef.current?.stop();
     if (stale()) return;
     try {
       if (playingSound) {
@@ -1231,7 +1236,7 @@ export default function NoteCreateScreen({ navigation, route }) {
           ref={speechPracticeRef} content={content} language={i18n.language} lineIndex={speechLineIndex} onLineChange={setSpeechLineIndex}
           recording={isRecording} inputDb={recordingInputDb} recordingSeconds={recordingDuration} busy={aiBusy || saving || speechRecordingBusy} takes={voiceRecordings} owner={userProfile?.authUserId || "guest"} navigation={navigation}
           onRecord={handleStartRecording} onStop={handleStopRecording} onPlay={handlePlayRecording}
-          beforeListen={async () => { playbackGenerationRef.current += 1; if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); } }}
+          beforeListen={async () => { await speechCheckRef.current?.stop(); playbackGenerationRef.current += 1; if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); } }}
         />}
         {isVideoRetake ? (
           <View style={styles.focusBanner}>
@@ -1421,6 +1426,16 @@ export default function NoteCreateScreen({ navigation, route }) {
             ))}
           </View>
         )}
+
+        {['acting', 'film'].includes(field) && (voiceRecordings.length > 0 || audioFiles.length > 0) && <SpeechCheckPanel
+          key={`${userProfile?.authUserId || 'guest'}:${studioMetadata.practiceMode || ''}:${studioMetadata.scriptLanguage || ''}`}
+          ref={speechCheckRef} accountId={userProfile?.authUserId} takes={[...voiceRecordings, ...audioFiles]}
+          reference={studioMetadata.practiceMode === 'standard_speech' ? content.split(/\n+/).filter(s => s.trim())[speechLineIndex] || '' : ''}
+          scriptLanguage={studioMetadata.scriptLanguage || studioMetadata.rehearsalContext?.scriptLanguage || 'ko'} language={i18n.language}
+          busy={aiBusy || saving || isRecording || speechRecordingBusy} navigation={navigation}
+          beforeListen={async () => { await speechPracticeRef.current?.stop(); playbackGenerationRef.current += 1; if (playingSoundRef.current) { await playingSoundRef.current.unloadAsync(); playingSoundRef.current = null; setPlayingSound(null); setPlayingIdx(null); } }}
+          onAppendSummary={summary => setContent(value => value + '\n\n' + summary)}
+        />}
 
         {/* PDF Files List */}
         {pdfFiles.length > 0 && (

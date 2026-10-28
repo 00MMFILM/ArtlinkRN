@@ -27,6 +27,16 @@ jest.mock("../../services/purchasesService", () => ({
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn() };
 
+afterEach(async () => { await act(async () => {}); });
+
+beforeEach(() => {
+  getPremiumOffering.mockResolvedValue({
+    annual: { product: { priceString: "$49.99", price: 49.99, currencyCode: "USD", subscriptionPeriod: "P1Y" } },
+    monthly: { product: { priceString: "$6.99", price: 6.99, currencyCode: "USD", subscriptionPeriod: "P1M" } },
+  });
+});
+
+
 // 기본은 로그인된 유저 — 게스트 결제 방지 테스트는 userProfile을 따로 넘긴다
 const ctx = (premium, userProfile = { authUserId: "u1" }, usage = null) => ({
   premium,
@@ -347,5 +357,95 @@ describe("SubscriptionScreen — 계정 소유권·복원 실패·중복 실행"
     await act(async () => finishA({ expirationDate: "2027-09-01T00:00:00Z", productIdentifier: "artlink_premium_yearly" }));
     expect(getPremiumEntitlement).toHaveBeenCalledWith("B");
     expect(ui.queryByText(/^premium.next_billing/)).toBeNull();
+  });
+});
+
+
+describe("SubscriptionScreen — 실제 스토어 가격", () => {
+  const offer = (currency = "USD", yearly = 60, monthly = 10) => ({
+    annual: { product: { priceString: `${currency} ${yearly}`, price: yearly, currencyCode: currency, subscriptionPeriod: "P1Y" } },
+    monthly: { product: { priceString: `${currency} ${monthly}`, price: monthly, currencyCode: currency, subscriptionPeriod: "P1M" } },
+  });
+  const ready = async () => {
+    const ui = render(<SubscriptionScreen navigation={navigation} />);
+    await waitFor(() => expect(ui.queryByText("premium.yearly")).toBeTruthy());
+    return ui;
+  };
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockScope = "account:u1";
+    useApp.mockReturnValue(ctx({ active: false }));
+    getPremiumOffering.mockResolvedValue(offer());
+  });
+
+  it("가격 조회 실패 시 원화 대체 가격과 갱신 금액을 숨기고 재시도로 복구한다", async () => {
+    getPremiumOffering.mockResolvedValueOnce(null).mockResolvedValue(offer());
+    const ui = await ready();
+    expect(ui.queryByText("₩6,900")).toBeNull();
+    expect(ui.queryByText("₩49,000")).toBeNull();
+    expect(ui.queryByText(/^premium\.renew_notice/)).toBeNull();
+    expect(ui.getByRole("button", { name: "premium.cta_subscribe" })).toBeDisabled();
+    fireEvent.press(ui.getByText("premium.cta_subscribe"));
+    expect(purchasePremium).not.toHaveBeenCalled();
+    fireEvent.press(ui.getByText("common.retry"));
+    await waitFor(() => expect(ui.queryByText("USD 60")).toBeTruthy());
+    fireEvent.press(ui.getByText("premium.cta_subscribe"));
+    await waitFor(() => expect(purchasePremium).toHaveBeenCalledWith(offer().annual, expect.any(Object)));
+  });
+
+  it("선택한 상품의 현지 가격으로 갱신을 안내하고 할인율을 계산한다", async () => {
+    const ui = await ready();
+    expect(ui.queryByText('premium.yearly_save:{"percent":50}')).toBeTruthy();
+    expect(ui.queryByText(/premium\.renew_notice.*USD 60/)).toBeTruthy();
+    fireEvent.press(ui.getByText("premium.monthly"));
+    expect(ui.queryByText(/premium\.renew_notice.*USD 10/)).toBeTruthy();
+    fireEvent.press(ui.getByText("premium.cta_subscribe"));
+    await waitFor(() => expect(purchasePremium).toHaveBeenCalledWith(offer().monthly, expect.any(Object)));
+  });
+
+  it.each(["currency", "period", "price", "no-saving"])("할인을 검증할 수 없는 %s 상품은 할인 문구를 표시하지 않는다", async kind => {
+    const value = offer();
+    if (kind === "currency") value.annual.product.currencyCode = "EUR";
+    if (kind === "period") value.annual.product.subscriptionPeriod = "P6M";
+    if (kind === "price") value.annual.product.price = NaN;
+    if (kind === "no-saving") value.annual.product.price = 130;
+    getPremiumOffering.mockResolvedValue(value);
+    const ui = await ready();
+    expect(ui.queryByText(/^premium\.yearly_save/)).toBeNull();
+  });
+
+  it("연간 상품이 없고 월간 상품만 있으면 월간 상품으로 시작한다", async () => {
+    const value = { monthly: offer("EUR").monthly };
+    getPremiumOffering.mockResolvedValue(value);
+    const ui = await ready();
+    expect(ui.queryByText(/premium\.renew_notice.*EUR 10/)).toBeTruthy();
+    fireEvent.press(ui.getByText("premium.yearly"));
+    fireEvent.press(ui.getByText("premium.cta_subscribe"));
+    await waitFor(() => expect(purchasePremium).toHaveBeenCalledWith(value.monthly, expect.any(Object)));
+  });
+
+  it("가격 문자열이 없는 상품으로는 구매를 시작하지 않는다", async () => {
+    getPremiumOffering.mockResolvedValue({ annual: { product: { priceString: "  " } } });
+    const ui = await ready();
+    expect(ui.getByRole("button", { name: "premium.cta_subscribe" })).toBeDisabled();
+    fireEvent.press(ui.getByText("premium.cta_subscribe"));
+    expect(purchasePremium).not.toHaveBeenCalled();
+  });
+
+  it("계정 전환 전 시작한 가격 조회가 새 계정의 상품을 덮어쓰지 않는다", async () => {
+    let resolveOld;
+    getPremiumOffering.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve; }));
+    const ui = render(<SubscriptionScreen navigation={navigation} />);
+    await waitFor(() => expect(getPremiumOffering).toHaveBeenCalledTimes(1));
+    getPremiumOffering.mockResolvedValue(offer("EUR"));
+    mockScope = "account:u2";
+    useApp.mockReturnValue(ctx({ active: false }, { authUserId: "u2" }));
+    ui.rerender(<SubscriptionScreen navigation={navigation} />);
+    await waitFor(() => expect(ui.queryByText("EUR 60")).toBeTruthy());
+    await act(async () => resolveOld(offer("USD")));
+    expect(ui.queryByText("USD 60")).toBeNull();
+    fireEvent.press(ui.getByText("premium.cta_subscribe"));
+    await waitFor(() => expect(purchasePremium).toHaveBeenCalledWith(offer("EUR").annual, expect.objectContaining({ authUserId: "u2" })));
+    mockScope = "account:u1";
   });
 });
