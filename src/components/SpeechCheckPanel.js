@@ -77,7 +77,7 @@ export default forwardRef(function SpeechCheckPanel({ accountId, takes = [], ref
     LOGIN_REQUIRED: say('로그인 후 녹음을 점검할 수 있어요.', 'Sign in to check a recording.'),
     DURATION_LIMIT: say('0.4~30초의 짧은 녹음을 선택해주세요.', 'Choose a recording between 0.4 and 30 seconds.'),
     INVALID_AUDIO: say('2MB 이하의 짧은 녹음을 선택해주세요. 녹음 파일을 읽지 못했어요.', 'Choose a short recording under 2 MB. The audio could not be read.'),
-    SPEECH_LIMIT: say('최근 24시간의 녹음 점검 체험 5회를 사용했어요.', 'You have used 5 recording checks in the last 24 hours.'),
+    SPEECH_LIMIT: say('최근 24시간 녹음 점검·말투 비교 체험 5회를 사용했어요.', 'You have used 5 recording checks/comparisons in the last 24 hours.'),
     SPEECH_BUSY: say('이미 처리 중인 요청이에요. 잠시 후 확인해주세요.', 'This request is already being processed.'),
     PLAYBACK: say('녹음을 재생하지 못했어요.', 'Could not play the recording.')
   };
@@ -85,7 +85,7 @@ export default forwardRef(function SpeechCheckPanel({ accountId, takes = [], ref
   return <View testID="speech-check-panel" style={{ marginVertical: 16, padding: 18, borderRadius: 16, backgroundColor: '#FFF8FA', gap: 8 }}>
     <Text style={{ fontWeight: '700', fontSize: 19 }}>{say('녹음 구간 점검 · 체험', 'Check your recording · Preview')}</Text>
     <Text>{say('소리 크기와 조용한 구간을 확인하고, 같은 대사로 다시 녹음해 비교하세요.', 'Inspect sound levels and quiet intervals, then compare another take of the same line.')}</Text>
-    <Text style={{ fontSize: 12 }}>{say('0.4~30초 · 2MB 이하 · 최근 24시간 5회. 기존 AI 글·영상 한도와 별도입니다.', '0.4–30 seconds · under 2 MB · 5 checks per rolling 24 hours, separate from text/video AI allowances.')}</Text>
+    <Text style={{ fontSize: 12 }}>{say('0.4~30초 · 2MB 이하 · 말투 비교와 합쳐 최근 24시간 5회. 기존 AI 글·영상 한도와 별도입니다.', '0.4–30 seconds · under 2 MB · 5 checks/comparisons per rolling 24 hours, separate from text/video AI allowances.')}</Text>
     <View style={{ flexDirection: 'row', gap: 8 }}>
       {button('speech-ko', `${locale === 'ko-KR' ? '✓ ' : ''}한국어`, () => change(() => setLocale('ko-KR')), busy || running)}
       {button('speech-en', `${locale === 'en-US' ? '✓ ' : ''}English (US)`, () => change(() => setLocale('en-US')), busy || running)}
