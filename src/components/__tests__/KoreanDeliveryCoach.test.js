@@ -94,3 +94,10 @@ test('unauthenticated users can listen but cannot upload', async () => {
   const ui = render(<KoreanDeliveryCoach {...props()} accountId={null} />); await open(ui);
   fireEvent.press(ui.getByTestId('delivery-consent')); fireEvent.press(ui.getByTestId('delivery-compare')); expect(compareSpeech).not.toHaveBeenCalled();
 });
+test('unprepared server keeps listening/recording usable and disables paid analysis', async () => {
+  getSpeechDrills.mockResolvedValue({ available: false, drills: [drill] });
+  const p = props(), ui = render(<KoreanDeliveryCoach {...p} />); await open(ui);
+  expect(ui.getByText(/비교 서비스가 아직 준비되지/)).toBeTruthy();
+  fireEvent.press(ui.getByTestId('delivery-consent')); fireEvent.press(ui.getByTestId('delivery-compare')); expect(compareSpeech).not.toHaveBeenCalled();
+  fireEvent.press(ui.getByTestId('delivery-record')); expect(p.onRecord).toHaveBeenCalled();
+});

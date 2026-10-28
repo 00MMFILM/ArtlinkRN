@@ -145,6 +145,7 @@ export default forwardRef(function KoreanDeliveryCoach({ accountId, language = '
         {takes.map((t, i) => btn(`delivery-target-${i}`, `${targetUri === t.uri ? '✓ ' : ''}${say('기준 녹음', 'Reference')} ${i + 1}${t.name ? ` · ${t.name}` : ''}`, () => change(() => { setTargetUri(t.uri); if (uri === t.uri) setUri(''); }), locked))}
       </> : <Text style={styles.caption}>{say('기본 음성은 AI 합성 음성입니다. 공인된 표준 발음·억양의 정답이 아니며, 아래에서 직접 듣고 연습 기준으로 선택하세요.', 'Built-in voices are AI-generated practice examples, not certified pronunciation or intonation standards. Listen before choosing one as your target.')}</Text>}
       {loading && <Text>{say('연습 음성 불러오는 중…', 'Loading practice voices…')}</Text>}
+      {!loading && drills.length > 0 && !available && <Text>{say('비교 서비스가 아직 준비되지 않았어요. 기준 듣기와 녹음은 계속 사용할 수 있어요.', 'Comparison is not ready yet. You can still listen to the reference and record your take.')}</Text>}
       {(!drills.length || !available || error === 'REFERENCE_CHANGED') && btn('delivery-reload', say('연습 음성 다시 불러오기', 'Reload practice voices'), load, loading || locked)}
       {btn('delivery-listen-target', say('기준 음성 듣기', 'Listen to reference'), () => play(target), locked || !target)}
       {!!reference && <Text style={styles.script}>{reference}</Text>}
