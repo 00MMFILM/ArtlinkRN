@@ -1320,7 +1320,9 @@ describe("녹음 중 앱이 백그라운드로 가면", () => {
   beforeEach(() => {
     resetAll();
     useApp.mockReturnValue(buildCtx("u1"));
-    jest.spyOn(AppState, "addEventListener").mockImplementation((_, fn) => { emit = fn; return { remove: jest.fn() }; });
+    const listeners = new Set();
+    emit = state => { for (const listener of [...listeners]) listener(state); };
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_, fn) => { listeners.add(fn); return { remove: () => listeners.delete(fn) }; });
     Audio.RecordingOptionsPresets = { HIGH_QUALITY: {} };
     Audio.requestPermissionsAsync.mockResolvedValue({ status: "granted" });
     rec = {
